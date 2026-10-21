@@ -1,0 +1,392 @@
+import { createHash } from 'node:crypto';
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { setImmediate } from 'node:timers/promises';
+import { promoteCandidate, type PromotionAdapter, type PromotionCandidate } from '../../scripts/release/promotion-state.ts';
+
+const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const commit = 'a'.repeat(40);
+const bytes = Buffer.from('synthetic-candidate-vsix');
+const sums = (version: string) => Buffer.from(`${digest(bytes)}  bobert-v${version}.vsix\n`);
+const candidate = (version = '0.7.0'): PromotionCandidate => ({
+  version,
+  commit,
+  sha256: digest(bytes),
+  vsixBytes: bytes,
+  checksumBytes: sums(version),
+  vsixAssetName: `bobert-v${version}.vsix`,
+  checksumAssetName: 'SHA256SUMS.txt',
+  releaseName: `Bobert v${version}`,
+  releaseNotes: `Synthetic notes for ${version}.`,
+});
+const release = (version = '0.7.0', overrides: Record<string, unknown> = {}) => ({
+  id: 77,
+  tagName: `v${version}`,
+  name: `Bobert v${version}`,
+  body: `Synthetic notes for ${version}.`,
+  draft: true,
+  prerelease: true,
+  assets: [],
+  ...overrides,
+});
+const exactPublishedRelease = (version = '0.7.0') => release(version, {
+  draft: false,
+  assets: [
+    { name: `bobert-v${version}.vsix`, sha256: digest(bytes) },
+    { name: 'SHA256SUMS.txt', sha256: digest(sums(version)) },
+  ],
+});
+
+function fakeAdapter(initial?: {
+  openVsx?: unknown;
+  tag?: unknown;
+  release?: unknown;
+}) {
+  const state: Record<string, any> = {
+    openVsx: initial?.openVsx ?? { kind: 'absent' },
+    tag: initial?.tag ?? { kind: 'absent' },
+    release: initial?.release ?? { kind: 'absent' },
+  };
+  const writes: string[] = [];
+  const flags: Record<string, boolean> = {};
+  const adapter: PromotionAdapter = {
+    async readOpenVsx() { return structuredClone(state.openVsx); },
+    async readTag() { return structuredClone(state.tag); },
+    async readRelease() { return structuredClone(state.release); },
+    async publishOpenVsx(_bytes, _authMode, preRelease) {
+      flags.openVsx = preRelease;
+      writes.push('open-vsx');
+      state.openVsx = { kind: 'present', sha256: digest(bytes) };
+    },
+    async createTag(tagName, targetSha) {
+      writes.push('tag');
+      state.tag = { kind: 'present', tagName, targetSha };
+    },
+    async createDraftRelease(input) {
+      writes.push('draft');
+      flags.draft = input.preRelease;
+      state.release = { kind: 'present', ...release(input.version, { id: 77, tagName: input.tagName, name: input.name, body: input.body, prerelease: input.preRelease }) };
+      return 77;
+    },
+    async uploadAsset(releaseId, name, content) {
+      writes.push(`asset:${name}`);
+      assert.equal(releaseId, 77);
+      state.release.assets.push({ name, sha256: digest(content) });
+    },
+    async publishRelease(releaseId, preRelease) {
+      flags.publish = preRelease;
+      writes.push('publish-release');
+      assert.equal(releaseId, 77);
+      state.release.draft = false;
+    },
+  };
+  return { adapter, state, writes, flags };
+}
+
+const expectedWrites = ['open-vsx', 'tag', 'draft', 'asset:bobert-v0.7.0.vsix', 'asset:SHA256SUMS.txt', 'publish-release'];
+
+test('delayed Open VSX and draft visibility retries reads without repeating writes', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const fake = fakeAdapter();
+  const readOpenVsx = fake.adapter.readOpenVsx;
+  const readRelease = fake.adapter.readRelease;
+  let hiddenOpenVsx = 2;
+  let hiddenDraft = 2;
+  fake.adapter.readOpenVsx = async version => {
+    if (fake.writes.includes('open-vsx') && hiddenOpenVsx-- > 0) return { kind: 'absent' };
+    return readOpenVsx(version);
+  };
+  fake.adapter.readRelease = async tag => {
+    if (fake.writes.includes('draft') && hiddenDraft-- > 0) return { kind: 'absent' };
+    return readRelease(tag);
+  };
+  const completion = promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'trusted-publishing' });
+  const checked = completion.then(result => assert.equal(result.status, 'published'));
+  // Drain the promotion's promises between virtual timer advances.
+  for (let step = 0; step < 6; step++) {
+    await setImmediate();
+    t.mock.timers.tick(16_000);
+  }
+  await checked;
+  assert.deepEqual(fake.writes, expectedWrites);
+});
+
+test('Open VSX appearing at three minutes completes without uploading twice', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const fake = fakeAdapter();
+  const readOpenVsx = fake.adapter.readOpenVsx;
+  let postWriteReads = 0;
+  fake.adapter.readOpenVsx = async version => {
+    if (fake.writes.includes('open-vsx') && ++postWriteReads < 19) return { kind: 'absent' };
+    return readOpenVsx(version);
+  };
+  const checked = promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' });
+  for (let step = 0; step < 18; step++) {
+    await setImmediate();
+    t.mock.timers.tick(10_000);
+  }
+  assert.equal((await checked).status, 'published');
+  assert.deepEqual(fake.writes, expectedWrites);
+});
+
+test('missing Open VSX publication stops after three minutes and never creates a tag', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const fake = fakeAdapter();
+  let postWriteReads = 0;
+  fake.adapter.readOpenVsx = async () => {
+    if (fake.writes.includes('open-vsx')) postWriteReads++;
+    return { kind: 'absent' };
+  };
+  const checked = assert.rejects(promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' }), /PROMOTION_WRITE_FAILED/);
+  for (let step = 0; step < 18; step++) {
+    await setImmediate();
+    t.mock.timers.tick(10_000);
+  }
+  await checked;
+  assert.equal(postWriteReads, 19);
+  assert.deepEqual(fake.writes, ['open-vsx']);
+});
+
+test('a conflicting hash after publication fails immediately without retrying or creating a tag', async () => {
+  const fake = fakeAdapter();
+  let postWriteReads = 0;
+  fake.adapter.readOpenVsx = async () => {
+    if (!fake.writes.includes('open-vsx')) return { kind: 'absent' };
+    postWriteReads++;
+    return { kind: 'present', sha256: 'f'.repeat(64) };
+  };
+  await assert.rejects(promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' }), /OPENVSX_VERSION_CONFLICT/);
+  assert.equal(postWriteReads, 1);
+  assert.deepEqual(fake.writes, ['open-vsx']);
+});
+
+test('conflicting or unavailable draft read-back fails immediately without uploading assets', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const [state, code] of [
+    [{ kind: 'unavailable' }, 'RELEASE_STATE_UNAVAILABLE'],
+    [{ kind: 'drafts-unverified' }, 'RELEASE_DRAFT_VISIBILITY_LIMITED'],
+    [{ kind: 'present', ...release('0.7.0', { draft: false, body: 'synthetic-conflicting-notes' }) }, 'RELEASE_METADATA_CONFLICT'],
+  ] as const) {
+    const fake = fakeAdapter({ openVsx: { kind: 'present', sha256: candidate().sha256 } });
+    const readRelease = fake.adapter.readRelease;
+    let postWriteReads = 0;
+    fake.adapter.readRelease = async tag => {
+      if (!fake.writes.includes('draft')) return readRelease(tag);
+      postWriteReads++;
+      return state;
+    };
+    const checked = assert.rejects(promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' }), new RegExp(code));
+    for (let step = 0; step < 6; step++) {
+      await setImmediate();
+      t.mock.timers.tick(16_000);
+    }
+    await checked;
+    assert.equal(postWriteReads, 1);
+    assert.deepEqual(fake.writes, ['tag', 'draft']);
+  }
+});
+
+test('publishes in order and verifies each completed remote state', async () => {
+  const fake = fakeAdapter();
+  const result = await promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'trusted-publishing' });
+  assert.deepEqual(fake.writes, expectedWrites);
+  assert.equal(result.status, 'published');
+  assert.equal(fake.state.openVsx.sha256, candidate().sha256);
+  assert.equal(fake.state.tag.targetSha, commit);
+  assert.equal(fake.state.release.draft, false);
+});
+
+test('an exact retry is a no-op and does not rewrite published remote state', async () => {
+  const c = candidate();
+  const fake = fakeAdapter({
+    openVsx: { kind: 'present', sha256: c.sha256 },
+    tag: { kind: 'present', tagName: 'v0.7.0', targetSha: commit },
+    release: { kind: 'present', ...exactPublishedRelease() },
+  });
+  const result = await promoteCandidate(fake.adapter, c, { dryRun: false, authMode: 'pat' });
+  assert.equal(result.status, 'already-published');
+  assert.deepEqual(fake.writes, []);
+});
+
+test('resumes a partial matching draft by uploading only missing assets', async () => {
+  const c = candidate();
+  const fake = fakeAdapter({
+    openVsx: { kind: 'present', sha256: c.sha256 },
+    tag: { kind: 'present', tagName: 'v0.7.0', targetSha: commit },
+    release: { kind: 'present', ...release('0.7.0', { assets: [
+      { name: c.vsixAssetName, sha256: c.sha256 },
+    ] }) },
+  });
+  const result = await promoteCandidate(fake.adapter, c, { dryRun: false, authMode: 'trusted-publishing' });
+  assert.equal(result.status, 'published');
+  assert.deepEqual(fake.writes, ['asset:SHA256SUMS.txt', 'publish-release']);
+});
+
+test('resumes after Open VSX publication or an exact tag already exists', async () => {
+  const c = candidate();
+  const openVsxOnly = fakeAdapter({ openVsx: { kind: 'present', sha256: c.sha256 } });
+  assert.equal((await promoteCandidate(openVsxOnly.adapter, c, { dryRun: false, authMode: 'pat' })).status, 'published');
+  assert.deepEqual(openVsxOnly.writes, ['tag', 'draft', `asset:${c.vsixAssetName}`, 'asset:SHA256SUMS.txt', 'publish-release']);
+
+  const tagOnly = fakeAdapter({ tag: { kind: 'present', tagName: 'v0.7.0', targetSha: commit } });
+  assert.equal((await promoteCandidate(tagOnly.adapter, c, { dryRun: false, authMode: 'trusted-publishing' })).status, 'published');
+  assert.deepEqual(tagOnly.writes, ['open-vsx', 'draft', `asset:${c.vsixAssetName}`, 'asset:SHA256SUMS.txt', 'publish-release']);
+});
+
+test('conflicting or unverifiable Open VSX, tag, release, or asset state fails closed', async () => {
+  const c = candidate();
+  const cases = [
+    { openVsx: { kind: 'present', sha256: 'f'.repeat(64) } },
+    { openVsx: { kind: 'unavailable' } },
+    { tag: { kind: 'present', tagName: 'v0.7.0', targetSha: 'b'.repeat(40) } },
+    { release: { kind: 'present', ...release('0.7.0', { body: 'different notes' }) } },
+    { release: { kind: 'present', ...release('0.7.0', { assets: [
+      { name: c.vsixAssetName, sha256: 'f'.repeat(64) },
+    ] }) } },
+    { release: { kind: 'present', ...release('0.7.0', { assets: [
+      { name: 'synthetic-unexpected.txt', sha256: digest(bytes) },
+    ] }) } },
+  ];
+  for (const state of cases) {
+    const fake = fakeAdapter(state);
+    await assert.rejects(promoteCandidate(fake.adapter, c, { dryRun: false, authMode: 'pat' }));
+    assert.deepEqual(fake.writes, []);
+  }
+});
+
+test('a published but incomplete release cannot be repaired or edited', async () => {
+  const c = candidate();
+  const fake = fakeAdapter({
+    openVsx: { kind: 'present', sha256: c.sha256 },
+    tag: { kind: 'present', tagName: 'v0.7.0', targetSha: commit },
+    release: { kind: 'present', ...exactPublishedRelease(), assets: [] },
+  });
+  await assert.rejects(promoteCandidate(fake.adapter, c, { dryRun: false, authMode: 'pat' }));
+  assert.deepEqual(fake.writes, []);
+});
+
+test('a dry run reads readiness but makes zero write calls', async () => {
+  const fake = fakeAdapter();
+  const result = await promoteCandidate(fake.adapter, candidate(), { dryRun: true, authMode: 'trusted-publishing' });
+  assert.equal(result.status, 'ready');
+  assert.deepEqual(fake.writes, []);
+  assert.deepEqual(fake.state.openVsx, { kind: 'absent' });
+  assert.deepEqual(fake.state.tag, { kind: 'absent' });
+  assert.deepEqual(fake.state.release, { kind: 'absent' });
+});
+
+test('limited draft visibility is allowed only in read-only preflight', async () => {
+  const fake = fakeAdapter({ release: { kind: 'drafts-unverified' } });
+  assert.equal((await promoteCandidate(fake.adapter, candidate(), { dryRun: true, authMode: 'pat' })).status, 'ready');
+  await assert.rejects(promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' }), /RELEASE_DRAFT_VISIBILITY_LIMITED/);
+  assert.deepEqual(fake.writes, []);
+});
+
+test('failed asset upload is retried only after rediscovering the exact matching draft', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const c = candidate();
+  const fake = fakeAdapter({
+    openVsx: { kind: 'present', sha256: c.sha256 },
+    tag: { kind: 'present', tagName: 'v0.7.0', targetSha: commit },
+    release: { kind: 'present', ...release() },
+  });
+  const upload = fake.adapter.uploadAsset;
+  let failOnce = true;
+  fake.adapter.uploadAsset = async (...args) => {
+    if (failOnce) { failOnce = false; throw new Error('synthetic upload failure'); }
+    return upload(...args);
+  };
+  const checked = assert.rejects(promoteCandidate(fake.adapter, c, { dryRun: false, authMode: 'pat' }), /PROMOTION_WRITE_FAILED/);
+  for (let step = 0; step < 6; step++) {
+    await setImmediate();
+    t.mock.timers.tick(16_000);
+  }
+  await checked;
+  assert.equal(fake.state.release.draft, true);
+  assert.equal((await promoteCandidate(fake.adapter, c, { dryRun: false, authMode: 'pat' })).status, 'published');
+  assert.deepEqual(fake.writes, [`asset:${c.vsixAssetName}`, 'asset:SHA256SUMS.txt', 'publish-release']);
+});
+
+test('v0.5.2 is a read-only exact no-op and never receives repair writes', async () => {
+  const c = candidate('0.5.2');
+  const exact = exactPublishedRelease('0.5.2');
+  const fake = fakeAdapter({
+    openVsx: { kind: 'present', sha256: c.sha256 },
+    tag: { kind: 'present', tagName: 'v0.5.2', targetSha: commit },
+    release: { kind: 'present', ...exact },
+  });
+  const result = await promoteCandidate(fake.adapter, c, { dryRun: false, authMode: 'pat' });
+  assert.equal(result.status, 'already-published');
+  assert.deepEqual(fake.writes, []);
+
+  const incomplete = fakeAdapter({
+    openVsx: { kind: 'present', sha256: c.sha256 },
+    tag: { kind: 'present', tagName: 'v0.5.2', targetSha: commit },
+    release: { kind: 'absent' },
+  });
+  await assert.rejects(promoteCandidate(incomplete.adapter, c, { dryRun: false, authMode: 'pat' }));
+  assert.deepEqual(incomplete.writes, []);
+});
+
+test('rejects a candidate whose version metadata and asset names disagree', async () => {
+  const bad = { ...candidate(), releaseName: 'Bobert v0.8.0' };
+  const fake = fakeAdapter();
+  await assert.rejects(promoteCandidate(fake.adapter, bad, { dryRun: false, authMode: 'pat' }));
+  assert.deepEqual(fake.writes, []);
+});
+
+const notesCandidate = (notes: string) => ({ ...candidate(), releaseNotes: notes });
+const dryRunWithBody = (notes: string, body: string) =>
+  promoteCandidate(fakeAdapter({ tag: { kind: 'present', tagName: 'v0.7.0', targetSha: commit }, release: { kind: 'present', ...release('0.7.0', { body }) } }).adapter, notesCandidate(notes), { dryRun: true, authMode: 'pat' });
+
+test('release notes returned with CRLF or without the final newline still match', async () => {
+  const notes = 'Synthetic line one.\nSynthetic line two.\n';
+  for (const body of [notes, notes.replace(/\n/g, '\r\n'), notes.slice(0, -1), notes.slice(0, -1).replace(/\n/g, '\r\n')]) {
+    assert.equal((await dryRunWithBody(notes, body)).status, 'ready');
+  }
+  assert.equal((await dryRunWithBody('Synthetic one line.', 'Synthetic one line.\r\n')).status, 'ready');
+});
+
+test('release notes with any other whitespace or content difference fail closed', async () => {
+  const notes = 'Synthetic line one.\nSynthetic line two.\n';
+  const bodies = [
+    `${notes}\n`,
+    `${notes}\r\n\r\n`,
+    'Synthetic line one.\nSynthetic line two.  \n',
+    'Synthetic line one.\nSynthetic line two.\t',
+    ' Synthetic line one.\nSynthetic line two.\n',
+    'Synthetic line one.\n\nSynthetic line two.\n',
+    'Synthetic line one.\rSynthetic line two.\r',
+    notes.replace('two', 'three'),
+  ];
+  for (const body of bodies) await assert.rejects(dryRunWithBody(notes, body), /RELEASE_METADATA_CONFLICT/);
+  await assert.rejects(dryRunWithBody('Synthetic note.', 'Synthetic note.  '), /RELEASE_METADATA_CONFLICT/);
+});
+
+test('the release channel follows the version: odd minor publishes pre-release, even minor stable', async () => {
+  const pre = fakeAdapter();
+  await promoteCandidate(pre.adapter, candidate('0.13.0'), { dryRun: false, authMode: 'pat' });
+  assert.deepEqual(pre.flags, { openVsx: true, draft: true, publish: true });
+  assert.equal(pre.state.release.prerelease, true);
+
+  const stable = fakeAdapter();
+  const result = await promoteCandidate(stable.adapter, candidate('1.0.0'), { dryRun: false, authMode: 'pat' });
+  assert.equal(result.status, 'published');
+  assert.deepEqual(stable.flags, { openVsx: false, draft: false, publish: false });
+  assert.equal(stable.state.release.prerelease, false);
+});
+
+test('an existing release whose prerelease value differs from the version channel fails closed without writes', async () => {
+  for (const [version, wrong] of [['0.7.0', false], ['1.0.0', true]] as const) {
+    const c = candidate(version);
+    for (const draft of [true, false]) {
+      const fake = fakeAdapter({
+        openVsx: { kind: 'present', sha256: c.sha256 },
+        tag: { kind: 'present', tagName: `v${version}`, targetSha: commit },
+        release: { kind: 'present', ...exactPublishedRelease(version), draft, prerelease: wrong },
+      });
+      await assert.rejects(promoteCandidate(fake.adapter, c, { dryRun: false, authMode: 'pat' }), /RELEASE_METADATA_CONFLICT/, `${version} draft=${draft}`);
+      assert.deepEqual(fake.writes, []);
+    }
+  }
+});

@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+*.tsbuildinfo
+.pnpm-store/
+dist/
+.vscode-test/
+
+# Local-only files that must never be committed
+.agents/
+.env
+.env.*
+*.vsix
