@@ -4,7 +4,8 @@ Canonical Bobert icon files. See [docs/branding.md](../../docs/branding.md) for 
 
 | File | Purpose |
 | --- | --- |
-| `source/bobert-icon.svg` | Vector source of the icon. Every PNG here is rendered from it. |
+| `source/bobert-icon.svg` | Vector source of the icon. Every icon PNG here is rendered from it. |
+| `source/bobert-github-social-preview.svg` | Source of the social preview (Bobert without the tile, Avenir Next). |
 | `bobert-icon-1024.png` | Largest rendering, transparent corners. For release material and avatars. |
 | `bobert-icon-512.png` | Documentation and release pages. |
 | `bobert-icon-256.png` | **Packaged extension icon** (`package.json` `icon`). |
