@@ -32,7 +32,7 @@
   ],
   "type": "module",
   "displayName": "Bobert: Kiro Credit Tracker",
-  "description": "See when your Kiro credits run out, what going over would cost, and which files and hooks waste credits. Free, unofficial.",
+  "description": "Forecast your Kiro credit budget, estimate additional credit costs, and review files and automatic hooks. Free, unofficial.",
   "publisher": "StefanSuess",
   "icon": "assets/branding/bobert-icon-256.png",
   "main": "./dist/extension.cjs",
@@ -197,7 +197,7 @@
           {
             "id": "bobert.gettingStarted.budget",
             "title": "Get warned before credits run out",
-            "description": "Bobert can tell you when your credits are on course to run out before the reset, and what the overage could cost. It is on by default; you can change it in the settings.\n[Open budget settings](command:workbench.action.openSettings?%5B%22bobert.budgetWarnings%22%5D)",
+            "description": "Bobert can tell you when your credits are on course to run out before the reset, and estimate what additional credits could cost. It is on by default; you can change it in the settings.\n[Open budget settings](command:workbench.action.openSettings?%5B%22bobert.budgetWarnings%22%5D)",
             "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Budget notice settings" },
             "completionEvents": ["onStepSelected"]
           },
@@ -229,7 +229,7 @@
     "viewsWelcome": [
       {
         "view": "bobert.auditView",
-        "contents": "Find files in this workspace that Kiro can read but probably doesn't need, like secrets, database dumps or build output, and Steering and Hooks that add avoidable context or credit use. Bobert suggests changes; nothing changes until you save.\n[Run the workspace audit](command:bobert.auditWorkspace)",
+        "contents": "Review files Kiro may not need, such as possible secret files, database dumps or build output, plus Steering and Hooks that add context or trigger agent work. Credit consumption per file or hook is not measured. Bobert suggests changes; nothing changes until you save.\n[Run the workspace audit](command:bobert.auditWorkspace)",
         "when": "workspaceFolderCount > 0 && isWorkspaceTrusted"
       },
       {
