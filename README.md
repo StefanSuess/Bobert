@@ -11,19 +11,19 @@
 
 Bobert looks like he has seen a ghost. He has: your credit forecast.
 
-Kiro tells you how many credits you have used. Bobert tells you what that means: whether they will last until the reset, what going over would cost, and where credits quietly leak away. It's all in your status bar, a few days before it matters rather than at the end of the cycle.
+Kiro tells you how many credits you have used. Bobert helps you plan ahead: whether they are likely to last until the reset and what additional credits could cost. It also highlights files and automatic hooks worth reviewing. Start with your credit budget in the status bar.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/demo.gif" alt="Animated story with invented data: Bobert, a robot with a gauge for a mouth, watches the Kiro credit meter drain to 0% before the reset; a notice warns five days before the credits run out; the credit view shows that going over would cost about $38 (modelled); a speech bubble shows the model hint that a pricier model uses more credits than Auto; the workspace audit finds 190 MB of dumps and a hook that runs on every change; Bobert prepares the fix for review; the end card types Bobert into an extensions search box." width="900">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/demo.gif" alt="Animated story with invented data: Bobert, a robot with a gauge for a mouth, watches the Kiro credit meter drain to 0% before the reset; a notice warns five days before the credits run out; the credit view shows a modelled cost of about $38 for credits beyond the reported limit; a speech bubble shows the model hint that a pricier model uses more credits than Auto; the workspace audit finds 190 MB of dumps and a hook that runs on every change; Bobert prepares the fix for review; the end card types Bobert into an extensions search box." width="900">
 </p>
 
 ## Why you'll want it
 
-- **No nasty surprise at the end of the cycle.** Bobert forecasts the day your credits run out and warns you while there is still time to change course: at 80 % (adjustable), when a run-out before the reset becomes likely, and when the limit is reached.
-- **See what it costs in dollars.** A projected overage is put into add-on credits and a dollar figure. The Cost Advisor leads with one recommendation, which can be a smaller plan plus add-on credits when that is cheaper, and keeps its assumptions in a collapsed section. When a smaller plan would have been enough, Bobert says so.
-- **Stop feeding Kiro files it doesn't need.** One click finds secrets, database dumps, archives and build output that Kiro can read, and prepares the `.kiroignore` lines for you.
-- **Find the hidden credit drains.** Bobert flags large Steering files that load into every request and hooks that start the agent on every save. For each one it prepares a fix for you to review and save.
-- **Notice when a session gets expensive.** You get a nudge when a session's context is about 70 % or 85 % full, or when a pricier model is eating into a tight budget, with [tips for spending fewer credits](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/credit-tips.md).
+- **Plan ahead for your next reset.** Once enough comparable history is available, Bobert estimates when your credits could run out and warns you about your budget: at 80 % (adjustable), when a run-out before the reset becomes likely, and when the limit is reached.
+- **Estimate additional credit costs.** For paid consumer plans, Bobert estimates the add-on credits you may need and their cost at list prices. These are purchase estimates, not automatic charges. The Cost Advisor leads with one recommendation, which can be a smaller plan plus add-on credits when that is cheaper, and keeps its assumptions in a collapsed section. When a smaller plan would have been enough, Bobert says so.
+- **Review files Kiro may not need.** The workspace audit flags possible secret files, database dumps, archives and build output by filename and prepares `.kiroignore` lines for you to review. It does not measure their credit consumption.
+- **Review automatic context and agent work.** Bobert flags large always-included Steering files and hooks that trigger agent work automatically. It suggests changes for you to review; actual credit savings depend on how you use Kiro.
+- **Keep context and model choices in view.** You get a nudge when a session's context is about 70 % or 85 % full, or a model hint based on Kiro's published credit rates when your budget is tight or context is filling up, with [tips for spending fewer credits](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/credit-tips.md).
 - **Your whole cycle at a glance.** The status bar shows your daily budget. The credit view adds a usage chart with forecast scenarios and a recap of the last cycle that you can share.
 
 Free and open source, with no account, no sign-in and no telemetry. Everything stays on your machine, and Kiro's files are only ever read.
