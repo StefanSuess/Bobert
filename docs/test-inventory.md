@@ -21,11 +21,11 @@ What must be verified for Bobert, how each item is verified today, and what is s
 | Status bar | Item text and state colour, opens the credit view | `view`, `presentation` | A for text; **M** for placement next to Kiro items | pass |
 | Cost Advisor | Plan hint vs confirmed answer, modelled USD with UTC period, details, cancel keeps, clear/reload resets, unsupported inputs withhold figures | `cost-*`, `advisor-inline`, `plan-hints`, `cost-extension` | A; native questions flow **M** | pass (Pro Max path); unknown plan, Enterprise, entered add-ons, changed limit not run natively |
 | Budget warnings | Notice at the configured percent, once per cycle, Show details, Turn off | `budget-warning` | A | pass |
-| Session hints, context reminder | 70 % and 85 % notices, re-arm, per-session limits | `session-notices`, `session-hints`, `session-reader`, `session-parse` | A | pass (synthetic session files, 88 %) |
-| Session hints, model hint | Only with a reason (tight budget or 30 % full), once per model, wording, buttons | `session-notices`, `session-hints` | A | pass (Opus 4.5 row) |
-| Workspace audit | Filename findings by kind, groups, Not checked, partial check, hide/show again | `audit*`, `audit-model`, `audit-walk` | A | pass (6 findings of 6 seeded) |
+| Session hints, context reminder | 70 % and 85 % notices, re-arm, per-session limits | `session-notices`, `session-hints`, `session-reader`, `session-parse`, `acceptance-env` (invented session, real reader) | A | pass (synthetic session files, 88 %) |
+| Session hints, model hint | Only with a reason (tight budget or 30 % full), once per model, wording, buttons | `session-notices`, `session-hints`, `acceptance-env` | A | pass (Opus 4.5 row) |
+| Workspace audit | Filename findings by kind, groups, Not checked, partial check, hide/show again | `audit*`, `audit-model`, `audit-walk`, `acceptance-env` (rich demo workspace yields 6 findings) | A | pass (6 findings of 6 seeded) |
 | Audit actions | Exclude from Kiro preview, tick and Apply, nothing-ticked message, unsaved-only, re-check after save, `.kiroignore` not active note | `file-target`, `audit-ignore`, `audit-schedule` | A for logic; **M** for Kiro's change preview | pass |
-| Steering and Hooks review | Always-included Steering, broad hooks, AGENTS.md size, fileMatch `**/*`, combined size, overlap | `config-*` | A | pass; see finding F1 |
+| Steering and Hooks review | Always-included Steering, broad hooks, AGENTS.md size, fileMatch `**/*`, combined size, overlap | `config-*`, `acceptance-env` | A | pass; F1 fixed (test in `config-rules`) |
 | Steering and Hooks actions | Load only when needed, Run only manually, Disable hook, Narrow the pattern, guards (unsaved, autosave, changed file) | `config-apply`, `config-edit`, `config-extension` | A for logic; **M** for preview and save | pass for the first two; Disable hook and Narrow the pattern not run natively |
 | Automatic review and audit | `onOpen`, `onOpenAndChanges`, watcher, reminders, snooze, Don't remind me | `config-auto`, `config-schedule`, `audit-schedule` | A | not run natively (default off) |
 | Support prompts, walkthrough | Offer once, off switch, walkthrough steps tick | `support-schedule`, `extension` | A | pass (prompt and walkthrough shown) |
@@ -36,18 +36,22 @@ What must be verified for Bobert, how each item is verified today, and what is s
 | CLI | Output, exit codes, data folder `Bobert` | `cli` | A | not run natively |
 | Accessibility | Heading order, keyboard reach, screen reader text, High Contrast Light | `dashboard-webview` (markup only) | **M** | keyboard and screen reader not run |
 | Stale / unavailable / collecting states | Own label and colour, no false certainty | `presentation`, `view` | A | not run natively |
-| Windows, Ubuntu | Same checks on their own hosts | CI jobs on three systems | A for tests; **M** for native Kiro | not run |
+| Windows, Ubuntu | Same checks on their own hosts | CI jobs on three systems (x64); `scripts/acceptance/*` set up the native environment | A for tests; **M** for native Kiro | 2026-10-23, ARM64 VMs (Windows 11, Ubuntu 26.04): maintainer reported pass; Windows audit view seen by the agent |
 
-## Open findings from the 2026-10-23 acceptance (aa42b39)
+## Findings from the 2026-10-23 acceptance (aa42b39)
 
-- **F1, Hooks may overlap after Run only manually.** After both hooks of a file were set to `Manual`, the review still lists "Hooks may overlap", because `src/audit/config-rules.ts` groups hooks by trigger including `Manual`. Manual hooks never start by themselves. Suggest excluding `Manual` from the overlap grouping and adding a test. Low severity, wording is hedged ("may overlap").
-- **F2, stale checklist.** [macos-acceptance.md](macos-acceptance.md) A6 says three settings; there are ten. Fixed in this PR.
+- **F1, Hooks may overlap after Run only manually.** Fixed in PR 7: `Manual` hooks are left out of the overlap grouping (test `H5 ignores Manual hooks…`).
+- **F2, stale checklist.** `macos-acceptance.md` A6 said three settings; there are ten. Fixed here.
+
+## Native test environment
+
+`pnpm demo:setup --rich --install --pace high --open` (or `scripts/acceptance/mac.sh`, `ubuntu.sh`, `windows.ps1`) creates invented usage, an invented workspace that triggers every audit and review group, the extension pre-installed in an isolated Kiro profile and a Kiro window; `seed-session.mjs` in the demo folder writes an invented chat session for the hints. Only the Kiro sign-in is manual, and it is the maintainer's. See [synthetic-demo.md](synthetic-demo.md).
 
 ## Automation backlog (do these before adding manual checks)
 
-1. **Session hints in the host suite:** write invented `session.json` and `messages.jsonl` under the synthetic HOME and assert the notice text and the diagnostics counter. Replaces the native chat-reminder check.
+1. **Session hints in the host suite:** the invented-session reader and notice logic are automated in `acceptance-env`; the remaining step is asserting the notice and the diagnostics counter through the real extension in the host suite.
 2. **Settings hardening in the host suite:** write a workspace `settings.json` with `bobert.sourceRoot` and `bobert.storageRoot` and assert they are ignored and nothing is created (replaces check B1).
-3. **Audit and review in the host suite:** run both commands on an invented workspace tree and assert the groups and counts; assert the prepared edit for Load only when needed and Run only manually (no save in Kiro needed).
+3. **Audit and review in the host suite:** groups and counts on the invented tree are automated in `acceptance-env`; still open: running the commands through the extension and asserting the prepared edits for Load only when needed and Run only manually.
 4. **Cost Advisor answers by command:** drive the quick-pick answers programmatically and assert the modelled figure for the documented example.
 5. **Unsupported advisor inputs and stale/unavailable states:** table tests over `presentation` and `cost-*` with fixed synthetic observations (E3, D3).
 6. **Run the host suite against Kiro without sign-in:** check whether `BOBERT_TEST_KIRO_EXECUTABLE` ([platform verification](platform-verification.md)) reaches the workbench unauthenticated; if yes, most native checks above can run without the maintainer.
