@@ -37,5 +37,6 @@
 ## Checks and public collaboration
 
 - Run `pnpm typecheck` and `pnpm test` for code changes. Run `python3 tests/fixtures/kiro/validate.py` for fixture changes; for fixture or documentation changes also run `git diff --check`. Follow task-specific release checks in [development guidance](docs/development.md).
+- Keep [docs/test-inventory.md](docs/test-inventory.md) current: a PR that adds or changes a user-visible feature adds or updates its row there. Automate checks (unit, release or extension-host tests with synthetic fixtures) before adding a manual native check, and give a reason for every manual-only row.
 - Inspect the staged files before committing; stage explicit intended paths only. Never stage real data or blanket-add unrelated files.
 - Do not include Claude Code session URLs (`claude.ai/code/session_...`) or private thread links in commits, issues or PRs. Normal AI attribution, including `Co-Authored-By`, is allowed; `.claude/settings.json` disables session URL attribution.
