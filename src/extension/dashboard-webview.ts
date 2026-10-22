@@ -9,11 +9,11 @@ declare function acquireVsCodeApi(): { postMessage(message: object): void };
 const vscode = acquireVsCodeApi();
 const load = Number(document.documentElement.getAttribute('data-cg-load'));
 const TAGS = new Set('main section article div h1 h2 h3 h4 p span dl dt dd details summary table caption thead tbody tr th td footer form fieldset legend label select option input button a svg defs pattern line rect circle polygon path text title desc ul li figure figcaption strong em small br canvas'.split(' '));
-const ATTRS = new Set('id class role aria-label aria-hidden aria-labelledby aria-describedby aria-live aria-atomic aria-invalid scope type name for value data-advisor-epoch data-plan data-billing data-add-ons data-add-on-credits data-kind data-chart-point tabindex hidden x y x1 x2 y1 y2 cx cy r width height viewBox preserveAspectRatio d points text-anchor patternUnits patternTransform stroke-dasharray stroke-width stroke-opacity stroke-linecap fill-opacity'.split(' '));
+const ATTRS = new Set('id class role aria-label aria-hidden aria-labelledby aria-describedby aria-live aria-atomic aria-invalid scope type name for value data-advisor-epoch data-plan data-billing data-add-ons data-add-on-credits data-hint data-kind data-chart-point tabindex hidden x y x1 x2 y1 y2 cx cy r width height viewBox preserveAspectRatio d points text-anchor patternUnits patternTransform stroke-dasharray stroke-width stroke-opacity stroke-linecap fill-opacity'.split(' '));
 const SAFE_LINKS = new Set(['https://open-vsx.org/extension/StefanSuess/bobert/reviews', 'https://github.com/StefanSuess/Bobert', 'https://ko-fi.com/stefansuess', 'command:bobert.costAdvisor', 'command:bobert.auditWorkspace', 'command:bobert.audit.show', 'command:bobert.share', 'command:bobert.reportProblem']);
 const SVG = 'http://www.w3.org/2000/svg';
 // `hidden` is allowed only on these ids, each on its own tag; the script reveals them once it runs.
-const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure' });
+const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'advisor-confirm': 'button', 'advisor-change-open': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure' });
 // Literal DOM sinks make the permitted grammar explicit even if an inbound model is hostile.
 const HTML_ELEMENTS: Record<string, () => Element> = {
  main: () => document.createElement('main'), section: () => document.createElement('section'), article: () => document.createElement('article'), div: () => document.createElement('div'),
@@ -54,6 +54,7 @@ function valid(node: unknown, depth = 0, budget = { n: 0 }): node is DomNode {
  if (Object.hasOwn(attrs, 'tabindex') && (!['circle', 'polygon'].includes(n.tag) || !['0', '-1'].includes(attrs.tabindex!))) return false;
  if (Object.hasOwn(attrs, 'aria-live') && (!['dd','p'].includes(n.tag) || attrs['aria-live'] !== 'polite')) return false;
  if (Object.hasOwn(attrs, 'aria-atomic') && (n.tag !== 'dd' || attrs['aria-atomic'] !== 'true')) return false;
+ if (Object.hasOwn(attrs, 'data-hint') && (tag !== 'button' || attrs.id !== 'advisor-confirm' || !['free','pro','pro_plus','pro_max','power'].includes(attrs['data-hint']!))) return false;
  if (Object.hasOwn(attrs, 'hidden') && (HIDDEN_IDS[attrs.id ?? ''] !== n.tag || attrs.hidden !== '')) return false;
  if (n.tag === 'canvas' && (attrs.id !== 'recap-canvas' || attrs.width !== String(CARD_WIDTH) || attrs.height !== String(CARD_HEIGHT) || n.children.length)) return false;
  return n.children.every(child => valid(child, depth + 1, budget));
@@ -202,6 +203,8 @@ function advisorStatus(text:string,fields:string[]=[]):void {
 }
 function syncAdvisor():void {
  const form=advisorForm();if(!form)return;
+ // Confirm / Change / Choose plan are inert without this form and script, so they are revealed only here.
+ for(const id of ['advisor-confirm','advisor-change-open'])document.querySelector(`#${id}`)?.removeAttribute('hidden');
  const next=reconcileAdvisorDraft({hasDraft:advisorDraft!==null,ticket:advisorTicket,awaitingEpoch:advisorAwaitingEpoch,editVersion:advisorEditVersion,savedVersion:advisorSavedVersion,modelEpoch:Number(form.getAttribute('data-advisor-epoch')),hostEpoch:advisorHostEpoch});
  advisorAwaitingEpoch=next.awaitingEpoch;
  if(!next.keepDraft)advisorDraft=null;
@@ -219,13 +222,36 @@ window.addEventListener('click',event=>{
  const form=advisorForm();if(!form||!event.isTrusted||event.target!==form.querySelector('#advisor-review-again'))return;
  advisorTicket=advisorEpoch();form.querySelector('#advisor-review-again')?.setAttribute('hidden','');advisorStatus('Review your answers, then submit again.');
 });
-window.addEventListener('submit',event=>{
- const form=advisorForm();if(!form||event.target!==form)return;
- event.preventDefault();if(!event.isTrusted||advisorPending)return;
+function submitAdvisor(form:HTMLFormElement):void {
+ if(advisorPending)return;
  if(advisorTicket!==advisorEpoch()){advisorStatus('Your answers changed elsewhere; review and submit again.');form.querySelector('#advisor-review-again')?.removeAttribute('hidden');return;}
  const draft=advisorFields(form);advisorDraft=draft;if(!advisorSubmissionUnresolved){advisorSubmittedVersion=advisorEditVersion;advisorSubmissionUnresolved=true;}advisorPending=true;advisorStatus('Reviewing Cost Advisor answers…');
  advisorTimer=setTimeout(()=>{if(advisorPending){advisorPending=false;advisorStatus('The review has not finished. Try again later.');}},15000);
  vscode.postMessage({type:'advisorSubmit',ticket:advisorTicket, ...draft});
+}
+window.addEventListener('submit',event=>{
+ const form=advisorForm();if(!form||event.target!==form)return;
+ event.preventDefault();if(!event.isTrusted)return;
+ submitAdvisor(form);
+});
+// "Confirm" answers the form with the plan the page assumed (and the answers already in the form) through the same validated submit;
+// "Change" / "Choose plan" only opens the form. Neither sends a new kind of message.
+const ADVISOR_PLANS=['free','pro','pro_plus','pro_max','power'];
+window.addEventListener('click',event=>{
+ const form=advisorForm(),target=event.target as Element|null;
+ if(!form||!event.isTrusted||!target?.getAttribute)return;
+ const id=target.getAttribute('id');
+ const select=form.elements.namedItem('plan') as HTMLSelectElement|null;
+ if(id==='advisor-confirm'){
+  const plan=target.getAttribute('data-hint');
+  if(!select||!plan||!ADVISOR_PLANS.includes(plan))return;
+  // Unlike an edit, Confirm keeps the ticket of the answers the page showed, so a stale page is refused by the submit check.
+  select.value=plan;advisorDraft=advisorFields(form);advisorEditVersion++;
+  submitAdvisor(form);
+ }else if(id==='advisor-change-open'){
+  document.querySelector('#advisor-change')?.setAttribute('open','');
+  select?.focus();
+ }
 });
 
 // Recap card and CSV export. The static page already holds the card's text; this only reveals the buttons, draws the same text on the canvas

@@ -12,7 +12,10 @@ import {request,profile,forecastEvidence,syntheticCatalog} from './cost-syntheti
 import type {BillingProfile,CostOptimization,CostRequest,PricingCatalog} from '../../src/cost/types.ts';
 
 // Entirely invented figures. The reviewed bundled prices are used on a synthetic 2030 timeline.
-const fresh=():PricingCatalog=>{const c=structuredClone(reviewedCatalog);c.verifiedOn='2030-01-01T00:00:00Z';return c;};
+// `fresh` models unknown purchase rules (the state before 2026-10-22): extra credits on a plan cannot be priced, which
+// exercises every "could not be priced" path. `current` is the bundled catalog as shipped: whole-credit, exact add-on purchases.
+const fresh=():PricingCatalog=>{const c=structuredClone(reviewedCatalog);c.verifiedOn='2030-01-01T00:00:00Z';c.consumer.purchaseStepCredits=null;c.consumer.moneyRounding=null;return c;};
+const current=():PricingCatalog=>{const c=structuredClone(reviewedCatalog);c.verifiedOn='2030-01-01T00:00:00Z';return c;};
 const ctx=(over:Partial<AdvisorContext>={}):AdvisorContext=>({planSource:'confirmed',plan:'pro_plus',billingConfirmed:true,addOns:'none',assumptions:[],...over});
 /** Manual monthly demand through the real simulator and optimizer. `credits` is the base full-cycle demand. */
 // Manual what-if demand is never a production advisor input, so the fixture is relabelled as a regular forecast.
@@ -65,27 +68,35 @@ test('unconfirmed current plan: the estimate lists every assumption and never re
  assert.equal(est.tier,'modelled');
  for(const c of ['plan_is_hint','billing_assumed_consumer','add_ons_assumed_none'])assert.ok(est.conditions.includes(c),c);
  const html=presentAdvisor({hint:planHint('1000',reviewedCatalog),context:built.context,horizons,advice,singleAccount:true,limit:'1000'});
- assert.ok(html.includes('Modelled estimate'));assert.ok(html.includes('Unconfirmed'));assert.ok(!html.includes('Confirmed by you'));
+ assert.ok(html.includes('Modelled estimate'));assert.ok(html.includes('(assumed from your 1,000-credit limit)'));assert.ok(!html.includes('>Confirmed<'));assert.ok(!html.includes('Confirmed by you'));
  assert.match(html,/inferred from your reported 1000-credit limit, not confirmed/);
  assert.match(html,/personal \(consumer\) billing/);assert.match(html,/no purchased add-on credits/);
- // The plan can be corrected from the same view.
- assert.match(html,/Not your plan\? Change your plan answers below\./);assert.ok(!html.includes('status bar'));assert.ok(!html.includes('light-bulb'));assert.ok(!html.includes('Open Cost Advisor'));
+ // The plan is confirmed or changed with the two buttons next to it; the old duplicated instructions are gone.
+ assert.match(html,/<button id="advisor-confirm" type="button" class="plan-button primary" data-hint="pro" hidden>Confirm<\/button> <button id="advisor-change-open" type="button" class="plan-button" hidden>Change<\/button>/);
+ for(const gone of ['Not your plan?','Change your plan answers below','Change your plan or answers','status bar','light-bulb','Open Cost Advisor','Likely plan'])assert.ok(!html.includes(gone),gone);
+ // The muted line says the estimate assumes the plan, billing and add-on state.
+ assert.match(html,/<p class="muted small">Estimate from list prices and your usage forecast, before tax\. It assumes you are on Pro\. Not a guarantee\./);
  // A tiny forecast fits the Free plan; that switch carries its own caveat.
  assert.equal(est.base?.best?.plan,'free');assert.ok(est.conditions.includes('free_plan_terms_unverified'));
  assert.match(html,/Free plan terms for your account were not verified/);
+ assert.match(html,/<p class="verdict"><strong>Switch to Free at your next reset: about \$0 a month instead of \$20\.<\/strong><\/p>/);
+ assert.match(html,/Moving to Free means cancelling the paid plan; Free terms for your account were not verified\./);
 });
 
 test('confirmed plan and billing details are shown as confirmed; the figure stays modelled while engine conditions remain',()=>{
  const e=estimate('900');
  const html=present(e);
  assert.equal(e.est.tier,'modelled');
- assert.ok(html.includes('Confirmed by you'));assert.ok(html.includes('Your plan'));assert.ok(!html.includes('Unconfirmed'));
+ assert.ok(html.includes('<span class="badge">Confirmed</span>'));assert.ok(html.includes('Your plan:'));assert.ok(!html.includes('assumed from'));assert.ok(!html.includes('id="advisor-confirm"'));
  assert.match(html,/you are on Pro\+ \(confirmed by you\)/);
  assert.ok(!html.includes('personal (consumer) billing'));assert.ok(!html.includes('no purchased add-on credits'));
- assert.match(html,/Pro\+ to Pro at your next billing reset: \$40 becomes \$20/);
- assert.match(html,/\$20 under your current forecast<\/strong> <span>modelled saving per billing cycle/);
- assert.match(html,/from 2030-01-01 UTC, 1 month/);assert.match(html,/<li>Your forecast of about 900 credits per cycle fits within Pro's 1000 credits\.<\/li>/);
- assert.match(html,/Change your plan or answers/);assert.ok(!html.includes('status bar'));assert.ok(!html.includes('Open Cost Advisor'));
+ // One decision sentence, the saving, one explanation and one muted line; costs round up, savings round down.
+ assert.match(html,/<p class="verdict"><strong>Switch to Pro at your next reset: about \$20 a month instead of \$40\.<\/strong><\/p>/);
+ assert.match(html,/<p class="figure"><strong>Save about \$20 a month under your current forecast<\/strong><\/p>/);
+ assert.match(html,/<p class="small">Pro includes 1,000 credits, enough for your forecast of about 900\.<\/p>/);
+ assert.match(html,/<p class="muted small">Estimate from list prices and your usage forecast, before tax\. It depends on usage; see the details\. Not a guarantee\.<\/p>/);
+ assert.match(html,/Over the next full billing cycle \(from 2030-01-01 UTC, 1 month\): Pro\+ \$40, Pro \$20\./);
+ for(const gone of ['Change your plan or answers','Not your plan?','status bar','Open Cost Advisor','Used for the estimate'])assert.ok(!html.includes(gone),gone);
 });
 
 test('supported tier needs the engine to agree: only an unconditional engine verdict upgrades a modelled figure',()=>{
@@ -94,7 +105,7 @@ test('supported tier needs the engine to agree: only an unconditional engine ver
  const advice=classifyAdvice(clean,ctx());assert.equal(advice.kind,'potential_savings');
  const supported=estimateSavings(clean,ctx(),advice,1);assert.equal(supported.tier,'supported');assert.equal(supported.outcome,'saving');
  const html=presentAdvisor({hint:planHint('2000',reviewedCatalog),context:ctx(),horizons:[{months:1,result:clean,reasons:[]}],advice:[advice],singleAccount:true,limit:'2000'});
- assert.ok(html.includes('Supported estimate'));assert.match(html,/<span>potential saving per billing cycle/);assert.ok(!html.includes('modelled saving'));
+ assert.ok(html.includes('<strong>Supported estimate.</strong>'));assert.ok(!html.includes('Modelled estimate'));
  // Any open assumption drops it back to modelled even on the same engine result.
  const hinted=ctx({planSource:'hint',assumptions:['plan_is_hint']});
  assert.equal(estimateSavings(clean,hinted,classifyAdvice(clean,hinted),1).tier,'modelled');
@@ -136,8 +147,9 @@ test('missing competitor costs and eligibility restrictions limit what is claime
  assert.equal(costsOnly.est.base?.saving,null);assert.equal(costsOnly.est.base?.baseline,null);assert.equal(costsOnly.est.baselinePlan,null);
  assert.ok(costsOnly.est.conditions.includes('baseline_cost_unavailable'));
  const html=present(costsOnly,{plan:'pro'});
- assert.match(html,/Cost comparison only/);assert.match(html,/No saving calculated/);
- assert.match(html,/The cost of staying on your current plan could not be calculated, so no saving is shown/);
+ assert.match(html,/<strong>Cost comparison only\.<\/strong>/);assert.ok(!html.includes('class="figure"'));
+ assert.match(html,/<p class="verdict"><strong>The lowest cost that could be priced is [^<]+ at about \$\d+ a month\. The cost of staying on Pro could not be calculated, so no saving is shown\.<\/strong><\/p>/);
+ assert.match(html,/The cost of staying on your current plan could not be calculated, so no difference is shown/);
  assert.ok(!/modelled potential saving|less per billing/i.test(html));
  // Plans the account may not choose are never offered, so they can never be the "cheaper" plan.
  const restricted=estimate('600',profile({currentPlan:'pro_plus',allowedPlans:['pro_plus','pro_max','power']}));
@@ -195,7 +207,11 @@ test('wording keeps modelled differences apart from realised savings and invoice
  assert.match(html,/Amounts are bundled list prices in USD before tax\. Promotions are excluded\. They are not invoices\./);
  assert.ok(!/\b(will save|you save|guaranteed saving|guaranteed to|cheapest plan overall|globally cheapest)\b/i.test(html));
  assert.ok(!html.includes('<script'));assert.ok(!html.includes('command:'));assert.ok(!/buy now|purchase now/i.test(html));
- // Horizons, sensitivity and calculations stay under expandable details.
+ // Horizons, sensitivity and calculations stay under ONE collapsed disclosure; "Conditions that apply" is a collapsed disclosure inside it.
+ assert.equal(html.split('<summary>Details and assumptions</summary>').length-1,1);
+ assert.match(html,/<details class="advisor-details"><summary>Details and assumptions<\/summary>/);assert.ok(!/<details[^>]* open/.test(html.slice(html.indexOf('id="cost-advisor"'))));
+ assert.ok(html.indexOf('<summary>Conditions that apply</summary>')>html.indexOf('<summary>Details and assumptions</summary>'));
+ assert.match(html,/<details class="small"><summary>Conditions that apply<\/summary>/);
  for(const summary of ['1, 3 and 6 billing cycles','Sensitivity — 75% / 100% / 125% of forecast usage','Full cost comparison and calculations'])assert.ok(html.includes(`<summary>${summary}</summary>`),summary);
  assert.ok(html.indexOf('class="estimate')<html.indexOf('<details>'));
 });
@@ -243,16 +259,20 @@ test('a move to Free is never supported, is caveated in the card and a tiny fore
  const est=estimateSavings(clean,context,advice,1);
  assert.equal(est.base?.best?.plan,'free');assert.equal(est.tier,'modelled');assert.ok(est.conditions.includes('free_plan_terms_unverified'));
  const html=presentAdvisor({hint:planHint('1000',reviewedCatalog),context,horizons:[{months:1,result:clean,reasons:[]}],advice:[advice],singleAccount:true,limit:'1000'});
- assert.ok(!html.includes('Supported estimate'));assert.match(html,/Moving to Free means cancelling the paid plan/);assert.match(html,/under 1 credit per cycle/);
+ assert.ok(!html.includes('Supported estimate'));assert.match(html,/Moving to Free means cancelling the paid plan/);assert.match(html,/Free includes 50 credits, enough for your forecast of under 1 credit\./);assert.ok(!/about 0\b/.test(html));
 });
 
 test('an unconfirmed plan qualifies the figure itself and puts the confirmation next to it',()=>{
  const e=estimate('900');
  const html=present(e,{planSource:'hint',assumptions:['plan_is_hint']});
- assert.match(html,/Assumes Pro\+ \(unconfirmed\)\./);assert.match(html,/Not your plan\? Change your plan answers below\./);
- // The instruction appears exactly once in the unconfirmed view.
- assert.equal(html.split('Change your plan answers below').length-1,1);assert.ok(!html.includes('Change your plan or answers'));
+ assert.match(html,/It assumes you are on Pro\+\./);
+ assert.match(html,/<strong>Pro\+<\/strong> <span>\(assumed from your 2,000-credit limit\)<\/span> <button id="advisor-confirm"[^>]*data-hint="pro_plus" hidden>Confirm<\/button> <button id="advisor-change-open"[^>]* hidden>Change<\/button>/);
+ // The old duplicated instructions are gone; the buttons are the one way to confirm or change.
+ for(const gone of ['Not your plan?','Change your plan answers below','Change your plan or answers','Likely plan','Unconfirmed'])assert.ok(!html.includes(gone),gone);
  assert.ok(!html.includes('aria-label="Savings estimate"'));
+ // Without any plan: a plain statement and one button.
+ const unknown=presentAdvisor({hint:planHint(null,reviewedCatalog),context:ctx({planSource:'unknown',plan:null}),horizons:[],advice:[],singleAccount:true,limit:null});
+ assert.match(unknown,/<strong>Plan unknown<\/strong> <button id="advisor-change-open"[^>]* hidden>Choose plan<\/button>/);assert.ok(!unknown.includes('advisor-confirm'));
 });
 
 test('review findings: Free at any demand level is caveated, opening lots and cheaper immediate upgrades are not hidden',()=>{
@@ -269,22 +289,22 @@ test('review findings: Free at any demand level is caveated, opening lots and ch
  const e=estimateSavings(r,ctx({plan:'pro'}),{kind:'conditional_comparison',reasons:[]},1);
  assert.equal(e.tier,'modelled');assert.equal(e.outcome,'no_cheaper');assert.ok(e.conditions.includes('mid_cycle_upgrade_cheaper'));
  const html=presentAdvisor({hint:planHint('1000',reviewedCatalog),context:ctx({plan:'pro'}),horizons:[{months:1,result:r,reasons:[]}],advice:[{kind:'conditional_comparison',reasons:[]}],singleAccount:true,limit:'1000'});
- assert.match(html,/No cheaper change at the next reset found/);assert.ok(!html.includes('No cheaper plan found'));
+ assert.match(html,/<strong>No cheaper change at your next reset: stay on Pro\. An immediate upgrade may be cheaper, which this estimate does not price\.<\/strong>/);assert.ok(!html.includes('Stay on Pro:'));
 });
 
 test('final headline wording: a usage-dependent saving is a point estimate, never a stable or complete bound',()=>{
  const html=present(estimate('900'));
  const card=html.slice(html.indexOf('<div class="estimate'),html.indexOf('</div>',html.indexOf('<div class="estimate')));
  // Concise, qualified headline; "Up to" is never used because the unpriced level means no bound is known.
- assert.match(card,/<strong>\$20 under your current forecast<\/strong> <span>modelled saving per billing cycle<\/span>/);
+ assert.match(card,/<strong>Save about \$20 a month under your current forecast<\/strong>/);
  assert.ok(!/Up to \$/i.test(html));
- assert.match(card,/Higher usage may remove it: at 125% of forecast usage extra credits on smaller plans cannot be priced\./);
+ assert.match(card,/It depends on usage; see the details\./);
  assert.ok(!/ranges? from|stable range|guaranteed saving/i.test(card));
- // Secondary explanation lives in the expandable details, not in the headline.
- assert.ok(!card.includes('fits within'));assert.ok(!card.includes('Assumes:'));assert.ok(!card.includes('not a complete bound'));
- const details=html.slice(html.indexOf('<details><summary>Why, assumptions and comparison'));
- for(const text of ['Why this figure and its limits','fits within Pro','is not a complete bound','Assumes: you are on Pro+ (confirmed by you)'])assert.ok(details.includes(text),text);
- assert.ok(card.length<1100,`headline card stays compact (${card.length})`);
+ // The reasons and limits live in the collapsed details, not in the card.
+ for(const text of ['Higher usage may remove it','fits within','Assumes:','not a complete bound'])assert.ok(!card.includes(text),text);
+ const details=html.slice(html.indexOf('<details class="advisor-details">'));
+ for(const text of ['Higher usage may remove it: at 125% of forecast usage extra credits on smaller plans cannot be priced.','is not a complete bound','Assumes: you are on Pro+ (confirmed by you)'])assert.ok(details.includes(text),text);
+ assert.ok(card.length<900,`headline card stays compact (${card.length})`);
 });
 
 test('regression: unpriced high-demand scenarios never become a "0 to 20" bound or a bare saving',()=>{
@@ -298,7 +318,7 @@ test('regression: unpriced high-demand scenarios never become a "0 to 20" bound 
  const stable=estimate('300');
  assert.equal(stable.est.stable,true);
  const plain=present(stable);
- assert.match(plain,/<strong>\$20<\/strong> <span>modelled saving per billing cycle<\/span>/);
+ assert.match(plain,/<p class="figure"><strong>Save about \$20 a month<\/strong><\/p>/);
  assert.ok(!plain.includes('under your current forecast'));assert.ok(!plain.includes('Higher usage may remove it'));
  // A usage-dependent preference without any unpriced option is still qualified, with the other plan named.
  const free=estimate('60');
@@ -310,7 +330,9 @@ test('unpriced low or high levels are named in the details and the headline stay
   const e=estimate('900',undefined,{},months);
   assert.equal(e.est.stable,false);
   const html=presentAdvisor({hint:planHint('2000',reviewedCatalog),context:ctx(),horizons:[{months,result:e.result,reasons:[]}],advice:[e.advice],singleAccount:true,limit:'2000'});
-  assert.match(html,new RegExp(`\\$${months===3?60:120} under your current forecast</strong> <span>modelled saving over ${months} billing cycles`));
+  // Multi-cycle totals are shown as a monthly average ($60 over 3 cycles, $120 over 6): both are $20 a month.
+  assert.match(html,/<strong>Save about \$20 a month under your current forecast<\/strong>/);
+  assert.match(html,/Switch to Pro at your next reset: about \$20 a month instead of \$40\./);
   assert.match(html,/1 option could not be priced, so this is not a complete comparison/);
  }
 });
@@ -328,7 +350,9 @@ test('regression: the same cheapest plan with different savings per usage level 
  assert.equal(est.preferredChanges,false);assert.notEqual(est.range,null);
  assert.equal(est.stable,false);assert.ok(!est.conditions.includes('sensitivity_changes_preferred_plan'));
  const html=presentAdvisor({hint:planHint('5000',reviewedCatalog),context,horizons:[{months:1,result,reasons:[]}],advice:[advice],singleAccount:true,limit:'5000'});
- assert.match(html,/<strong>\$40 under your current forecast<\/strong> <span>modelled saving per billing cycle<\/span>/);
+ assert.match(html,/<p class="verdict"><strong>Switch to Pro\+ at your next reset and buy add-on credits as needed: about \$60 a month instead of \$100\.<\/strong><\/p>/);
+ assert.match(html,/<strong>Save about \$40 a month under your current forecast<\/strong>/);
+ assert.match(html,/You use about 2,500 credits a month\. Pro\+ includes 2,000; the other 500 cost about \$20 as add-on credits \(\$0\.04 each\)\./);
  // The differing levels are 75% (higher saving) and 125% (lower saving, but not zero): neither is "may remove it".
  assert.match(html,/It depends on usage: at 75% of forecast usage the modelled saving is \$60\./);
  assert.ok(!html.includes('Higher usage may remove it'));
@@ -357,4 +381,104 @@ test('Advisor discloses when full cycles use the longest qualified pooled-histor
  assert.ok(est.conditions.includes('long_history_future_rate'));
  const html=presentAdvisor({hint:planHint('2000',reviewedCatalog),context,horizons:[{months:1,result,reasons:[]}],advice:[advice],singleAccount:true,limit:'2000'});
  assert.ok(html.includes('longest qualified pooled-history rate'));
+});
+
+// ---- Recommendation with add-on credits (bundled 2026-10-22 purchase rules, invented synthetic usage) ----
+const fiveSlots=(over:Partial<BillingProfile>={}):BillingProfile=>profile({availablePackSlots:{kind:'known',value:5},...over});
+const withAddOns=(credits:string,plan:'pro'|'pro_plus'|'pro_max'|'power',months:1|3|6=1,over:Partial<BillingProfile>={})=>{
+ const p=fiveSlots({currentPlan:plan,...over}),result=optimize(credits,p,months,current()),context=ctx({plan}),advice=classifyAdvice(result,context);
+ const est=estimateSavings(result,context,advice,months);
+ const html=presentAdvisor({hint:planHint(null,reviewedCatalog),context,horizons:[{months,result,reasons:[]}],advice:[advice],singleAccount:true,limit:null});
+ return {result,context,advice,est,html};
+};
+const headlineOf=(html:string)=>/<p class="verdict"><strong>([^<]*)<\/strong><\/p>/.exec(html)?.[1];
+
+test('a smaller plan plus add-on credits is recommended when it is cheaper than the bigger plan',()=>{
+ // 2,400 credits a month: Pro Max $100; Pro+ $40 + 400 x $0.04 = $56; Pro $20 + 1,400 x $0.04 = $76; Power $200.
+ const r=withAddOns('2400','pro_max');
+ assert.equal(r.est.base?.best?.plan,'pro_plus');assert.equal(r.est.base?.best?.cost,'56');assert.equal(r.est.base?.baseline,'100');assert.equal(r.est.base?.saving,'44');
+ assert.equal(headlineOf(r.html),'Switch to Pro+ at your next reset and buy add-on credits as needed: about $56 a month instead of $100.');
+ assert.match(r.html,/<strong>Save about \$44 a month( under your current forecast)?<\/strong>/);
+ assert.match(r.html,/<p class="small">You use about 2,400 credits a month\. Pro\+ includes 2,000; the other 400 cost about \$16 as add-on credits \(\$0\.04 each\)\.<\/p>/);
+ // The estimate layer exposes exactly what that sentence needs (window totals; one cycle here).
+ const b=r.est.base!;
+ assert.deepEqual([b.usageCredits,b.planCredits,b.addOnCredits,b.addOnBought,b.addOnCost,b.baselineAddOnCost],['2400','2000','400','400','16','0']);
+ assert.ok(r.est.conditions.includes('list_prices_pre_tax'));assert.ok(r.est.conditions.includes('forecast_not_guaranteed'));assert.notEqual(r.est.tier,'supported');
+ // Costs round up and savings round down in the sentence: three cycles of the same usage give the same monthly average.
+ const three=withAddOns('2400','pro_max',3);assert.equal(three.est.base?.saving,'132');assert.equal(headlineOf(three.html),headlineOf(r.html));
+});
+
+test('upgrading beats add-on credits when the bigger plan is cheaper for the usage',()=>{
+ // 5,000 credits a month on Pro: Pro $20 + 4,000 x $0.04 = $180; Pro+ $160; Pro Max $100.
+ const r=withAddOns('5000','pro');
+ assert.equal(r.est.base?.best?.plan,'pro_max');assert.equal(r.est.base?.best?.cost,'100');assert.equal(r.est.base?.baseline,'180');
+ assert.equal(headlineOf(r.html),'Upgrade to Pro Max at your next reset: about $100 a month instead of $180 with add-on credits.');
+ assert.match(r.html,/Pro Max includes 5,000 credits, enough for your forecast of about 5,000\./);
+ assert.match(r.html,/<strong>Save about \$80 a month/);
+});
+
+test('staying is recommended only when it is the cheapest calculable option, with the add-on part stated',()=>{
+ // 5,500 credits on Pro Max: $100 + 500 x $0.04 = $120; Power $200; Pro+ $40 + 3,500 x $0.04 = $180.
+ const r=withAddOns('5500','pro_max');
+ assert.equal(r.est.outcome,'no_cheaper');assert.equal(r.est.base?.best?.keep,true);
+ assert.match(headlineOf(r.html)??'',/^Stay on Pro Max and buy add-on credits as needed: about \$\d+(\.\d\d)? a month, the cheapest option for your usage\.$/);
+ assert.match(r.html,/You use about 5,500 credits a month\. Pro Max includes 5,000; the other 500 cost about \$20 as add-on credits \(\$0\.04 each\)\./);
+ assert.ok(!r.html.includes('class="figure"'));
+ // Small overage: the 125-credit minimum purchase is said, not a made-up $0.04 each.
+ const small=withAddOns('1050','pro');
+ assert.equal(headlineOf(small.html),'Stay on Pro and buy add-on credits as needed: about $25 a month, the cheapest option for your usage.');
+ assert.match(small.html,/the other 50 cost about \$5 as add-on credits \(the smallest purchase is 125 credits\)\./);
+ // No add-ons needed: only the plan's own allowance is described.
+ const fits=withAddOns('430','pro');
+ assert.match(fits.html,/<p class="small">Pro includes 1,000 credits, enough for your forecast of about 430\.<\/p>/);
+});
+
+test('the five-pack limit is respected: options that would need more packs are not priced, never silently cheapened',()=>{
+ // 20,000 credits a month: Pro Max would need 15,000 add-on credits = six packs; Power 10,000 = four packs ($600).
+ const r=withAddOns('20000','pro_max');
+ const keep=r.result.scenarios.find(s=>s.demandId==='base'&&s.strategy.id==='pro_max_keep_as_needed')!;
+ assert.notEqual(keep.future.feasible,true);assert.equal(keep.future.totalNewExpenditure,null);
+ const power=r.result.scenarios.find(s=>s.demandId==='base'&&s.strategy.id==='power_next_reset_as_needed')!;
+ assert.deepEqual(power.future.purchases.map(p=>p.credits),['2500','2500','2500','2500']);assert.equal(power.future.totalNewExpenditure?.amount,'600');
+ // The current plan cannot be priced, so only the cost of the lowest calculable option is shown and no saving is claimed.
+ assert.equal(r.est.tier,'comparison_only');assert.equal(r.est.base?.saving,null);
+ assert.equal(headlineOf(r.html),'The lowest cost that could be priced is Power at about $600 a month. The cost of staying on Pro Max could not be calculated, so no saving is shown.');
+ assert.ok(!r.html.includes('Stay on'));assert.ok(!r.html.includes('class="figure"'));
+});
+
+test('an assumed plan still gets the recommendation, with the muted line saying it assumes the plan',()=>{
+ const p=fiveSlots({currentPlan:'pro_max'}),result=optimize('2400',p,1,current());
+ const context=ctx({planSource:'hint',plan:'pro_max',billingConfirmed:false,addOns:'assumed_none',assumptions:['plan_is_hint','billing_assumed_consumer','add_ons_assumed_none']});
+ const advice=classifyAdvice(result,context);
+ const html=presentAdvisor({hint:planHint('5000',reviewedCatalog),context,horizons:[{months:1,result,reasons:[]}],advice:[advice],singleAccount:true,limit:'5000'});
+ assert.equal(headlineOf(html),'Switch to Pro+ at your next reset and buy add-on credits as needed: about $56 a month instead of $100.');
+ assert.match(html,/<span class="label">Your plan:<\/span> <strong>Pro Max<\/strong> <span>\(assumed from your 5,000-credit limit\)<\/span> <button id="advisor-confirm"/);
+ assert.match(html,/<p class="muted small">Estimate from list prices and your usage forecast, before tax\. It assumes you are on Pro Max\. It depends on usage; see the details\. Not a guarantee\./);
+ assert.ok(!html.includes('<span class="badge">Confirmed</span>'));assert.ok(!/guaranteed (saving|to)/i.test(html));
+});
+
+test('unknown pack slots or add-ons withhold the recommendation; insufficient data never produces a figure',()=>{
+ // Unknown slots: purchases cannot be priced, so nothing is claimed for the plan that needs them.
+ const unknownSlots=optimize('2400',profile({currentPlan:'pro_max',availablePackSlots:{kind:'unknown'}}),1,current());
+ const est=estimateSavings(unknownSlots,ctx({plan:'pro_max'}),classifyAdvice(unknownSlots,ctx({plan:'pro_max'})),1);
+ assert.deepEqual(est.base?.priced.map(x=>x.plan),['pro_max','power'],'only plans that need no add-ons can be priced');assert.ok((est.base?.unpriced??0)>0);assert.ok(est.conditions.includes('overall_cheapest_unknown'));
+ const unknownHtml=presentAdvisor({hint:planHint(null,reviewedCatalog),context:ctx({plan:'pro_max'}),horizons:[{months:1,result:unknownSlots,reasons:[]}],advice:[classifyAdvice(unknownSlots,ctx({plan:'pro_max'}))],singleAccount:true,limit:null});
+ assert.equal(headlineOf(unknownHtml),'Stay on Pro Max: it is the cheapest option that could be priced for your usage.');
+ // Existing add-ons that are not itemised: no estimate at all.
+ const some=estimateSavings(optimize('2400',fiveSlots({currentPlan:'pro_max'}),1,current()),ctx({plan:'pro_max',addOns:'unknown'}),{kind:'insufficient_information',reasons:[]},1);
+ assert.equal(some.tier,'insufficient');
+ // Nothing to compare yet: a short honest sentence, no figure, no dollar amount.
+ const html=presentAdvisor({hint:planHint(null,reviewedCatalog),context:ctx({planSource:'unknown',plan:null}),horizons:[],advice:[],singleAccount:true,limit:null});
+ assert.match(html,/<p class="verdict">Bobert needs a few days of usage before it can compare plans\.<\/p>/);assert.ok(!/\$\d/.test(html.replace(/Bundled list prices[^<]*/,'')));
+});
+
+test('a leftover of under one credit from a purchase before the reset is ignored and disclosed; anything larger or unknown is not',()=>{
+ const result=optimize('2400',fiveSlots({currentPlan:'pro_max'}),1,current());
+ const withLeftover=(leftover:string|null,before:string|null):CostOptimization=>({...result,scenarios:result.scenarios.map(s=>({...s,bridge:{...s.bridge,openingPurchasedCredits:before},future:{...s.future,openingPurchasedCredits:leftover}}))});
+ const run=(r:CostOptimization)=>estimateSavings(r,ctx({plan:'pro_max'}),{kind:'conditional_comparison',reasons:[]},1);
+ const ok=run(withLeftover('0.4','0'));
+ assert.equal(ok.tier,'modelled');assert.ok(ok.conditions.includes('bridge_leftover_credit_ignored'));assert.equal(ok.base?.best?.plan,'pro_plus');
+ // Existing inventory (opening before the purchase is not known to be empty), one credit or more, or an unknown opening: unusable.
+ for(const [leftover,before] of [['0.4','5'],['0.4',null],['1','0'],['125','0'],['300','0']] as const)assert.equal(run(withLeftover(leftover,before)).tier,'insufficient',`${leftover}/${before}`);
+ assert.ok(!run(result).conditions.includes('bridge_leftover_credit_ignored'));
 });

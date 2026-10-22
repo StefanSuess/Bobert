@@ -7,7 +7,8 @@ import { countsText, relativeTime, sizePhrase, type AuditSummary } from './audit
 import { LINKS, NOT_KIRO_TEXT } from './identity.ts';
 import { overageOver, type Overage } from '../cost/overage.ts';
 import { decimalToRational, formatRational } from '../cost/money.ts';
-import { rightSizeText, largerPlanText } from './budget-warning.ts';
+import { rightSizeText } from './budget-warning.ts';
+import { ESTIMATE_MARKER } from './advisor-presentation.ts';
 import { NO_INSIGHTS, type PlanInsights } from '../cost/plan-hints.ts';
 import { cycleComparison, todayPace } from './dashboard-insights.ts';
 import { resultsText, type StoredResults } from './results-summary.ts';
@@ -46,6 +47,8 @@ const BLOCKED_TEXT: Record<string,string> = { runtime_unsupported: 'Kiro: Needs 
 // Said once, behind the hero's "About these numbers" disclosure, instead of repeating in every card.
 const ABOUT='Figures are as of the last account update; usage since then is unknown. The reported limit is not verified as base-only or total capacity, so it may include purchased add-on credits, and usage can exceed it. Credits above it do not by themselves establish overage charges or a purchased balance. Forecasts assume the observed pace continues. Dollar amounts are modelled from list prices in USD before tax; they are not invoices.';
 const creditsText=(c:string)=>{try{return formatRational(decimalToRational(c),compare(c,'10')>=0 ? 0 : 1,'half_up').replace(/^0$/,'under 0.1');}catch{return c;}};
+// Thousands separators for whole numbers of 1,000 or more; anything else (decimals, text) is returned unchanged.
+const withSeparators=(n:string)=>/^\d{4,}$/.test(n) ? n.replace(/\B(?=(\d{3})+(?!\d))/g,',') : n;
 const moneyText=(o:Overage)=>o.money===null ? '' : ` (≈ ${o.money==='0.00' ? 'under $0.01' : `$${o.money}`}, modelled)`;
 
 // The command links of this view are exactly five Bobert commands (Cost Advisor, the two audit commands, Share and Report a problem); none carries arguments.
@@ -85,8 +88,8 @@ export function inlineAdvisorForm(a:AdvisorAnswers,epoch:number):string {
  const plan=a.plan??'unsure',billing=a.billing??'unsure',addOns=a.addOns??'unsure',credits=a.addOnCredits??'';
  const options=(values:[string,string][])=>values.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
  const error=(id:string)=>`<p id="${id}" class="field-error"></p>`; // filled in by the page script next to the field that needs attention
- // Open while the plan is unconfirmed so the question is visible; a confirmed plan keeps the form folded away.
- return `<details id="advisor-change" class="advisor-change"${a.plan===null?' open':''}><summary>Change your plan answers</summary><form id="advisor-form" data-advisor-epoch="${epoch}" data-plan="${plan}" data-billing="${billing}" data-add-ons="${addOns}" data-add-on-credits="${safe(credits)}"><fieldset><legend>Your plan details</legend>
+ // Folded away on every start; the Cost Advisor's Confirm/Change/Choose plan buttons (or this summary) open it.
+ return `<details id="advisor-change" class="advisor-change"><summary>Change your plan answers</summary><form id="advisor-form" data-advisor-epoch="${epoch}" data-plan="${plan}" data-billing="${billing}" data-add-ons="${addOns}" data-add-on-credits="${safe(credits)}"><fieldset><legend>Your plan details</legend>
  <div class="field"><label for="advisor-plan">Plan</label><select id="advisor-plan" name="plan">${options([['unsure','Not sure'],['free','Free'],['pro','Pro'],['pro_plus','Pro+'],['pro_max','Pro Max'],['power','Power'],['reset','Clear my answers']])}</select>${error('advisor-plan-error')}</div>
  <div class="field"><label for="advisor-billing">Account type</label><select id="advisor-billing" name="billing">${options([['unsure','Not sure'],['consumer_prepaid','Personal subscription'],['enterprise_postpaid','Enterprise']])}</select>${error('advisor-billing-error')}</div>
  <div class="field"><label for="advisor-add-ons">Purchased add-on credits</label><select id="advisor-add-ons" name="addOns">${options([['unsure','Not sure'],['none','None'],['some','Yes']])}</select>${error('advisor-add-ons-error')}</div>
@@ -166,10 +169,12 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const projectedOver=eligible && selected.projectedUsageAtReset!==null ? overageOver(selected.projectedUsageAtReset,o.baseLimit,now) : null;
  // Only for a current observation: after a reset or with stale data the figure belongs to another cycle and is not "so far".
  const observedOver=above && o.status==='observed' && !o.flags.includes('unsupported_extra_credits') ? overageOver(o.usage,o.baseLimit,now) : null;
- // Plan hints (controller) are already empty unless every condition holds. The next-larger-plan comparison follows the projected overage line.
+ // Plan hints (controller) are already empty unless every condition holds. The top card says what to do about a projected overage
+ // (add-on credits until the reset) instead of comparing plans; the Cost Advisor below holds the plan recommendation.
  const attempt=(text:()=>string)=>{try{return text();}catch{return '';}}; // a hint can never take the view down
- const noteLines=[projectedOver ? `At this pace by the reset: about ${creditsText(projectedOver.credits)} credits over${moneyText(projectedOver)}.` : '',
-  projectedOver && insights.larger ? attempt(()=>largerPlanText(insights.larger!)) : '',insights.rightsize ? attempt(()=>rightSizeText(insights.rightsize!)) : ''].filter(Boolean);
+ const advisorHasEstimate=advisorHtml.includes(ESTIMATE_MARKER);
+ const noteLines=[projectedOver ? `At this pace you need about ${withSeparators(creditsText(projectedOver.credits))} add-on credits${moneyText(projectedOver)} to keep working until the reset${resetDate ? ` on ${resetDate}` : ''}.` : '',
+  projectedOver && advisorHasEstimate ? 'For next month, see the Cost Advisor below.' : '',insights.rightsize ? attempt(()=>rightSizeText(insights.rightsize!)) : ''].filter(Boolean);
  // The dollar figures above trace back to one reviewed price; said once, inside About these numbers.
  const priced=[observedOver,projectedOver].find(x=>x?.money);
  const priceNote=priced ? attempt(()=>`Dollar figures use $${priced.pricePerCredit} per credit from price list ${priced.catalogVersion}, reviewed ${date(priced.reviewedOn!,true)}.`) : '';
@@ -220,14 +225,15 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  .badge{display:inline-block;padding:1px 9px;border:1px solid var(--vscode-panel-border);border-radius:12px;font-size:.85rem}.verdict{font-size:1.05rem;font-weight:600;margin:10px 0}.plan-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.plan-row strong{font-size:1.2rem}.action{border:1px dashed var(--vscode-panel-border);border-radius:8px;padding:8px 12px;margin:10px 0}
  table{border-collapse:collapse;width:100%}th,td{text-align:left;vertical-align:top;padding:9px 0;border-bottom:1px solid var(--vscode-panel-border);overflow-wrap:anywhere}th{width:45%;font-weight:400;color:var(--vscode-descriptionForeground);padding-right:16px}
  summary{cursor:pointer;margin:10px 0;font-weight:500}details>summary{list-style-position:inside}.advanced>summary{font-size:1.05rem;font-weight:600;margin:0}.advanced[open]>summary{margin-bottom:12px}.advanced h3{margin:20px 0 8px;font-size:1.05rem;border-top:1px solid var(--vscode-panel-border);padding-top:14px}
- .estimate{border:1px solid var(--vscode-panel-border);border-left:5px solid var(--neutral);border-radius:8px;padding:12px 16px;margin:12px 0}.estimate-supported{border-left-color:var(--ok)}.estimate-modelled{border-left-color:var(--warn)}.estimate-comparison_only{border-left-color:var(--neutral)}.estimate p{margin:6px 0}.estimate .tier{margin-top:0}.estimate .figure{font-size:1rem}.estimate .figure strong{font-size:1.6rem;margin-right:6px}.estimate .verdict{font-size:1rem;font-weight:500}
+ .estimate{border:1px solid var(--vscode-panel-border);border-left:5px solid var(--neutral);border-radius:8px;padding:12px 16px;margin:12px 0}.estimate-supported{border-left-color:var(--ok)}.estimate-modelled{border-left-color:var(--warn)}.estimate-comparison_only{border-left-color:var(--neutral)}.estimate p{margin:6px 0}.estimate .tier{margin-top:0}.estimate .figure{font-size:1rem}.estimate .figure strong{font-size:1.25rem;margin-right:6px}.estimate .verdict{font-size:1.1rem;font-weight:600}
  .cost-strategy{border-top:1px solid var(--vscode-panel-border);padding:10px 0}.cost-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 16px}.cost-grid dt{color:var(--vscode-descriptionForeground)}.cost-grid dd{margin:0}.cost-grid dt,.cost-grid dd,.cost-result li{overflow-wrap:anywhere}
  @media(max-width:540px){.stats{grid-template-columns:minmax(0,1fr)}.estimate{padding:10px 12px}body{padding:12px}section{padding:14px}.hero h2{font-size:1.5rem}.cost-grid{grid-template-columns:minmax(0,1fr)}.cost-grid dd{margin-bottom:6px}th{width:42%}}
- @media(forced-colors:active){a.button,.recap-actions button,#advisor-form button,#advisor-form select,#advisor-form input{border-color:ButtonText}.hero{border-left-color:Highlight}.bar>rect{fill:Highlight}}
+ @media(forced-colors:active){a.button,.plan-button,.recap-actions button,#advisor-form button,#advisor-form select,#advisor-form input{border-color:ButtonText}.hero{border-left-color:Highlight}.bar>rect{fill:Highlight}}
  #results-summary ul,#recap-lines{margin:8px 0;padding-left:1.4em}
  .recap-actions{display:flex;flex-wrap:wrap;gap:8px}.recap-actions button{padding:4px 12px;border:1px solid var(--vscode-button-border,transparent);border-radius:4px;font:inherit;font-weight:500;cursor:pointer;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}.recap-actions button:hover{background:var(--vscode-button-secondaryHoverBackground)}.recap-actions button:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
  #recap-preview{margin:12px 0}#recap-canvas{display:block;max-width:100%;height:auto;border:1px solid var(--vscode-panel-border)}
  .advisor-change{border:1px solid var(--vscode-panel-border);border-radius:8px;padding:0 14px;margin:12px 0}.advisor-change>summary{margin:10px 0}.advisor-change[open]>summary{margin-bottom:6px}.advisor-fallback{align-items:center}html:not([data-cg-live]) .advisor-change{display:none}#advisor-status{margin:4px 0}html[data-cg-live] .advisor-fallback{display:none}
+ .plan-button{padding:2px 12px;min-height:26px;border:1px solid var(--vscode-button-border,transparent);border-radius:4px;font:inherit;font-weight:500;cursor:pointer;background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}.plan-button:hover{background:var(--vscode-button-secondaryHoverBackground)}.plan-button.primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}.plan-button.primary:hover{background:var(--vscode-button-hoverBackground)}.plan-button:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}.advisor-details>summary{font-weight:500}
  #advisor-form fieldset{border:0;margin:0;padding:0;min-width:0}#advisor-form legend{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}#advisor-form .field{margin:0 0 14px;max-width:26rem}#advisor-form label{display:block;margin:0 0 4px;font-weight:500}
  #advisor-form select,#advisor-form input{display:block;width:100%;min-height:28px;padding:4px 8px;font:inherit;border-radius:4px}#advisor-form select{color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border,var(--vscode-panel-border))}#advisor-form input{color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-panel-border))}#advisor-form input::placeholder{color:var(--vscode-input-placeholderForeground)}
  #advisor-form select:focus,#advisor-form input:focus{outline:2px solid var(--vscode-focusBorder);outline-offset:-1px}#advisor-form select[aria-invalid="true"],#advisor-form input[aria-invalid="true"]{outline:2px solid var(--vscode-errorForeground);outline-offset:-1px}#advisor-form .field-error{color:var(--vscode-errorForeground);margin:4px 0 0}#advisor-form .field-error:empty{display:none}#advisor-form .input-unit{display:flex;align-items:center;gap:8px}#advisor-form .input-unit input{flex:1 1 auto;width:auto;min-width:0}#advisor-form .unit{color:var(--vscode-descriptionForeground)}

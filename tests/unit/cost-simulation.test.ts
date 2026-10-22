@@ -14,10 +14,31 @@ test('synthetic purchase minimum and split maximum: 1 -> 125/$5; 2501 -> 2625/$1
   assert.equal(s.future.newPurchasedCredits,credits);assert.equal(s.future.newAddOnSpend!.amount,spend);assert.equal(s.future.feasible,true);conservation(s.future);
  }
 });
-test('reviewed unknown step withholds exact purchase and carries a labeled floor',()=>{
- const q=request('1001');q.catalog=structuredClone(reviewedCatalog);q.catalog.verifiedOn=q.now;
+test('an unknown purchase step withholds an exact purchase and carries a labeled floor',()=>{
+ const q=request('1001');q.catalog=structuredClone(reviewedCatalog);q.catalog.verifiedOn=q.now;q.catalog.consumer.purchaseStepCredits=null;q.catalog.consumer.moneyRounding=null;
  const s=simulateStrategy(q,strategy(),base(q));assert.equal(s.future.newAddOnSpend,null);assert.equal(s.future.newPurchasedCredits,null);
  assert.equal(s.future.lowerBoundNewAddOnSpend!.amount,'5');assert.ok(s.reasons.includes('purchase_step_unknown'));assert.equal(s.future.feasible,null);
+});
+test('reviewed 2026-10-22 purchase rules price add-on credits exactly: whole credits, $0.04 each, 125-credit minimum, 2500 per pack, five packs',()=>{
+ const reviewed=()=>{const q=request('1001',1,profile({availablePackSlots:{kind:'known',value:5}}));q.catalog=structuredClone(reviewedCatalog);q.catalog.verifiedOn=q.now;return q;};
+ // One credit beyond the plan still needs the 125-credit minimum purchase: $5, not $0.04.
+ let q=reviewed();let s=simulateStrategy(q,strategy(),base(q));
+ assert.equal(s.future.newPurchasedCredits,'125');assert.equal(s.future.newAddOnSpend!.amount,'5');assert.ok(!s.reasons.includes('purchase_step_unknown'));assert.ok(!s.reasons.includes('invoice_rounding_unknown'));assert.equal(s.future.feasible,true);
+ // 400 credits beyond the plan are bought as 400 whole credits: $16.
+ q=request('1400',1,profile({availablePackSlots:{kind:'known',value:5}}));q.catalog=structuredClone(reviewedCatalog);q.catalog.verifiedOn=q.now;
+ s=simulateStrategy(q,strategy(),base(q));assert.equal(s.future.newPurchasedCredits,'400');assert.equal(s.future.newAddOnSpend!.amount,'16');
+ // Larger needs are split at 2,500 credits per pack and use one slot each: 6,000 beyond the plan is three packs.
+ q=request('7000',1,profile({availablePackSlots:{kind:'known',value:5}}));q.catalog=structuredClone(reviewedCatalog);q.catalog.verifiedOn=q.now;
+ s=simulateStrategy(q,strategy(),base(q));assert.deepEqual(s.future.purchases.map(x=>x.credits),['2500','2500','1000']);assert.equal(s.future.newAddOnSpend!.amount,'240');
+ // At most five packs at one time: demand beyond 5 x 2,500 credits stays unmet when a depleted pack frees no slot ...
+ q=request('14000',1,profile({availablePackSlots:{kind:'known',value:5}}));q.catalog=structuredClone(reviewedCatalog);q.catalog.verifiedOn=q.now;q.catalog.consumer.depletedSlotRelease=false;
+ s=simulateStrategy(q,strategy(),base(q));assert.equal(s.future.purchases.length,5);assert.equal(s.future.feasible,false);assert.equal(s.future.unmetDemandCredits,'500');
+ // ... and the reviewed catalog leaves slot release undocumented, so the same demand is unknown rather than unmet or priced.
+ q=request('14000',1,profile({availablePackSlots:{kind:'known',value:5}}));q.catalog=structuredClone(reviewedCatalog);q.catalog.verifiedOn=q.now;
+ s=simulateStrategy(q,strategy(),base(q));assert.equal(s.future.feasible,null);assert.ok(s.reasons.includes('pack_slot_release_unknown'));assert.equal(s.future.totalNewExpenditure,null);
+ // Unknown slots still withhold a figure.
+ q=request('1400',1,profile({availablePackSlots:{kind:'unknown'}}));q.catalog=structuredClone(reviewedCatalog);q.catalog.verifiedOn=q.now;
+ s=simulateStrategy(q,strategy(),base(q));assert.equal(s.future.newAddOnSpend,null);assert.ok(s.reasons.includes('pack_slots_unknown'));
 });
 test('opening inventory is not new expenditure and plan-first leaves 25',()=>{
  const q=request('1100',1,profile({purchased:{kind:'known',value:[{remainingCredits:'125',expiresAt:'2030-12-01T00:00:00Z',expiryPrecision:'instant'}]},availablePackSlots:{kind:'known',value:4}}));

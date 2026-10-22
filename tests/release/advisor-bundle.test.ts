@@ -66,10 +66,10 @@ test('packaged Advisor native commands, conditional figure, cancellation and pan
   assert.equal(htmlSets,sets,'a new observed snapshot updates in place');assert.ok(sent.at(-1).version>initial.version);assert.ok(JSON.stringify(sent.at(-1).model).includes('2030-01-05'));receive({type:'ack',version:sent.at(-1).version});
   fixedNow+=2100;
    answers.push('plan:pro_max','consumer_prepaid','none');await commands.get(linkIds().find((h:string)=>h==='command:bobert.costAdvisor')!.slice('command:'.length))!();
-   assert.match(panel.webview.html,/Confirmed by you/);assert.match(panel.webview.html,/Modelled estimate/);assert.match(panel.webview.html,/USD/);
+   assert.ok(panel.webview.html.includes('<span class="badge">Confirmed</span>'));assert.match(panel.webview.html,/Modelled estimate/);assert.match(panel.webview.html,/<details class="advisor-details"><summary>Details and assumptions<\/summary>/);assert.match(panel.webview.html,/USD/);
    assert.ok(!/Supported estimate|Guaranteed savings/.test(panel.webview.html));
-   fixedNow+=2100;answers.push(undefined);await commands.get('bobert.costAdvisor')!();assert.match(panel.webview.html,/Confirmed by you/);
-   fixedNow+=2100;answers.push('reset');await commands.get('bobert.costAdvisor')!();assert.ok(!panel.webview.html.includes('Confirmed by you'));
+   fixedNow+=2100;answers.push(undefined);await commands.get('bobert.costAdvisor')!();assert.ok(panel.webview.html.includes('<span class="badge">Confirmed</span>'));
+   fixedNow+=2100;answers.push('reset');await commands.get('bobert.costAdvisor')!();assert.ok(!panel.webview.html.includes('<span class="badge">Confirmed</span>'));
   assert.ok(!panel.webview.html.includes('synthetic-bundle-account'));assert.ok(!panel.webview.html.includes(work));
   panel.visible=false;visibility({webviewPanel:panel});assert.equal(advisor.visible,false);
   await commands.get('bobert.showUsage')!();assert.equal(advisor.visible,true);
@@ -1381,14 +1381,16 @@ test('packaged next-larger-plan comparison: beside the projected overage and on 
   assert.match(pro.notice,/^At this pace your Kiro credits run out on /);assert.match(pro.notice,COST);
   assert.ok(pro.notice.endsWith(' For comparison, if you are on Pro: Pro+ costs $20 a month more and includes 1000 more credits.'),pro.notice);
   const lines=[...pro.html.matchAll(/<p class="small overage">([^<]*)<\/p>/g)].map(m=>m[1]!);
-  assert.equal(lines.length,2);assert.match(lines[0]!,/^At this pace by the reset: about \d+ credits over/);
-  assert.equal(lines[1],'For comparison, if you are on Pro: Pro+ costs $20 a month more than Pro and includes 1000 more credits (list prices, price list reviewed 18 Oct 2026).');
-  assert.ok(!/save|cheaper|recommend|switch/i.test(lines[1]!+pro.notice.slice(pro.notice.indexOf('For comparison'))));
+  // The credit view's card says what to do (add-on credits until the reset); the plan comparison is gone from it. The notice text is unchanged.
+  assert.match(lines[0]!,/^At this pace you need about \d[\d,]* add-on credits \(≈ \$[\d.,]+, modelled\) to keep working until the reset on \d+ [A-Z][a-z]{2}\.$/);
+  assert.ok(lines.length>=1&&lines.length<=2);assert.ok(lines.slice(1).every(l=>l==='For next month, see the Cost Advisor below.'));
+  assert.ok(!pro.html.includes('For comparison'));
+  assert.ok(!/save|cheaper|recommend|switch/i.test(pro.notice.slice(pro.notice.indexOf('For comparison'))));
   // The largest plan has nothing larger; an account whose limit matches no plan has no known plan.
   for(const [limit,perDay] of [[10000,500],[100,10]] as const){
    const other=await run(limit,perDay);
    assert.match(other.notice,/^At this pace your Kiro credits run out on /);assert.ok(!other.notice.includes('For comparison')&&!other.html.includes('For comparison'),String(limit));
-   assert.match(other.html,/At this pace by the reset: about \d+ credits over/);
+   assert.match(other.html,/At this pace you need about \d[\d,]* add-on credits/);
   }
   // Without a projected overage there is no line (and no notice).
   const calm=await run(1000,5,false);assert.equal(calm.notice,'');assert.ok(!calm.html.includes('For comparison'));

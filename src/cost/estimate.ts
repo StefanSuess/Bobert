@@ -7,6 +7,7 @@
 import {compare,decimal,subtract} from '../decimal.ts';
 import type {Advice,AdvisorContext} from './advisor.ts';
 import type {CostOptimization,CostScenario,Decimal,PlanId} from './types.ts';
+import {addRational,decimalToRational,formatRational} from './money.ts';
 
 /**
  * supported: every input explicit and the engine's own classification agrees.
@@ -26,6 +27,14 @@ export interface DemandEstimate {
  unpriced:number;                // compared options whose cost or feasibility is unknown
  unsuitable:number;              // compared options priced but unable to serve the demand
  forecastCredits:Decimal|null;   // credits the best option consumes from its plan allowance (only when nothing is bought)
+ // What the best option serves over the compared window (all full cycles together; divide by the horizon for a cycle).
+ // Null when there is no best option or the scenario does not report the figure; unknown is never zero.
+ usageCredits:Decimal|null;      // forecast credits served: plan allowance plus add-on credits consumed
+ planCredits:Decimal|null;       // of those, taken from the plan allowance
+ addOnCredits:Decimal|null;      // of those, taken from add-on credits bought in the window
+ addOnBought:Decimal|null;       // add-on credits bought; larger than addOnCredits when the minimum purchase exceeds the need
+ addOnCost:Decimal|null;         // add-on spend of the best option (USD, list price)
+ baselineAddOnCost:Decimal|null; // add-on spend of keeping the current plan; null when the baseline cannot be calculated
 }
 export interface SavingsEstimate {
  tier:EstimateTier; outcome:EstimateOutcome; months:number; currency:'USD';
@@ -50,7 +59,16 @@ const LEVELS=['low','base','high'] as const;
 export const insufficientEstimate=(months:number,conditions:string[]=[]):SavingsEstimate=>({tier:'insufficient',outcome:'none',months,currency:'USD',window:null,baselinePlan:null,levels:[],base:null,range:null,preferredChanges:false,stable:false,conditions});
 
 // Opening purchased lots would be valued at zero and consumed unevenly between options, so such figures are not comparable.
-const noOpeningLots=(s:CostScenario)=>{const o=s.future.openingPurchasedCredits;return o===null||o===undefined||compare(o,'0')===0;};
+// One bounded exception: when the cycle before the first full one started with a known-empty inventory, a lot the modelled
+// purchase there leaves behind is the same for every compared option (same current plan until the reset). If it is under one
+// credit its value (under one purchase unit, $0.04 at list price) is below the display precision of the comparison, so it is
+// ignored and disclosed as a condition instead of making the whole figure unusable.
+const leftover=(s:CostScenario)=>{const o=s.future.openingPurchasedCredits;return o===null||o===undefined||compare(o,'0')===0?null:o;};
+const noOpeningLots=(s:CostScenario)=>{
+ const o=leftover(s);if(o===null)return true;
+ const before=s.bridge.openingPurchasedCredits;
+ return before!==null&&before!==undefined&&compare(before,'0')===0&&compare(o,'1')<0;
+};
 const usable=(s:CostScenario|undefined):s is CostScenario=>!!s&&s.status!=='unavailable'&&s.future.feasible===true&&s.reasons.every(r=>HARMLESS.has(r))&&s.future.totalNewExpenditure?.currency==='USD'&&noOpeningLots(s);
 const cost=(s:CostScenario):Decimal=>decimal(s.future.totalNewExpenditure!.amount);
 
@@ -75,7 +93,21 @@ function level(result:CostOptimization,demandId:DemandEstimate['demandId']):Dema
  const bestScenario=best?all.find(s=>s.strategy.id===best.strategyId):undefined;
  const planCredits=bestScenario?.future.planCreditsConsumed,extra=bestScenario?.future.additionalCreditsNeeded;
  const forecastCredits=planCredits&&extra!==null&&extra!==undefined&&compare(extra,'0')===0?planCredits:null;
- return {demandId,baseline,priced,best,saving,unpriced,unsuitable,forecastCredits};
+ const served=bestScenario?consumption(bestScenario):null;
+ const baselineScenarioUsed=baselineUsable?baselineScenario:undefined;
+ return {demandId,baseline,priced,best,saving,unpriced,unsuitable,forecastCredits,
+  usageCredits:served?.usage??null,planCredits:served?.plan??null,addOnCredits:served?.addOn??null,addOnBought:served?.bought??null,addOnCost:served?.cost??null,
+  baselineAddOnCost:baselineScenarioUsed?consumption(baselineScenarioUsed)?.cost??null:null};
+}
+
+/** Credits and add-on spend of a usable scenario's full cycles; null when any figure is missing (never zero by default). */
+function consumption(s:CostScenario):{usage:Decimal;plan:Decimal;addOn:Decimal;bought:Decimal;cost:Decimal}|null {
+ const f=s.future,plan=f.planCreditsConsumed,addOn=f.purchasedCreditsConsumed,bought=f.newPurchasedCredits,spend=f.newAddOnSpend;
+ if(plan===null||plan===undefined||addOn===null||addOn===undefined||bought===null||bought===undefined||!spend||spend.currency!=='USD')return null;
+ try{
+  const usage=formatRational(addRational(decimalToRational(plan),decimalToRational(addOn)),18,'floor');
+  return {usage,plan:decimal(plan),addOn:decimal(addOn),bought:decimal(bought),cost:decimal(spend.amount)};
+ }catch{return null;}
 }
 
 /** Upgrading immediately is outside this comparison; flag it when the engine itself prices it lower than keeping. */
@@ -105,6 +137,7 @@ export function estimateSavings(result:CostOptimization|null,context:AdvisorCont
   const conditions=new Set<string>(context.assumptions);
   const conditionsFrom=(s:CostScenario|undefined)=>{for(const r of s?.reasons??[])if(HARMLESS.has(r))conditions.add(r);for(const a of s?.assumptions??[])if(a==='limited_history'||a==='long_history_future_rate'||a==='short_window_long_horizon'||a==='net_changes_not_gross_billable_usage')conditions.add(a);};
   conditionsFrom(baselineScenario);conditionsFrom(bestScenario);
+  if([baselineScenario,bestScenario].some(x=>!!x&&leftover(x)!==null))conditions.add('bridge_leftover_credit_ignored');
   conditions.add('list_prices_pre_tax');conditions.add('forecast_not_guaranteed');conditions.add('only_next_reset_changes_compared');
   if(base.unpriced>0)conditions.add('overall_cheapest_unknown');
   if(levels.some(l=>l.best?.plan==='free'&&!l.best.keep))conditions.add('free_plan_terms_unverified');

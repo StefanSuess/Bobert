@@ -452,3 +452,68 @@ test('the dashboard script has no markup, navigation, network, storage or code-e
   /\.src\s*=/, /\.href\s*=/, /setAttribute\(\s*["'`](href|src|xlink:href|on\w+)/i, /createElement\(\s*["'`](a|img|script|iframe|link|object|embed)["'`]/, /localStorage|sessionStorage|document\.cookie|indexedDB/, /window\.open|location\.(href|assign|replace)/, /importScripts|postMessage\([^)]*,\s*["'`]\*/])
   assert.ok(!sink.test(text), String(sink));
 });
+
+// Confirm / Change next to an assumed plan (synthetic figures only).
+const hintedContext = (plan: 'pro_max' | null): AdvisorContext => ({ planSource: plan ? 'hint' : 'unknown', plan, billingConfirmed: false, addOns: 'assumed_none', assumptions: [] });
+const planPage = (plan: 'pro_max' | null, epoch = 1) => present(view([], '2030-01-01T00:00:00Z'), [], '', presentAdvisor({ hint: planHint(plan ? '5000' : null, reviewedCatalog), context: hintedContext(plan), horizons: [], advice: [], singleAccount: true, limit: plan ? '5000' : null }), undefined, '2030-01-01T00:00:00Z', false, undefined, inlineAdvisorForm({ plan: null, billing: null, addOns: null, addOnCredits: null }, epoch)).html;
+const submits = (app: { sent: unknown[] }) => app.sent.filter((m): m is Record<string, unknown> => (m as { type?: string }).type === 'advisorSubmit');
+
+test('Confirm submits the assumed plan through the validated advisorSubmit path; Change opens the form and focuses the plan field', async () => {
+ const page = planPage('pro_max');
+ const app = await start(page);
+ const node = (id: string) => find(app.main, n => n.getAttribute('id') === id)!;
+ // The static page keeps both buttons hidden; the running script reveals them.
+ assert.match(page, /<button id="advisor-confirm" type="button" class="plan-button primary" data-hint="pro_max" hidden>Confirm<\/button>/);
+ assert.match(page, /<button id="advisor-change-open" type="button" class="plan-button" hidden>Change<\/button>/);
+ assert.equal(node('advisor-confirm').getAttribute('hidden'), null);assert.equal(node('advisor-change-open').getAttribute('hidden'), null);
+ // An untrusted (script-made) click does nothing.
+ app.emit('click', { target: node('advisor-confirm'), isTrusted: false });app.emit('click', { target: node('advisor-change-open'), isTrusted: false });
+ assert.equal(submits(app).length, 0);assert.equal(node('advisor-change').getAttribute('open'), null);
+ // Change: opens the collapsed form and focuses the plan select. It sends nothing.
+ const plan = find(app.main, n => n.getAttribute('name') === 'plan')!;
+ app.emit('click', { target: node('advisor-change-open'), isTrusted: true });
+ assert.equal(node('advisor-change').getAttribute('open'), '');assert.equal(plan.focusCount, 1);assert.equal(submits(app).length, 0);
+ // Confirm: the plan select takes the assumed plan and the same message as the form's own submit is sent.
+ app.emit('click', { target: node('advisor-confirm'), isTrusted: true });
+ assert.equal(plan.value, 'pro_max');
+ assert.deepEqual(JSON.parse(JSON.stringify(submits(app))), [{ type: 'advisorSubmit', ticket: 1, plan: 'pro_max', billing: 'unsure', addOns: 'unsure', addOnCredits: '' }]);
+ assert.match(node('advisor-status').textContent, /Reviewing Cost Advisor answers/);
+ // A second click while the review runs is ignored; the host's answer ends the wait.
+ app.emit('click', { target: node('advisor-confirm'), isTrusted: true });assert.equal(submits(app).length, 1);
+ app.emit('message', { data: { type: 'advisorResult', status: 'ok', epoch: 2 } });
+ assert.match(node('advisor-status').textContent, /Cost Advisor review saved/);
+});
+
+test('Confirm with a stale epoch asks for a review instead of sending, and an unknown plan offers only Choose plan', async () => {
+ const app = await start(planPage('pro_max', 1));
+ const node = (id: string) => find(app.main, n => n.getAttribute('id') === id)!;
+ app.emit('message', { data: { type: 'advisorResult', status: 'stale', epoch: 5 } });
+ app.emit('click', { target: node('advisor-confirm'), isTrusted: true });
+ assert.equal(submits(app).length, 0, 'the validated path refuses a stale ticket');
+ assert.match(node('advisor-status').textContent, /review and submit again/i);
+ assert.equal(node('advisor-review-again').getAttribute('hidden'), null);
+ const none = await start(planPage(null));
+ assert.equal(find(none.main, n => n.getAttribute('id') === 'advisor-confirm'), undefined);
+ const choose = find(none.main, n => n.getAttribute('id') === 'advisor-change-open')!;
+ assert.equal(choose.textContent, 'Choose plan');assert.equal(choose.getAttribute('hidden'), null);
+ none.emit('click', { target: choose, isTrusted: true });
+ assert.equal(find(none.main, n => n.getAttribute('id') === 'advisor-change')!.getAttribute('open'), '');
+});
+
+test('a hostile model cannot carry a data-hint on another element or with another plan', async () => {
+ const page = planPage('pro_max');
+ const app = await start(page);
+ const model = JSON.parse(JSON.stringify(buildDomModel(page))) as DomNode & { children: any[] };
+ const tweak = (change: (n: any) => void) => { const copy = JSON.parse(JSON.stringify(model)); const walk = (n: any) => { change(n); (n.children ?? []).forEach(walk); }; walk(copy); return copy; };
+ const before = app.sent.length;
+ app.send(tweak(n => { if (n.attrs?.id === 'advisor-confirm') n.attrs['data-hint'] = 'unsure'; }), 2);
+ app.send(tweak(n => { if (n.attrs?.id === 'advisor-confirm') n.attrs['data-hint'] = 'reset'; }), 3);
+ app.send(tweak(n => { if (n.attrs?.id === 'advisor-change-open') n.attrs['data-hint'] = 'pro'; }), 4);
+ app.send(tweak(n => { if (n.attrs?.id === 'advisor-form') n.attrs['data-hint'] = 'pro'; }), 5);
+ app.send(tweak(n => { if (n.attrs?.id === 'advisor-confirm') n.tag = 'div'; }), 6);
+ app.send(tweak(n => { if (n.attrs?.id === 'advisor-change-open') n.attrs.id = 'other'; n.attrs && n.attrs.id === 'other' && (n.attrs.hidden = ''); }), 7);
+ assert.equal(app.sent.length, before, 'none of them is acknowledged');
+ // The reviewed model is accepted and acknowledged.
+ app.send(model, 8);
+ assert.equal(app.sent.length, before + 1);
+});

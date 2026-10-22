@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { present } from '../../src/extension/presentation.ts';
 import { largerPlanText, rightSizeText } from '../../src/extension/budget-warning.ts';
+import { ESTIMATE_MARKER } from '../../src/extension/advisor-presentation.ts';
 import { startExtension } from '../../src/extension/controller.ts';
 import type { AuditSummary } from '../../src/extension/audit-model.ts';
 import { syntheticSnapshot as snapshot } from './synthetic.ts';
@@ -330,7 +331,7 @@ test('the controller passes the not-Kiro flag through and does not report a fore
 const NOW = '2030-06-08T00:00:00Z';
 const at = (v: ReturnType<typeof view>, now = NOW) => present(v, [], '', '', undefined, now);
 const heroText = (html: string) => html.slice(html.indexOf('class="hero'), html.indexOf('<dl class="stats">'));
-const PROJECTED = 'At this pace by the reset: about 200 credits over (≈ $8.00, modelled).';
+const PROJECTED = 'At this pace you need about 200 add-on credits (≈ $8.00, modelled) to keep working until the reset on 1 Jul.';
 test('a forecast beyond the reported limit shows the modelled overage below the outlook, with the catalog price and review date', () => {
  const r = at(view(series(10, '100'), NOW));
  const hero = heroText(r.html);
@@ -346,8 +347,8 @@ test('already-observed overage gets its own modelled line; the projected line st
  const hero = heroText(at(view(series(10, '60'), NOW)).html);
  // One headline figure for what is over so far, then one line for the pace until the reset; the legalistic sentence is gone from the hero.
  assert.ok(hero.includes('<p class="lead overage-now"><strong>10 credits</strong> over the limit so far (≈ $0.40, modelled).</p>'), hero);
- assert.ok(hero.includes('<p class="small overage">At this pace by the reset: about 240 credits over (≈ $9.60, modelled).</p>'), hero);
- assert.ok(hero.indexOf('overage-now') < hero.indexOf('At this pace by the reset'));
+ assert.ok(hero.includes('<p class="small overage">At this pace you need about 240 add-on credits (≈ $9.60, modelled) to keep working until the reset on 1 Jul.</p>'), hero);
+ assert.ok(hero.indexOf('overage-now') < hero.indexOf('At this pace you need'));
  assert.ok(!/The counter alone|does not establish overage/.test(hero));
  assert.match(at(view(series(10, '60'), NOW)).html, /<details class="about">[\s\S]*?do not by themselves establish overage charges[\s\S]*?<\/details>/);
  // Exactly at the limit is not above it.
@@ -358,7 +359,7 @@ test('no overage line when the forecast stays below the limit, is unavailable or
 });
 test('without a validated price the credits are shown but never a money figure', () => {
  const hero = heroText(at(view(series(10, '100'), NOW), '2020-01-01T00:00:00Z').html); // before the catalog was verified
- assert.ok(hero.includes('At this pace by the reset: about 200 credits over.'), hero);
+ assert.ok(hero.includes('At this pace you need about 200 add-on credits to keep working until the reset on 1 Jul.'), hero);
  assert.ok(!/\$\d/.test(hero));
  assert.ok(heroText(at(view(series(10, '60'), NOW), 'not-a-time').html).includes('<strong>10 credits</strong> over the limit so far.'));
 });
@@ -421,19 +422,26 @@ const RIGHTSIZE_LINE = 'If you are on Pro+: You will likely leave about 1444 cre
 const larger = { current: 'pro', next: 'pro_plus', feeDiff: '20', creditDiff: '1000', hint: true, reviewedOn: '2026-10-10T00:00:00Z' } as const;
 const rightsize = { current: 'pro_plus', plan: 'pro', saving: '20', unusedCredits: '1444.5', hint: true } as const;
 const withHints = (v: ReturnType<typeof view>, insights: Parameters<typeof present>[7]) => present(v, [], '', '', undefined, NOW, false, insights);
-test('the next-larger-plan comparison follows the projected overage line; observed overage comes after it', () => {
+test('the credit view says what to do about a projected overage instead of comparing plans', () => {
  const hero = heroText(withHints(view(series(10, '60'), NOW), { larger, rightsize: null }).html);
  const lines = [...hero.matchAll(/<p class="small overage">([^<]*)<\/p>/g)].map(m => m[1]!);
- assert.equal(lines.length, 2);
- assert.ok(lines[0]!.startsWith('At this pace by the reset: about 240 credits over'), lines[0]);
- assert.equal(lines[1], LARGER_LINE);
- assert.ok(hero.indexOf('over the limit so far') < hero.indexOf(LARGER_LINE.slice(0, 20)));
- // A confirmed plan has no prefix; no hints, or no projected overage line, means no comparison.
- assert.ok(heroText(withHints(view(series(10, '100'), NOW), { larger: { ...larger, hint: false }, rightsize: null }).html).includes('<p class="small overage">For comparison: Pro+ costs $20 a month more than Pro and includes 1000 more credits'));
- assert.ok(!heroText(at(view(series(10, '100'), NOW)).html).includes('For comparison'));
- assert.ok(!heroText(withHints(view(series(10, '100'), NOW), { larger: null, rightsize: null }).html).includes('For comparison'));
- assert.ok(!heroText(withHints(view(series(10, '1000'), NOW), { larger, rightsize: null }).html).includes('For comparison')); // no projected overage line
- assert.ok(!/save|cheaper|recommend/i.test(lines[1]!));
+ // The larger-plan comparison is gone from this card, hinted or not; the add-on need follows the observed overage line.
+ assert.equal(lines.length, 1);
+ assert.equal(lines[0], 'At this pace you need about 240 add-on credits (≈ $9.60, modelled) to keep working until the reset on 1 Jul.');
+ assert.ok(!hero.includes('For comparison') && !hero.includes('Pro+ costs'));
+ assert.ok(hero.indexOf('over the limit so far') < hero.indexOf('At this pace you need'));
+ assert.ok(!heroText(withHints(view(series(10, '100'), NOW), { larger: { ...larger, hint: false }, rightsize: null }).html).includes('For comparison'));
+ assert.ok(!heroText(withHints(view(series(10, '1000'), NOW), { larger, rightsize: null }).html).includes('add-on credits')); // no projected overage
+ assert.ok(!/save|cheaper|recommend|buy/i.test(lines[0]!));
+ // Thousands are grouped.
+ assert.ok(heroText(at(view(series(100, '100'), NOW)).html).includes('you need about 2,'));
+});
+test('the credit view points to the Cost Advisor only when the Advisor shows a recommendation', () => {
+ const pointer = 'For next month, see the Cost Advisor below.';
+ const withAdvisor = (html: string) => heroText(present(view(series(10, '100'), NOW), [], '', html, undefined, NOW).html);
+ assert.ok(withAdvisor(`<section id="cost-advisor"><div class="estimate" role="group" ${ESTIMATE_MARKER}></div></section>`).includes(`<p class="small overage">${pointer}</p>`));
+ assert.ok(!withAdvisor('<section id="cost-advisor"><p class="verdict">Bobert needs a few days of usage before it can compare plans.</p></section>').includes(pointer));
+ assert.ok(!heroText(present(view(series(10, '1000'), NOW), [], '', `<section id="cost-advisor"><div ${ESTIMATE_MARKER}></div></section>`, undefined, NOW).html).includes(pointer)); // no projected overage
 });
 test('the right-sizing line is shown whenever the condition holds, not only near the reset, and a confirmed plan has no prefix', () => {
  const early = withHints(view(series(10, '1000'), NOW), { larger: null, rightsize }); // 23 days before the reset
@@ -455,7 +463,7 @@ test('plan hint lines hold only constants and formatted decimals, go through the
  const odd = { ...larger, next: '<img src=x onerror=synthetic>' as never, feeDiff: '"><script>' };
  const html = withHints(view(series(10, '100'), NOW), { larger: odd, rightsize: null }).html;
  assert.ok(!html.includes('<img') && !html.includes('<script') && !html.includes('For comparison'));
- assert.ok(heroText(html).includes('about 200 credits over')); // the rest of the view is intact
+ assert.ok(heroText(html).includes('about 200 add-on credits')); // the rest of the view is intact
 });
 
 // Calm dashboard: plain next steps, one caveat line, no repeated units, cards hidden when empty, one fixed section order.

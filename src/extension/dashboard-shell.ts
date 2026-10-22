@@ -6,10 +6,10 @@ import { CARD_HEIGHT, CARD_WIDTH, MAX_PNG_BASE64 } from './recap-card.ts';
 export type DomNode = { kind: 'text'; text: string } | DomElement;
 export interface DomElement { kind: 'element'; tag: string; attrs: Record<string, string>; children: DomNode[] }
 const TAGS = new Set('main section article div h1 h2 h3 h4 p span dl dt dd details summary table caption thead tbody tr th td footer form fieldset legend label select option input button a svg defs pattern line rect circle polygon path text title desc ul li figure figcaption strong em small br canvas'.split(' '));
-const ATTRS = new Set('id class role aria-label aria-hidden aria-labelledby aria-describedby aria-live aria-atomic aria-invalid scope type name for value data-advisor-epoch data-plan data-billing data-add-ons data-add-on-credits data-kind data-chart-point tabindex hidden x y x1 x2 y1 y2 cx cy r width height viewBox preserveAspectRatio d points text-anchor patternUnits patternTransform stroke-dasharray stroke-width stroke-opacity stroke-linecap fill-opacity'.split(' '));
+const ATTRS = new Set('id class role aria-label aria-hidden aria-labelledby aria-describedby aria-live aria-atomic aria-invalid scope type name for value data-advisor-epoch data-plan data-billing data-add-ons data-add-on-credits data-hint data-kind data-chart-point tabindex hidden x y x1 x2 y1 y2 cx cy r width height viewBox preserveAspectRatio d points text-anchor patternUnits patternTransform stroke-dasharray stroke-width stroke-opacity stroke-linecap fill-opacity'.split(' '));
 const SAFE_LINKS = new Set([LINKS.rate, LINKS.star, LINKS.support, 'command:bobert.costAdvisor', 'command:bobert.auditWorkspace', 'command:bobert.audit.show', 'command:bobert.share', 'command:bobert.reportProblem']);
 // `hidden` is allowed only on these ids (own-property lookup on a null-prototype object), each only on its own tag.
-const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure' });
+const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'advisor-confirm': 'button', 'advisor-change-open': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure' });
 const decode = (value: string) => value.replace(/&(amp|lt|gt|quot|#39);/g, (_, entity: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[entity]!);
 
 export function buildDomModel(html: string): DomElement {
@@ -60,6 +60,8 @@ export function buildDomModel(html: string): DomElement {
   }
   // Elements the page may toggle by id, and the tag each id belongs to. Everything else stays visible.
   if (Object.hasOwn(attrs, 'hidden') && HIDDEN_IDS[attrs.id ?? ''] !== tag) throw new Error('DASHBOARD_MODEL_INVALID');
+  // The assumed plan the Confirm button answers with: only on that one button, and only a plan the form can hold.
+  if (Object.hasOwn(attrs, 'data-hint') && (tag !== 'button' || attrs.id !== 'advisor-confirm' || !['free','pro','pro_plus','pro_max','power'].includes(attrs['data-hint']!))) throw new Error('DASHBOARD_MODEL_INVALID');
   if (tag === 'canvas' && (attrs.id !== 'recap-canvas' || attrs.width !== String(CARD_WIDTH) || attrs.height !== String(CARD_HEIGHT))) throw new Error('DASHBOARD_MODEL_INVALID');
   const node: DomElement = { kind: 'element', tag, attrs, children: [] };
   if (stack.length) stack.at(-1)!.children.push(node);

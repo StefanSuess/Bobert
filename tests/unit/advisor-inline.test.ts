@@ -57,10 +57,11 @@ const CSS_HEAD=(html:string)=>html.slice(html.indexOf('<style>'),html.indexOf('<
 const formPage=(answers:Parameters<typeof inlineAdvisorForm>[0])=>present(view([],'2030-01-01T00:00:00Z'),[],'','<section id="cost-advisor"></section>',undefined,'2030-01-01T00:00:00Z',false,undefined,inlineAdvisorForm(answers,3)).html;
 const walk=(n:{tag?:string;attrs?:Record<string,string>;children?:unknown[]},f:(n:{tag:string;attrs:Record<string,string>;children:any[]})=>void)=>{if(n.tag)f(n as never);for(const c of (n.children??[]) as any[])walk(c,f);};
 
-test('the inline form sits in a details disclosure that is open only while the plan is unconfirmed',()=>{
+test('the inline form sits in a details disclosure that is collapsed on every start, confirmed plan or not',()=>{
  const unconfirmed=formPage({plan:null,billing:null,addOns:null,addOnCredits:null});
  const confirmed=formPage({plan:'pro_max',billing:null,addOns:null,addOnCredits:null});
- assert.match(unconfirmed,/<details id="advisor-change" class="advisor-change" open><summary>Change your plan answers<\/summary><form id="advisor-form"/);
+ assert.match(unconfirmed,/<details id="advisor-change" class="advisor-change"><summary>Change your plan answers<\/summary><form id="advisor-form"/);
+ assert.ok(!unconfirmed.includes('id="advisor-change" class="advisor-change" open'));
  assert.match(confirmed,/<details id="advisor-change" class="advisor-change"><summary>Change your plan answers<\/summary><form id="advisor-form"/);
  assert.ok(!confirmed.includes('id="advisor-change" class="advisor-change" open'));
  for(const html of [unconfirmed,confirmed]){

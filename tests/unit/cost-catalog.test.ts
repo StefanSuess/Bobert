@@ -18,12 +18,17 @@ test('catalog rejects invalid rules without returning rejected data', () => {
   assert.ok(r.reasons.every(x=>/^[a-z_]+$/.test(x)));
  }
 });
-test('reviewed catalog retains all tiers and unresolved rules', () => {
- const r=validateCatalog(reviewedCatalog,'2026-10-18T12:00:00Z');
+test('reviewed catalog retains all tiers; purchase step and rounding are documented, slot release is still unknown', () => {
+ const r=validateCatalog(reviewedCatalog,'2026-10-22T12:00:00Z');
+ assert.equal(r.catalog!.version,'2026-10-22');assert.equal(r.catalog!.verifiedOn,'2026-10-22T00:00:00Z');
+ assert.equal(validateCatalog(reviewedCatalog,'2026-10-21T23:59:59Z').status,'unavailable');
  assert.equal(r.status,'available'); assert.equal(r.catalog!.plans.length,5);
  assert.equal(r.catalog!.enterprise.allowedPlans.length,4);
- assert.equal(r.catalog!.consumer.purchaseStepCredits,null);
- assert.equal(r.catalog!.consumer.moneyRounding,null);
+ assert.equal(r.catalog!.consumer.purchaseStepCredits,'1');
+ assert.equal(r.catalog!.consumer.moneyRounding,'exact');
+ assert.deepEqual(r.catalog!.plans.map(p=>[p.id,p.fee,p.credits]),[['free','0','50'],['pro','20','1000'],['pro_plus','40','2000'],['pro_max','100','5000'],['power','200','10000']]);
+ assert.deepEqual([r.catalog!.consumer.pricePerCredit,r.catalog!.consumer.minimumCredits,r.catalog!.consumer.maximumCredits,r.catalog!.consumer.maximumPacks],['0.04','125','2500',5]);
+ assert.ok(r.catalog!.rules.some(x=>x.id==='B1'&&x.url==='https://kiro.dev/docs/billing/add-on-credits/'));
  assert.equal(r.catalog!.consumer.depletedSlotRelease,null);
  assert.equal(r.catalog!.market,'commercial');
  assert.equal(r.catalog!.rules.find(x=>x.id==='B3')!.effectiveFrom,null);
