@@ -507,7 +507,7 @@ test('the pack-slot default is disclosed as a condition whenever it is used, and
   assert.deepEqual(built.profile!.availablePackSlots,{kind:'known',value:5});assert.ok(built.context.assumptions.includes('pack_slots_assumed_free'));
   const horizons=calculateCosts({mode:'personalized',profile:built.profile!,monthlyCredits:'0',beforeReset:undefined,demandMode:'forecast'},f,h,'2030-01-04T00:00:00Z',current());
   const html=presentAdvisor({hint:planHint('1000',reviewedCatalog),context:built.context,horizons,advice:horizons.map(x=>classifyAdvice(x.result,built.context)),singleAccount:true,limit:'1000'});
-  assert.match(html,/<li>All five add-on pack slots are assumed free \(no earlier packs this year\)\.<\/li>/);
+  assert.match(html,/<li>All five add-on pack slots are assumed free \(no unexpired earlier packs\)\.<\/li>/);
  }
  // With existing add-ons the slots stay unknown and nothing is disclosed as assumed.
  const some=advisorProfile(obs,{...noAnswers,plan:'pro',billing:'consumer_prepaid',addOns:'some',addOnCredits:'10'},planHint('1000',reviewedCatalog));
