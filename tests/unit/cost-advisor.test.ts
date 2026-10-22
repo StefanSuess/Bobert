@@ -49,7 +49,7 @@ test('unknown add-ons are never silently zero: they become a labelled assumption
  const unsure=advisorProfile(obs,{...noAnswers,plan:'pro',billing:'consumer_prepaid'},planHint('1000',catalog));
  assert.equal(unsure.context.addOns,'assumed_none');assert.ok(unsure.context.assumptions.includes('add_ons_assumed_none'));
  const none=advisorProfile(obs,{...noAnswers,plan:'pro',billing:'consumer_prepaid',addOns:'none'},planHint('1000',catalog));
- assert.equal(none.context.addOns,'none');assert.deepEqual(none.context.assumptions,[]);
+ assert.equal(none.context.addOns,'none');assert.deepEqual(none.context.assumptions,['pack_slots_assumed_free']); // the only assumption left: five free pack slots
  assert.deepEqual(none.profile?.planRemaining,{kind:'known',value:'900'});
  const someUnknown=advisorProfile(obs,{...noAnswers,plan:'pro',billing:'consumer_prepaid',addOns:'some'},planHint('1000',catalog));
  assert.deepEqual(someUnknown.profile?.purchased,{kind:'unknown'});assert.deepEqual(someUnknown.profile?.planRemaining,{kind:'unknown'});
@@ -109,7 +109,7 @@ test('ambiguous limits make the plan remainder unknown and add visible condition
  assert.deepEqual(differs.profile?.planRemaining,{kind:'unknown'});assert.ok(differs.context.assumptions.includes('limit_differs_from_plan_credits'));
  assert.equal(differs.context.plan,'pro');
  const fine=advisorProfile({...base,limit:'1000',usage:'10'},answers,planHint('1000',catalog));
- assert.deepEqual(fine.profile?.planRemaining,{kind:'known',value:'990'});assert.deepEqual(fine.context.assumptions,[]);
+ assert.deepEqual(fine.profile?.planRemaining,{kind:'known',value:'990'});assert.deepEqual(fine.context.assumptions,['pack_slots_assumed_free']);
  // Both cases force a conditional outcome even on an otherwise perfect optimizer result.
  assert.equal(classifyAdvice(optimization(),differs.context).kind,'conditional_comparison');
  assert.equal(classifyAdvice(optimization(),over.context).kind,'conditional_comparison');
@@ -187,7 +187,7 @@ test('answers cannot cross accounts, ambiguity or stale editor tickets',()=>{
 test('presentation is script-free, escaped, traceable to the catalog and never offers a purchase instruction',()=>{
  const hint=planHint('1000',catalog);
  const html=presentAdvisor({hint,context:ctx({planSource:'hint',plan:'pro',billingConfirmed:false,addOns:'assumed_none',assumptions:['plan_is_hint','billing_assumed_consumer','add_ons_assumed_none']}),horizons:[],advice:[],singleAccount:true,limit:'<img src=x onerror=synthetic-sentinel>'});
- for(const marker of ['Cost Advisor','Unconfirmed','only a hint',catalog.version,catalog.verifiedOn.slice(0,10),'qualified forecast is needed'])assert.ok(html.includes(marker),marker);
+ for(const marker of ['Cost Advisor','(assumed from your','only a hint',catalog.version,catalog.verifiedOn.slice(0,10),"Bobert can't compare plans yet. It needs a current usage forecast; keep using Kiro and this updates automatically."])assert.ok(html.includes(marker),marker);
  assert.ok(!html.includes('<img'));assert.ok(html.includes('&lt;img'));assert.ok(!html.includes('<script'));assert.ok(!html.includes('command:'));
  assert.ok(!/buy now|purchase now|click to buy/i.test(html));
 });
@@ -216,17 +216,17 @@ test('detail view shows the advisor first, answers are applied through the nativ
   // The Cost Advisor follows the status, chart and observed usage, and comes before the workspace check and advanced details.
   assert.ok(html.indexOf('class="hero ')<html.indexOf('id="cost-advisor"'));assert.ok(html.indexOf('id="cost-advisor"')<html.indexOf('id="advanced-details"'));
   if(html.includes('id="usage-chart"'))assert.ok(html.indexOf('id="usage-chart"')<html.indexOf('id="cost-advisor"'));
-  assert.ok(commands.has('advisor'));assert.ok(!html.includes('Confirmed by you'));
-   assert.ok(html.includes('Unconfirmed'));
+  assert.ok(commands.has('advisor'));assert.ok(!html.includes('>Confirmed<'));
+   assert.ok(html.includes('(assumed from your 1,000-credit limit)'));assert.ok(html.includes('id="advisor-confirm"')&&html.includes('id="advisor-change-open"'));
    const budget=status;
    answers.push('plan:pro','consumer_prepaid','none');await commands.get('advisor')!();
-   assert.ok(html.includes('Confirmed by you'));assert.equal(status,budget);
+   assert.ok(html.includes('<span class="badge">Confirmed</span>'));assert.ok(!html.includes('id="advisor-confirm"'));assert.equal(status,budget);
    // The engine marks every priced comparison conditional, so any figure is a labelled model, never a supported claim.
    assert.ok(!/Potential saving|No cheaper option|Supported estimate/.test(html));
-   assert.ok(html.includes('Modelled estimate'));assert.match(html,/No cheaper plan found/);assert.ok(!/class="figure"><strong>USD/.test(html));
-   assert.match(html,/not a guarantee and not an invoice/);assert.match(html,/<span class="badge">Based on assumptions<\/span>/);
+   assert.ok(html.includes('Modelled estimate'));assert.match(html,/class="verdict"><strong>[^<]*(Stay on|Switch to|Upgrade to)[^<]*<\/strong>/);assert.ok(!/class="figure"><strong>USD/.test(html));
+   assert.match(html,/not a guarantee and not an invoice/);assert.match(html,/Estimate from list prices and your usage forecast, before tax\. [^<]*Not a guarantee\./);
    await appendFile(env.log,line('synthetic-b','2030-01-04 00:00:01.000',11));await controller.refresh();
-   assert.ok(!html.includes('Confirmed by you'));assert.ok(!html.includes('synthetic-a'));assert.ok(!html.includes('synthetic-b'));
+   assert.ok(!html.includes('>Confirmed<'));assert.ok(!html.includes('synthetic-a'));assert.ok(!html.includes('synthetic-b'));
   controller.dispose();
  }finally{await rm(env.base,{recursive:true,force:true});}
 });
@@ -269,7 +269,7 @@ test('advisor names the blocking condition in the headline and lists every assum
  assert.ok(!/Command Palette|title bar/.test(html));
  const some=render([],{addOns:'some'});assert.match(some,/Remaining add-on credits were entered by you/);
  const withResult=presentAdvisor({hint,context:ctx({planSource:'confirmed',plan:'pro',billingConfirmed:true,addOns:'none',assumptions:[]}),horizons:[{months:1,reasons:[],result:{status:'supported',reasons:[],scenarios:[],alternatives:[],savings:[],breakEven:{points:[],reasons:[]}} as any}],advice:[{kind:'no_action',reasons:[]} as any],singleAccount:true,limit:'1000'});
- assert.match(withResult,/Used for the estimate/);
+ assert.ok(!/Used for the estimate/.test(withResult)); // the removed note must not come back as a second explanation
 });
 
 test('Enterprise unknown add-ons are disclosed as unknown, never assumed absent',()=>{
@@ -306,4 +306,19 @@ test('inline review refreshes, rejects replay and account changes, and counts co
   assert.equal((await controller.submitAdvisor(afterCancel,answers)).status,'stale');assert.equal(used,1);
   controller.dispose();
  }finally{await rm(env.base,{recursive:true,force:true});}
+});
+
+test('pack slots: five are free only when no add-on credits exist (answered or assumed); otherwise they stay unknown',()=>{
+ const obs={limit:'5000',usage:'100',asOf:now,resetAt:'2030-02-01T00:00:00Z'};
+ const slots=(answers:AdvisorAnswers)=>advisorProfile(obs,answers,planHint('5000',catalog)).profile!.availablePackSlots;
+ // Answered "none" and the unconfirmed default (treated as none, disclosed as an assumption) both leave all five packs free.
+ assert.deepEqual(slots({...noAnswers,plan:'pro_max',billing:'consumer_prepaid',addOns:'none'}),{kind:'known',value:5});
+ const assumed=advisorProfile(obs,noAnswers,planHint('5000',catalog));
+ assert.deepEqual(assumed.profile!.availablePackSlots,{kind:'known',value:5});assert.ok(assumed.context.assumptions.includes('add_ons_assumed_none'));
+ // Existing add-ons (with or without a balance) occupy an unknown number of packs; Enterprise add-ons are unknown altogether.
+ assert.deepEqual(slots({...noAnswers,plan:'pro_max',billing:'consumer_prepaid',addOns:'some',addOnCredits:'250'}),{kind:'unknown'});
+ assert.deepEqual(slots({...noAnswers,plan:'pro_max',billing:'consumer_prepaid',addOns:'some'}),{kind:'unknown'});
+ assert.deepEqual(slots({...noAnswers,plan:'pro',billing:'enterprise_postpaid'}),{kind:'unknown'});
+ // The default is never invented for the other inventory facts.
+ const p=assumed.profile!;assert.deepEqual(p.purchased,{kind:'known',value:[]});assert.equal(p.priorAddOnConsumption,'present_or_unknown');
 });

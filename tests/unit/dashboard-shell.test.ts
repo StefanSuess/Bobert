@@ -92,3 +92,12 @@ test('only the reviewed ids may be hidden, and the card canvas must have the fix
   '<canvas id="recap-canvas" width="4000" height="630"></canvas>', '<canvas id="recap-canvas" width="1200"></canvas>', '<canvas id="other" width="1200" height="630"></canvas>', '<canvas width="1200" height="630"></canvas>'])
   assert.throws(() => buildDomModel(body(bad)), bad);
 });
+
+test('Confirm / Change buttons: hidden only on their own ids, data-hint only on Confirm and only with a plan', () => {
+ const body = (s: string) => `<!doctype html><html><body><main>${s}</main></body></html>`;
+ for (const ok of ['<button id="advisor-confirm" type="button" class="plan-button primary" data-hint="pro_max" hidden>Confirm</button>', '<button id="advisor-change-open" type="button" class="plan-button" hidden>Change</button>', '<button id="advisor-confirm" type="button" data-hint="free">Confirm</button>'])
+  assert.doesNotThrow(() => buildDomModel(body(ok)), ok);
+ for (const bad of ['<button id="advisor-confirm" type="button" data-hint="unsure">x</button>', '<button id="advisor-confirm" type="button" data-hint="reset">x</button>', '<button id="advisor-confirm" type="button" data-hint="">x</button>', '<button id="advisor-confirm" type="button" data-hint="pro_max;x">x</button>',
+  '<button id="advisor-change-open" type="button" data-hint="pro">x</button>', '<button type="button" data-hint="pro">x</button>', '<div id="advisor-confirm" data-hint="pro"></div>', '<span id="advisor-confirm" hidden></span>', '<div id="advisor-change-open" hidden></div>', '<button id="advisor-confirm" type="button" hidden="x">x</button>'])
+  assert.throws(() => buildDomModel(body(bad)), bad);
+});

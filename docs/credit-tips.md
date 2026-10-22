@@ -31,7 +31,7 @@ A long session carries more context into each request. Start a **new session** f
 ## Watch the budget, not every request
 
 - The status bar shows your daily budget and whether you are on track. A notice warns before the reported limit is reached.
-- **Bobert: Show Credit Budget** shows the forecast and, past the limit, a modelled overage in dollars next to the next larger plan.
-- **Bobert: Open Cost Advisor** compares plans for the next billing cycle once you confirm your plan details.
+- **Bobert: Show Credit Budget** shows the forecast and, past the limit, the add-on credits you would need to keep working until the reset, with a dollar figure.
+- **Bobert: Open Cost Advisor** gives one recommendation for the next billing cycle (a different plan, or your plan plus add-on credits as needed), based on your usage forecast; confirm your plan with one click to remove the assumption.
 
 All dollar figures are modelled from list prices, not invoices. The model rates are Kiro's published list, and the credits an actual task uses vary.

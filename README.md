@@ -20,7 +20,7 @@ Kiro tells you how many credits you have used. Bobert tells you what that means:
 ## Why you'll want it
 
 - **No nasty surprise at the end of the cycle.** Bobert forecasts the day your credits run out and warns you while there is still time to change course: at 80 % (adjustable), when a run-out before the reset becomes likely, and when the limit is reached.
-- **See what it costs in dollars.** A projected overage gets a dollar figure, shown next to what the next larger plan would cost. When a smaller plan would have been enough, Bobert says so.
+- **See what it costs in dollars.** A projected overage is put into add-on credits and a dollar figure. The Cost Advisor leads with one recommendation, which can be a smaller plan plus add-on credits when that is cheaper, and keeps its assumptions in a collapsed section. When a smaller plan would have been enough, Bobert says so.
 - **Stop feeding Kiro files it doesn't need.** One click finds secrets, database dumps, archives and build output that Kiro can read, and prepares the `.kiroignore` lines for you.
 - **Find the hidden credit drains.** Bobert flags large Steering files that load into every request and hooks that start the agent on every save. For each one it prepares a fix for you to review and save.
 - **Notice when a session gets expensive.** You get a nudge when a session's context is about 70 % or 85 % full, or when a pricier model is eating into a tight budget, with [tips for spending fewer credits](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/credit-tips.md).
@@ -29,7 +29,7 @@ Kiro tells you how many credits you have used. Bobert tells you what that means:
 Free and open source, with no account, no sign-in and no telemetry. Everything stays on your machine, and Kiro's files are only ever read.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/credit-view.png" alt="Bobert credit view with invented data: Likely to exceed, 3810 of 5000 reported credits used, the credits run out on 27 Oct before the 1 Nov reset, about 958 credits over (about $38.33, modelled) next to the cost of the next larger plan, and the usage chart with forecast lines. No real account information is shown." width="900">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/credit-view.png" alt="Bobert credit view with invented data: Likely to exceed, 3810 of 5000 reported credits used, the credits run out on 27 Oct before the 1 Nov reset, a modelled overage of about 958 credits (about $38.33), and the usage chart with forecast lines. No real account information is shown." width="900">
 </p>
 
 <details>
