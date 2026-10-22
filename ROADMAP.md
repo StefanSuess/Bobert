@@ -8,6 +8,8 @@ Issue and pull request numbers (#…) and work-package labels (WP…) in these d
 
 Platform wording (approved 2026-10-22): Bobert is released for macOS, Windows and Linux without per-platform verification labels in the product, README or listing. Internal test records may note which systems were tested.
 
+Add-on pricing (approved 2026-10-22): the price list records Kiro's documented add-on purchase rules (any number of credits from 125 at $0.04, up to $100 per pack, 5 packs; kiro.dev/docs/billing/add-on-credits, updated 2026-08-04), so the Cost Advisor prices a plan plus add-on credits and may recommend a smaller plan plus add-ons. The Advisor leads with one recommendation; details stay collapsible.
+
 ### Scope of 1.0 (approved 2026-10-17)
 
 The maintainer approved a value-first plan (WP0). 1.0.0 is the first stable release and the first public announcement. Its scope is the current features plus the user-triggered workspace/ignore audit from #71 Capability A, on macOS, Windows and Ubuntu; RHEL and macOS Intel stay unsupported for 1.0. #71 Capabilities B–D are post-1.0.
@@ -96,7 +98,7 @@ Tasks 1–4 (the independent engine) and Task 5 (recommendations in the existing
 - Pure TypeScript catalog validation, exact arithmetic, forecast/manual demand adapter, deterministic credit/expense simulation and finite strategy comparison.
 - All standard consumer tiers; distinct Enterprise postpaid rules. Unknown custom/GovCloud prices and eligibility stay unavailable.
 - Compare keep, immediate/next-reset upgrade, next-reset downgrade, temporary current-cycle upgrade and eligible additional capacity. Existing purchased inventory is separate from new expenditure.
-- Model minimums, supported purchase steps/pack limits, rollover, expiration, consumption order and effective dates. Exact new-pack quantities remain gated while purchase increments are unverified; first-paid promotions/proration and consumed-pack restoration need separate evidence.
+- Model minimums, supported purchase steps/pack limits, rollover, expiration, consumption order and effective dates. Purchase increments, minimum, pack size and pack count are recorded (see Add-on pricing under Decisions in force); whether a used-up pack frees its slot is not documented, so multi-cycle purchases beyond five packs stay unpriced; first-paid promotions/proration and consumed-pack restoration need separate evidence.
 - Show before-reset needs separately from 1/3/6 full future billing cycles. Include sensitivity, conditional break-even references and savings against a feasible, matched keep-current baseline. No claim of a global optimum across arbitrary plan schedules.
 - Acceptance: design cases A1–A15, synthetic arithmetic/conservation/ranking tests, original regression suite, typecheck, fixture validator, privacy/import checks and diff check.
 

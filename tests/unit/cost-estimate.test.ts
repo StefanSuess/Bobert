@@ -453,7 +453,7 @@ test('an assumed plan still gets the recommendation, with the muted line saying 
  const html=presentAdvisor({hint:planHint('5000',reviewedCatalog),context,horizons:[{months:1,result,reasons:[]}],advice:[advice],singleAccount:true,limit:'5000'});
  assert.equal(headlineOf(html),'Switch to Pro+ at your next reset and buy add-on credits as needed: about $56 a month instead of $100.');
  assert.match(html,/<span class="label">Your plan:<\/span> <strong>Pro Max<\/strong> <span>\(assumed from your 5,000-credit limit\)<\/span> <button id="advisor-confirm"/);
- assert.match(html,/<p class="muted small">Estimate from list prices and your usage forecast, before tax\. It assumes you are on Pro Max\. It depends on usage; see the details\. Not a guarantee\./);
+ assert.match(html,/<p class="muted small">Estimate from list prices and your usage forecast, before tax\. It assumes you are on Pro Max and have no purchased add-on credits\. It depends on usage; see the details\. Not a guarantee\./);
  assert.ok(!html.includes('<span class="badge">Confirmed</span>'));assert.ok(!/guaranteed (saving|to)/i.test(html));
 });
 
@@ -469,7 +469,7 @@ test('unknown pack slots or add-ons withhold the recommendation; insufficient da
  assert.equal(some.tier,'insufficient');
  // Nothing to compare yet: a short honest sentence, no figure, no dollar amount.
  const html=presentAdvisor({hint:planHint(null,reviewedCatalog),context:ctx({planSource:'unknown',plan:null}),horizons:[],advice:[],singleAccount:true,limit:null});
- assert.match(html,/<p class="verdict">Bobert needs a few days of usage before it can compare plans\.<\/p>/);assert.ok(!/\$\d/.test(html.replace(/Bundled list prices[^<]*/,'')));
+ assert.match(html,/<p class="verdict">Bobert can't compare plans yet\. It needs a current usage forecast; keep using Kiro and this updates automatically\.<\/p>/);assert.ok(!/\$\d/.test(html.replace(/Bundled list prices[^<]*/,'')));
 });
 
 test('a leftover of under one credit from a purchase before the reset is ignored and disclosed; anything larger or unknown is not',()=>{
@@ -481,4 +481,63 @@ test('a leftover of under one credit from a purchase before the reset is ignored
  // Existing inventory (opening before the purchase is not known to be empty), one credit or more, or an unknown opening: unusable.
  for(const [leftover,before] of [['0.4','5'],['0.4',null],['1','0'],['125','0'],['300','0']] as const)assert.equal(run(withLeftover(leftover,before)).tier,'insufficient',`${leftover}/${before}`);
  assert.ok(!run(result).conditions.includes('bridge_leftover_credit_ignored'));
+});
+
+test('end to end: a real purchase before the reset leaves under one credit; the figure is produced and the leftover is disclosed',()=>{
+ // 100 plan credits remain, 300.4 are needed before the reset: the simulator buys 201 whole credits and 0.6 carries into the first full cycle.
+ const p=fiveSlots({currentPlan:'pro_max',confirmedAt:'2030-01-15T00:00:00Z',resetAt:'2030-02-01T00:00:00Z',planRemaining:{kind:'known',value:'100'}});
+ const q=build('2400',p,1,current());
+ const need={low:2504n,base:3004n,high:3504n};
+ const result=optimizeCosts({...q,demands:q.demands.map(d=>({...d,beforeReset:{kind:'known' as const,value:{numerator:need[d.id],denominator:10n}}}))});
+ const keep=result.scenarios.find(s=>s.demandId==='base'&&s.strategy.id==='pro_max_keep_as_needed')!;
+ assert.equal(keep.bridge.newPurchasedCredits,'201');assert.equal(keep.bridge.openingPurchasedCredits,'0');assert.equal(keep.future.openingPurchasedCredits,'0.6');
+ const context=ctx({plan:'pro_max'}),advice=classifyAdvice(result,context),est=estimateSavings(result,context,advice,1);
+ assert.equal(est.tier,'modelled');assert.ok(est.conditions.includes('bridge_leftover_credit_ignored'));
+ assert.equal(est.base?.best?.plan,'pro_plus');assert.equal(est.base?.baseline,'100');assert.equal(est.base?.best?.cost,'56');
+ const html=presentAdvisor({hint:planHint(null,reviewedCatalog),context,horizons:[{months:1,result,reasons:[]}],advice:[advice],singleAccount:true,limit:null});
+ assert.equal(headlineOf(html),'Switch to Pro+ at your next reset and buy add-on credits as needed: about $56 a month instead of $100.');
+ assert.match(html,/A purchase needed before the next reset leaves less than one credit unused; its value \(under \$0\.04\) is not counted\./);
+});
+
+test('the pack-slot default is disclosed as a condition whenever it is used, and the add-on assumption is named in the note',()=>{
+ const {h,f}=forecastEvidence();
+ const obs={limit:'1000',usage:'1',asOf:f.asOf,resetAt:f.resetAt};
+ for(const answers of [noAnswers,{...noAnswers,plan:'pro' as const,billing:'consumer_prepaid' as const,addOns:'none' as const}]){
+  const built=advisorProfile(obs,answers,planHint('1000',reviewedCatalog));
+  assert.deepEqual(built.profile!.availablePackSlots,{kind:'known',value:5});assert.ok(built.context.assumptions.includes('pack_slots_assumed_free'));
+  const horizons=calculateCosts({mode:'personalized',profile:built.profile!,monthlyCredits:'0',beforeReset:undefined,demandMode:'forecast'},f,h,'2030-01-04T00:00:00Z',current());
+  const html=presentAdvisor({hint:planHint('1000',reviewedCatalog),context:built.context,horizons,advice:horizons.map(x=>classifyAdvice(x.result,built.context)),singleAccount:true,limit:'1000'});
+  assert.match(html,/<li>All five add-on pack slots are assumed free \(no earlier packs this year\)\.<\/li>/);
+ }
+ // With existing add-ons the slots stay unknown and nothing is disclosed as assumed.
+ const some=advisorProfile(obs,{...noAnswers,plan:'pro',billing:'consumer_prepaid',addOns:'some',addOnCredits:'10'},planHint('1000',reviewedCatalog));
+ assert.ok(!some.context.assumptions.includes('pack_slots_assumed_free'));
+ // The muted note names "no purchased add-on credits" only when add-ons are part of the result and were not answered.
+ const assumedNone=ctx({planSource:'hint',plan:'pro_max',billingConfirmed:true,addOns:'assumed_none',assumptions:['plan_is_hint','add_ons_assumed_none']});
+ const note=(c:AdvisorContext,credits:string)=>{const result=optimize(credits,fiveSlots({currentPlan:'pro_max'}),1,current());return /<p class="muted small">([^<]*)<\/p><\/div>/.exec(presentAdvisor({hint:planHint('5000',reviewedCatalog),context:c,horizons:[{months:1,result,reasons:[]}],advice:[classifyAdvice(result,c)],singleAccount:true,limit:'5000'}))![1];};
+ assert.match(note(assumedNone,'2400'),/It assumes you are on Pro Max and have no purchased add-on credits\./);
+ assert.match(note({...assumedNone,planSource:'confirmed',assumptions:['add_ons_assumed_none']},'2400'),/It assumes you have no purchased add-on credits\./);
+ assert.doesNotMatch(note(assumedNone,'900'),/add-on/); // nothing is bought, so the add-on assumption is not part of the result
+ assert.doesNotMatch(note({...assumedNone,addOns:'none',assumptions:['plan_is_hint']},'2400'),/add-on/); // answered, not assumed
+});
+
+test('fractions of add-on credits read "under 1", never "0"',()=>{
+ const r=withAddOns('2400','pro_max');
+ const frac=structuredClone(r.result);
+ for(const s of frac.scenarios)if(s.strategy.id==='pro_plus_next_reset_as_needed'){s.future.purchasedCreditsConsumed='0.4';s.future.newPurchasedCredits='125';s.future.planCreditsConsumed='2000';}
+ const context=ctx({plan:'pro_max'}),advice=classifyAdvice(frac,context);
+ const html=presentAdvisor({hint:planHint(null,reviewedCatalog),context,horizons:[{months:1,result:frac,reasons:[]}],advice:[advice],singleAccount:true,limit:null});
+ assert.match(html,/the other under 1 cost about \$16 as add-on credits \(the smallest purchase is 125 credits\)\./);assert.ok(!/the other 0 cost/.test(html));
+});
+
+test('a 6-cycle horizon that needs one pack per cycle becomes unpriced while the 1-cycle headline stays',()=>{
+ // 6,100 credits a month on Pro Max: 1,100 add-on credits = one pack a cycle; six packs cannot be open at once and a used-up pack is not known to free its slot.
+ const one=withAddOns('6100','pro_max',1);
+ assert.equal(headlineOf(one.html),'Stay on Pro Max and buy add-on credits as needed: about $144 a month, the cheapest option for your usage.');
+ const six=withAddOns('6100','pro_max',6);
+ const keep=six.result.scenarios.find(s=>s.demandId==='base'&&s.strategy.id==='pro_max_keep_as_needed')!;
+ assert.ok(keep.reasons.includes('pack_slot_release_unknown'));assert.equal(keep.future.totalNewExpenditure,null);
+ assert.equal(six.est.base?.baseline,null);assert.ok(!/Stay on Pro Max/.test(six.html));
+ // Three cycles need three packs and are priced.
+ assert.equal(withAddOns('6100','pro_max',3).est.base?.baseline,'432');
 });

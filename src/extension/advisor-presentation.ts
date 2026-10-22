@@ -32,7 +32,8 @@ const assumptionText:Record<string,string>={
  limited_history:'The forecast is based on limited history.',
  long_history_future_rate:'Full future cycles use the longest qualified pooled-history rate, which can differ from the selected dashboard forecast window.',
  short_window_long_horizon:'Multi-cycle figures extend a short observation window.',
- bridge_leftover_credit_ignored:'A purchase needed before the next reset leaves less than one credit unused; its value (under $0.04) is not counted.',
+ bridge_leftover_credit_ignored:`A purchase needed before the next reset leaves less than one credit unused; its value (under $${reviewedCatalog.consumer.pricePerCredit}) is not counted.`,
+ pack_slots_assumed_free:'All five add-on pack slots are assumed free (no earlier packs this year).',
  mid_cycle_upgrade_cheaper:'Upgrading immediately, mid-cycle, is priced lower than keeping your plan; that option is not part of the estimate figure.',
  net_changes_not_gross_billable_usage:'The forecast is based on net changes in the reported counter, not on gross billable usage.',
  sustained_usage_scenario:'Multi-cycle figures repeat the forecast and are sustained-usage scenarios, not predictions.',
@@ -125,11 +126,15 @@ function recommend(e:SavingsEstimate,context:AdvisorContext,limit:string|null):R
    // Bought and used differ by less than a credit when only whole-credit rounding is involved; more means a minimum purchase.
    const exact=Number(b.addOnBought)-Number(b.addOnCredits)<1;
    const unit=exact?` (${usdCostOf(reviewedCatalog.consumer.pricePerCredit)} each)`:` (the smallest purchase is ${grouped(reviewedCatalog.consumer.minimumCredits)} credits)`;
-   line=`You use ${usage} credits a month. ${target} includes ${grouped(includes)}; the other ${grouped(String(Number(b.addOnCredits)/m))} cost about ${usdCostOf(perCycle(b.addOnCost,m,'up'))} as add-on credits${unit}.`;
+   line=`You use ${usage} credits a month. ${target} includes ${grouped(includes)}; the other ${perCycleCredits(b.addOnCredits,m)?.replace(/^about /,'')} cost about ${usdCostOf(perCycle(b.addOnCost,m,'up'))} as add-on credits${unit}.`;
   }else if(!buys)line=`${target} includes ${grouped(includes)} credits, enough for your forecast of ${usage}${usage==='under 1'?' credit':''}.`;
  }
  if(best.plan==='free'&&!best.keep)line=`${line} Moving to Free means cancelling the paid plan; Free terms for your account were not verified.`.trim();
- const note=`Estimate from list prices and your usage forecast, before tax.${context.planSource==='hint'&&cur?` It assumes you are on ${cur}.`:''}${qualified?' It depends on usage; see the details.':''} Not a guarantee.`;
+ // The note names only what the user has not confirmed and what the figure depends on: an assumed plan, and no purchased add-ons when add-ons are part of the result.
+ const assumedPlan=context.planSource==='hint'&&cur?`you are on ${cur}`:null;
+ const assumedNoAddOns=(buys||baselineBuys)&&context.addOns==='assumed_none'?(assumedPlan?'have no purchased add-on credits':'you have no purchased add-on credits'):null;
+ const assumedText=[assumedPlan,assumedNoAddOns].filter(Boolean).join(' and ');
+ const note=`Estimate from list prices and your usage forecast, before tax.${assumedText?` It assumes ${assumedText}.`:''}${qualified?' It depends on usage; see the details.':''} Not a guarantee.`;
  // Secondary explanation for the expandable details.
  const period=e.window?`from ${day(e.window.from)} UTC, ${m} ${m===1?'month':'months'}`:'';
  const other=e.levels.find(l=>l.demandId!=='base'&&(l.unpriced>0||!l.best||l.best.plan!==best.plan||l.saving===null||b.saving===null||compare(l.saving,b.saving)!==0));
@@ -184,7 +189,7 @@ export function presentAdvisor(o:{hint:PlanHint;context:AdvisorContext;horizons:
   :kind==='potential_savings'?`Potential saving${first?.savingsRange?`: $${safe(first.savingsRange.minimum.amount)} to $${safe(first.savingsRange.maximum.amount)} over ${horizons[0].months} full billing ${horizons[0].months===1?'cycle':'cycles'} (list prices)`:''}. ${first?safe(winnerText(first)):''}`
   :kind==='no_action'?'No cheaper option found for your forecast usage. Keep your current plan.'
   :kind==='conditional_comparison'?(advice[0]?.reasons.includes('savings_not_established')?'No saving is established with the details you confirmed. No savings are claimed.':'No saving can be confirmed yet. A comparison exists, but it depends on details you have not confirmed (see below). No savings are claimed.')
-  :horizons.length?'Not enough confirmed information to compare plans yet. No savings are claimed.':'Bobert needs a few days of usage before it can compare plans.';
+  :horizons.length?'Not enough confirmed information to compare plans yet. No savings are claimed.':"Bobert can't compare plans yet. It needs a current usage forecast; keep using Kiro and this updates automatically.";
  // Name the visible blocking condition when the plan remainder is unknown; still fail-closed, no figures are derived from it.
  const nominal=context.plan?reviewedCatalog.plans.find(p=>p.id===context.plan)?.credits:undefined;
  const blocker=headline!==null||kind==='potential_savings'||kind==='no_action'?null

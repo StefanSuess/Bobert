@@ -1375,6 +1375,7 @@ test('packaged next-larger-plan comparison: beside the projected overage and on 
    await s.commands.get('bobert.showUsage')!();const html:string=env.panels.at(-1).webview.html;s.dispose();
    return {notice:budgetInfos(env)[0]?.text??'',html};
   };
+  const overageLines=(html:string)=>[...html.matchAll(/<p class="small overage">([^<]*)<\/p>/g)].map(m=>m[1]!);
   const COST=/ \(about \$[\d.]+ over the limit, modelled\)\./;
   // A 1000-credit account (a Pro hint) at 50 credits a day is forecast to pass its limit.
   const pro=await run(1000,50);
@@ -1382,7 +1383,7 @@ test('packaged next-larger-plan comparison: beside the projected overage and on 
   assert.ok(pro.notice.endsWith(' For comparison, if you are on Pro: Pro+ costs $20 a month more and includes 1000 more credits.'),pro.notice);
   const lines=[...pro.html.matchAll(/<p class="small overage">([^<]*)<\/p>/g)].map(m=>m[1]!);
   // The credit view's card says what to do (add-on credits until the reset); the plan comparison is gone from it. The notice text is unchanged.
-  assert.match(lines[0]!,/^At this pace you need about \d[\d,]* add-on credits \(≈ \$[\d.,]+, modelled\) to keep working until the reset on \d+ [A-Z][a-z]{2}\.$/);
+  assert.match(lines[0]!,/^At this pace you would need about \d[\d,]* add-on credits \(≈ \$[\d.,]+\) to avoid running out before the reset on \d+ [A-Z][a-z]{2}\.$/);
   assert.ok(lines.length>=1&&lines.length<=2);assert.ok(lines.slice(1).every(l=>l==='For next month, see the Cost Advisor below.'));
   assert.ok(!pro.html.includes('For comparison'));
   assert.ok(!/save|cheaper|recommend|switch/i.test(pro.notice.slice(pro.notice.indexOf('For comparison'))));
@@ -1390,7 +1391,8 @@ test('packaged next-larger-plan comparison: beside the projected overage and on 
   for(const [limit,perDay] of [[10000,500],[100,10]] as const){
    const other=await run(limit,perDay);
    assert.match(other.notice,/^At this pace your Kiro credits run out on /);assert.ok(!other.notice.includes('For comparison')&&!other.html.includes('For comparison'),String(limit));
-   assert.match(other.html,/At this pace you need about \d[\d,]* add-on credits/);
+   // Power (10000) is a paid plan; a limit that matches no plan keeps the neutral sentence.
+   assert.match(overageLines(other.html)[0]!,limit===10000?/^At this pace you would need (about|at least|more) /:/^At this pace by the reset: about \d+ credits over/);
   }
   // Without a projected overage there is no line (and no notice).
   const calm=await run(1000,5,false);assert.equal(calm.notice,'');assert.ok(!calm.html.includes('For comparison'));

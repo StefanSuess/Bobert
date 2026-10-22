@@ -63,11 +63,14 @@ export async function startExtension(ui: ExtensionUi, options: ExtensionOptions)
  const render=()=>{
   let advisorHtml:string;
   let insights:PlanInsights=NO_INSIGHTS;
+  // Add-on wording in the credit view only for a paid consumer plan (confirmed or assumed); Free, an unknown plan and Enterprise stay neutral.
+  let addOnsApply=false;
   try{
    const hint=planHint(observation.baseLimit,reviewedCatalog);
    const built=advisorProfile({limit:observation.baseLimit,usage:observation.usage,asOf:observation.forecast.asOf??null,resetAt:observation.forecast.resetAt??null},advisor.value,hint);
    const horizons=built.profile?calculateCosts({mode:'personalized',profile:built.profile,monthlyCredits:'0',beforeReset:undefined,demandMode:'forecast'},observation.forecast,observation.history,now()):[];
    const advice=horizons.map(h=>classifyAdvice(h.result,built.context));
+   addOnsApply=built.context.plan!==null&&built.context.plan!=='free'&&advisor.value.billing!=='enterprise_postpaid';
    advisorHtml=presentAdvisor({hint,context:built.context,horizons,advice,singleAccount:advisor.isSingleAccount,limit:observation.baseLimit});
    // Read-only reuse of the advisor's 1-month estimate; a failure here never touches the gauge or the advisor view.
    try{insights=planInsights({view:observation,estimate:horizons.length?estimateSavings(horizons[0].result,built.context,advice[0],1):null,planSource:built.context.planSource,plan:built.context.plan,now:now()});}catch{insights=NO_INSIGHTS;}
@@ -89,7 +92,7 @@ export async function startExtension(ui: ExtensionUi, options: ExtensionOptions)
    }
   }catch{recap=undefined;}
   shownRecap=recap;
-  const presentation=present(observation,codes,'',advisorHtml,audit,now(),options.notKiro===true,insights,inlineAdvisorForm(advisor.value,advisor.epoch),results,recap);
+  const presentation=present(observation,codes,'',advisorHtml,audit,now(),options.notKiro===true,insights,inlineAdvisorForm(advisor.value,advisor.epoch),results,recap,addOnsApply);
   detail=presentation.html;
   if(presentation.forecast)try{options.onForecast?.();}catch{/* the support prompt never affects the gauge */}
   if(presentation.absent)try{options.onAbsent?.();}catch{/* nor the not-Kiro note */}

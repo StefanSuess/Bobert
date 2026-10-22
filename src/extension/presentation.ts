@@ -6,9 +6,10 @@ import { presentChartParts, CHART_CSS } from './chart.ts';
 import { countsText, relativeTime, sizePhrase, type AuditSummary } from './audit-model.ts';
 import { LINKS, NOT_KIRO_TEXT } from './identity.ts';
 import { overageOver, type Overage } from '../cost/overage.ts';
-import { decimalToRational, formatRational } from '../cost/money.ts';
+import { decimalToRational, formatRational, multiplyRational } from '../cost/money.ts';
 import { rightSizeText } from './budget-warning.ts';
 import { ESTIMATE_MARKER } from './advisor-presentation.ts';
+import { reviewedCatalog } from '../cost/catalog.ts';
 import { NO_INSIGHTS, type PlanInsights } from '../cost/plan-hints.ts';
 import { cycleComparison, todayPace } from './dashboard-insights.ts';
 import { resultsText, type StoredResults } from './results-summary.ts';
@@ -49,6 +50,19 @@ const ABOUT='Figures are as of the last account update; usage since then is unkn
 const creditsText=(c:string)=>{try{return formatRational(decimalToRational(c),compare(c,'10')>=0 ? 0 : 1,'half_up').replace(/^0$/,'under 0.1');}catch{return c;}};
 // Thousands separators for whole numbers of 1,000 or more; anything else (decimals, text) is returned unchanged.
 const withSeparators=(n:string)=>/^\d{4,}$/.test(n) ? n.replace(/\B(?=(\d{3})+(?!\d))/g,',') : n;
+// What a projected overage means in add-on credits, from the price list's purchase rules (125 credits at the least, five packs of 2,500 at once).
+// Only for a paid consumer plan; for Free, an unknown plan or Enterprise the neutral "credits over" wording is used instead.
+function addOnNeedText(o: Overage, resetDate: string | null): string {
+ const rules = reviewedCatalog.consumer, until = `before the reset${resetDate ? ` on ${resetDate}` : ''}`;
+ const dollars = (amount: string) => { const [whole, fraction = ''] = amount.split('.'); return `$${whole}${fraction ? `.${fraction.padEnd(2, '0')}` : ''}`; };
+ if (compare(o.credits, rules.minimumCredits) < 0) {
+  const smallest = o.pricePerCredit === null ? null : formatRational(multiplyRational(decimalToRational(rules.minimumCredits), decimalToRational(o.pricePerCredit)), 2, 'half_up');
+  return `At this pace you would need at least ${rules.minimumCredits} add-on credits (${smallest === null ? '' : `${dollars(smallest)}, `}the smallest purchase) to avoid running out ${until}.`;
+ }
+ const most = String(rules.maximumPacks * Number(rules.maximumCredits));
+ if (compare(o.credits, most) > 0) return `At this pace you would need more add-on credits than can be bought at once (${rules.maximumPacks} packs of ${withSeparators(rules.maximumCredits)} credits) to avoid running out ${until}.`;
+ return `At this pace you would need about ${withSeparators(creditsText(o.credits))} add-on credits${o.money === null ? '' : ` (≈ ${dollars(o.money)})`} to avoid running out ${until}.`;
+}
 const moneyText=(o:Overage)=>o.money===null ? '' : ` (≈ ${o.money==='0.00' ? 'under $0.01' : `$${o.money}`}, modelled)`;
 
 // The command links of this view are exactly five Bobert commands (Cost Advisor, the two audit commands, Share and Report a problem); none carries arguments.
@@ -133,7 +147,7 @@ function recapCard(recap: Recap | undefined): string {
 }
 
 /** Presentation only: billing eligibility and exact projections remain in the core. */
-export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], costHtml = '', advisorHtml = '', audit?: AuditSummary, now = new Date().toISOString(), notKiro = false, insights: PlanInsights = NO_INSIGHTS, advisorForm = '', results?: StoredResults, recap?: Recap) {
+export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], costHtml = '', advisorHtml = '', audit?: AuditSummary, now = new Date().toISOString(), notKiro = false, insights: PlanInsights = NO_INSIGHTS, advisorForm = '', results?: StoredResults, recap?: Recap, addOnsApply = false) {
  const h=o.history,f=o.forecast;
  const selected=f.estimates.find(e=>e.method===f.selectedMethod && e.status==='qualified');
  const stale=o.status==='stale' || f.reasons.includes('stale');
@@ -173,7 +187,8 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  // (add-on credits until the reset) instead of comparing plans; the Cost Advisor below holds the plan recommendation.
  const attempt=(text:()=>string)=>{try{return text();}catch{return '';}}; // a hint can never take the view down
  const advisorHasEstimate=advisorHtml.includes(ESTIMATE_MARKER);
- const noteLines=[projectedOver ? `At this pace you need about ${withSeparators(creditsText(projectedOver.credits))} add-on credits${moneyText(projectedOver)} to keep working until the reset${resetDate ? ` on ${resetDate}` : ''}.` : '',
+ const neutralOver=(o:Overage)=>{const c=creditsText(o.credits);return `At this pace by the reset: ${c==='under 0.1' ? c : `about ${c}`} credits over${moneyText(o)}.`;};
+ const noteLines=[projectedOver ? (addOnsApply ? addOnNeedText(projectedOver,resetDate) : neutralOver(projectedOver)) : '',
   projectedOver && advisorHasEstimate ? 'For next month, see the Cost Advisor below.' : '',insights.rightsize ? attempt(()=>rightSizeText(insights.rightsize!)) : ''].filter(Boolean);
  // The dollar figures above trace back to one reviewed price; said once, inside About these numbers.
  const priced=[observedOver,projectedOver].find(x=>x?.money);

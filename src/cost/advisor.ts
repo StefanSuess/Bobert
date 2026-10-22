@@ -83,7 +83,9 @@ export function advisorProfile(o:AdvisorObservation,answers:AdvisorAnswers,hint:
   :addOns==='unknown'?{kind:'unknown'}:{kind:'known',value:[]};
  // Kiro allows up to five add-on packs at a time (documented). With no existing add-on credits (answered or assumed) all five
  // are free; with any existing add-on credits, or an unanswered state, the number of occupied packs is unknown.
- const availablePackSlots:BillingProfile['availablePackSlots']=addOns==='none'||addOns==='assumed_none'?{kind:'known',value:catalog.consumer.maximumPacks}:{kind:'unknown'};
+ const slotsDefault=addOns==='none'||addOns==='assumed_none';
+ const availablePackSlots:BillingProfile['availablePackSlots']=slotsDefault?{kind:'known',value:catalog.consumer.maximumPacks}:{kind:'unknown'};
+ if(slotsDefault)assumptions.push('pack_slots_assumed_free');
  const profile:BillingProfile={
   provenance:'manual',confirmedAt:o.asOf,billingSystem:system,market:'commercial',currentPlan:plan,
   allowedPlans:system==='enterprise_postpaid'?PLAN_IDS.filter(id=>id!=='free'):[...PLAN_IDS],

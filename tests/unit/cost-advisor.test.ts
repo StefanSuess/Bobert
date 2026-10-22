@@ -49,7 +49,7 @@ test('unknown add-ons are never silently zero: they become a labelled assumption
  const unsure=advisorProfile(obs,{...noAnswers,plan:'pro',billing:'consumer_prepaid'},planHint('1000',catalog));
  assert.equal(unsure.context.addOns,'assumed_none');assert.ok(unsure.context.assumptions.includes('add_ons_assumed_none'));
  const none=advisorProfile(obs,{...noAnswers,plan:'pro',billing:'consumer_prepaid',addOns:'none'},planHint('1000',catalog));
- assert.equal(none.context.addOns,'none');assert.deepEqual(none.context.assumptions,[]);
+ assert.equal(none.context.addOns,'none');assert.deepEqual(none.context.assumptions,['pack_slots_assumed_free']); // the only assumption left: five free pack slots
  assert.deepEqual(none.profile?.planRemaining,{kind:'known',value:'900'});
  const someUnknown=advisorProfile(obs,{...noAnswers,plan:'pro',billing:'consumer_prepaid',addOns:'some'},planHint('1000',catalog));
  assert.deepEqual(someUnknown.profile?.purchased,{kind:'unknown'});assert.deepEqual(someUnknown.profile?.planRemaining,{kind:'unknown'});
@@ -109,7 +109,7 @@ test('ambiguous limits make the plan remainder unknown and add visible condition
  assert.deepEqual(differs.profile?.planRemaining,{kind:'unknown'});assert.ok(differs.context.assumptions.includes('limit_differs_from_plan_credits'));
  assert.equal(differs.context.plan,'pro');
  const fine=advisorProfile({...base,limit:'1000',usage:'10'},answers,planHint('1000',catalog));
- assert.deepEqual(fine.profile?.planRemaining,{kind:'known',value:'990'});assert.deepEqual(fine.context.assumptions,[]);
+ assert.deepEqual(fine.profile?.planRemaining,{kind:'known',value:'990'});assert.deepEqual(fine.context.assumptions,['pack_slots_assumed_free']);
  // Both cases force a conditional outcome even on an otherwise perfect optimizer result.
  assert.equal(classifyAdvice(optimization(),differs.context).kind,'conditional_comparison');
  assert.equal(classifyAdvice(optimization(),over.context).kind,'conditional_comparison');
@@ -187,7 +187,7 @@ test('answers cannot cross accounts, ambiguity or stale editor tickets',()=>{
 test('presentation is script-free, escaped, traceable to the catalog and never offers a purchase instruction',()=>{
  const hint=planHint('1000',catalog);
  const html=presentAdvisor({hint,context:ctx({planSource:'hint',plan:'pro',billingConfirmed:false,addOns:'assumed_none',assumptions:['plan_is_hint','billing_assumed_consumer','add_ons_assumed_none']}),horizons:[],advice:[],singleAccount:true,limit:'<img src=x onerror=synthetic-sentinel>'});
- for(const marker of ['Cost Advisor','(assumed from your','only a hint',catalog.version,catalog.verifiedOn.slice(0,10),'Bobert needs a few days of usage before it can compare plans.'])assert.ok(html.includes(marker),marker);
+ for(const marker of ['Cost Advisor','(assumed from your','only a hint',catalog.version,catalog.verifiedOn.slice(0,10),"Bobert can't compare plans yet. It needs a current usage forecast; keep using Kiro and this updates automatically."])assert.ok(html.includes(marker),marker);
  assert.ok(!html.includes('<img'));assert.ok(html.includes('&lt;img'));assert.ok(!html.includes('<script'));assert.ok(!html.includes('command:'));
  assert.ok(!/buy now|purchase now|click to buy/i.test(html));
 });
