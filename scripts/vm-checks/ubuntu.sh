@@ -10,7 +10,8 @@ if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split("."
   curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash - >/dev/null 2>&1 && sudo apt-get install -y -qq nodejs >/dev/null 2>&1
 fi
 say "node: $(node -v)"
-sudo corepack enable && corepack prepare pnpm@latest --activate >/dev/null 2>&1
+command -v pnpm >/dev/null || sudo npm install -g pnpm >/dev/null 2>&1
+command -v pnpm >/dev/null || { say "pnpm missing: stopped"; exit 1; }
 say "pnpm: $(pnpm -v)"
 cd "$HOME" && rm -rf bobert-vm && git clone -q https://github.com/StefanSuess/Bobert.git bobert-vm && cd bobert-vm && git checkout -q "${BOBERT_REF:-18af368}" && say "commit: $(git rev-parse --short=12 HEAD)"
 pnpm install --frozen-lockfile >/dev/null 2>&1 && say "install: ok" || say "install: FAIL"

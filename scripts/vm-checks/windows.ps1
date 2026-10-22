@@ -9,7 +9,9 @@ $nv = try { (node -p "process.versions.node.split('.')[0]") } catch { 0 }
 if ([int]$nv -lt 24) { winget install -e --id OpenJS.NodeJS --silent --accept-package-agreements --accept-source-agreements }
 $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')
 Say "node: $(node -v)"
-corepack enable; corepack prepare pnpm@latest --activate
+if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) { npm install -g pnpm *> $null }
+$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User') + ';' + (npm prefix -g)
+if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) { Say 'pnpm missing: stopped'; return }
 Say "pnpm: $(pnpm -v)"
 Set-Location $HOME; if (Test-Path bobert-vm) { Remove-Item -Recurse -Force bobert-vm }
 git clone -q https://github.com/StefanSuess/Bobert.git bobert-vm; Set-Location bobert-vm; git checkout -q $(if ($env:BOBERT_REF) { $env:BOBERT_REF } else { "18af368" })
