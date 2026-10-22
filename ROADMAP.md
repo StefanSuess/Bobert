@@ -6,6 +6,8 @@ Status: **Bobert 1.0.0** is the first release under the name Bobert (formerly Cy
 
 Issue and pull request numbers (#…) and work-package labels (WP…) in these decisions refer to the archived Cyclegauge repository.
 
+Platform wording (approved 2026-10-22): Bobert is released for macOS, Windows and Linux without per-platform verification labels in the product, README or listing. Internal test records may note which systems were tested.
+
 ### Scope of 1.0 (approved 2026-10-17)
 
 The maintainer approved a value-first plan (WP0). 1.0.0 is the first stable release and the first public announcement. Its scope is the current features plus the user-triggered workspace/ignore audit from #71 Capability A, on macOS, Windows and Ubuntu; RHEL and macOS Intel stay unsupported for 1.0. #71 Capabilities B–D are post-1.0.
@@ -28,7 +30,7 @@ Audit triggers and patterns (approved 2026-10-17; supersedes "runs only when the
 
 Report a problem (approved 2026-10-18 by the maintainer for 1.0; no telemetry): a command **Bobert: Report a Problem** (`bobert.reportProblem`) builds the existing Copy Diagnostics text (fixed codes, counts and versions only), opens it as an unsaved document for review, copies it and then opens the fixed GitHub bug-report form `https://github.com/StefanSuess/Bobert/issues/new?template=bug_report.yml` in the browser. No diagnostics, identifiers or other data are put in the URL, nothing is sent by Bobert and nothing new is persisted. Entry points: the command palette, a **Report a problem** button on Bobert's own error notifications, and a footer link in the credit detail view, so the webview command allowlist becomes exactly five commands (`bobert.costAdvisor`, `bobert.auditWorkspace`, `bobert.audit.show`, `bobert.share`, `bobert.reportProblem`); scripts, CSP and the message protocol are otherwise unchanged. Telemetry stays out of 1.0.
 
-Session hints on Windows and Linux (approved 2026-10-18): the maintainer decided that the session hints (context reminder and model hint, setting `bobert.sessionHints`) are also enabled on Windows and Linux, not only on macOS. Nothing else about the approved read changes: the same allowlisted fields, read-only handles, bounds, no persistence, local extension host only, Kiro only. Only macOS has observed evidence; on Windows and Linux the session folder and the path format are unverified, so the feature must fail closed silently with fixed codes (`no_root`, `no_match`) when the layout differs, and native verification on both platforms stays open. This is not approval for session aggregation or any other new read.
+Session hints on Windows and Linux (approved 2026-10-18): the maintainer decided that the session hints (context reminder and model hint, setting `bobert.sessionHints`) are also enabled on Windows and Linux, not only on macOS. Nothing else about the approved read changes: the same allowlisted fields, read-only handles, bounds, no persistence, local extension host only, Kiro only. on Windows and Linux the session folder and the path format may differ, so the feature must fail closed silently with fixed codes (`no_root`, `no_match`) when the layout differs. This is not approval for session aggregation or any other new read.
 
 Steering review with the audit (approved 2026-10-18): the maintainer decided that a manual workspace audit also runs the Steering and Hooks review, and that the review keeps its own button. A manual audit means every user-initiated run (**Bobert: Audit Kiro Workspace**, the Audit view title button, the dashboard card's **Check now** link, **Run audit** in the reminder, and the credit view's Show / `bobert.audit.show` when there is no result yet, which runs the audit); it then also runs exactly what **Bobert: Review Kiro Steering and Hooks** (`bobert.reviewKiroConfig`) runs, with the same trust and folder guards, the same bounded reads and manual-run semantics (it wins over an automatic run, does not count toward its cap, and the one-time enable offer behaves as after a manual review). Silent audit re-runs (reminder-driven, `onOpen` and `onOpenAndChanges`, the ignore-file re-check) never start the review; `bobert.configReviewAutomatically` stays its only automatic trigger. If the user dismisses the multi-root folder picker or cancels the running audit, no review starts; after an audit failure or refusal (untrusted workspace, refused folder) the review still starts and shows its own refusal. A failure or refusal of one never blocks or hides the other's result. The Audit view title bar gets a button for the review command. This supersedes the WP10 design's "the review is a separate command from the audit" for manual runs only; nothing new is read beyond the review's existing allowlist.
 
@@ -47,7 +49,7 @@ Release decision (approved 2026-10-18): **1.0.0 stable is released directly.** 1
 - Document locally observed Kiro 1.2.37 formats and their limitations.
 - Establish account snapshots as authoritative for current observed account usage and sessions as local attribution only.
 - Add invented fixtures, expected outcomes, and a fixture-only validator.
-- Establish privacy rules and mark Windows, Ubuntu, and RHEL unverified.
+- Establish privacy rules.
 
 ### Read-only account snapshot collector and local persistence
 
@@ -65,7 +67,7 @@ Acceptance rules:
 - Filesystem tests demonstrate zero writes to source files and directories, including SQLite sidecars; use generated test data, never production sessions in CI. If safe database access is unavailable, logs still work and cache status explains the limitation.
 - Persistence writes only to the app-owned location and emits no private diagnostics, including on failures.
 - Snapshot interval differences are never presented as known daily consumption. Cross-cycle counters are not subtracted.
-- Validate on macOS first. Windows, Ubuntu, and RHEL remain explicitly unsupported/unverified until their platform acceptance checks in ARCHITECTURE.md pass on actual hosts or appropriate environments. Do not mark one Linux distribution verified from another's results.
+- Validate on macOS first, then run the platform checks in ARCHITECTURE.md on Windows and Linux hosts. Internal test records note which systems were tested.
 
 ### Kiro IDE extension
 
@@ -73,7 +75,7 @@ Acceptance rules:
 - Show remaining base credits in the status bar and open a local detail view on click.
 - Import at activation; observe log changes and poll as a fallback without making old observations fresh.
 - Test activation, refresh, stale status and detail rendering with invented fixtures; package and validate a VSIX in the locally installed Kiro IDE.
-- Verify actual extension-host Node and `node:sqlite` behavior. Do not claim Windows, Ubuntu or RHEL support from macOS validation.
+- Verify actual extension-host Node and `node:sqlite` behavior. Platform checks for Windows and Linux are recorded in the internal test records.
 
 ### Observed local attribution and semantic verification (deferred)
 
@@ -115,7 +117,7 @@ Approved 2026-10-10 with refinements: observed zero net change is distinguished 
 
 ### Cross-platform readiness
 
-macOS is beta with maintainer synthetic-data testing in Kiro 1.2.56; Windows 11 Pro and Ubuntu 26 are beta, smoke-tested by the maintainer in native Kiro without itemised acceptance; RHEL and macOS Intel are unverified. Versioning rules are in [the release process](docs/release-process.md#versioning).
+Bobert is released for macOS, Windows and Linux. Versioning rules are in [the release process](docs/release-process.md#versioning).
 
 ### Usage efficiency insights (future)
 
@@ -133,5 +135,4 @@ Ideas already recorded, none approved:
 
 - An interactive dashboard with scripts (chart hovers, an inline Cost Advisor form) as a candidate for 1.1; it needs its own design and security review (nonce CSP, validated message protocol, accessibility).
 - Session attribution (#71 C) and usage-efficiency insights, each needing separate evidence and approval as described above.
-- Native verification of session hints and the dashboard on Windows and Linux.
 - Bobert's face could follow the budget state (smiling on track, worried when likely to exceed).

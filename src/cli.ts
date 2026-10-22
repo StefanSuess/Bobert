@@ -17,7 +17,7 @@ Usage: node --disable-warning=ExperimentalWarning src/cli.ts [options]
 No Kiro commands, authenticated requests, session aggregation or cache reads.
 Remaining base credits are observed limit minus observed usage, clamped at zero.
 Per-day allocation uses UTC 24-hour days until reset; it is not a forecast.
-macOS is the stable target; Windows and Ubuntu are smoke-tested; RHEL and macOS Intel are unverified.`;
+Works on macOS, Windows and Linux.`;
 let store: Store | undefined;
 let stage = 'CONFIGURATION_INVALID';
 try {

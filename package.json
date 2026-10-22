@@ -202,9 +202,16 @@
             "completionEvents": ["onStepSelected"]
           },
           {
+            "id": "bobert.gettingStarted.cycleRecap",
+            "title": "Look back on each cycle",
+            "description": "When a billing cycle ends, Bobert shows a short recap card that you can save or share. You can also export your observed usage as CSV from the credit budget view.\n[Show credit budget](command:bobert.showUsage)",
+            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Cycle recap card and CSV export" },
+            "completionEvents": ["onStepSelected"]
+          },
+          {
             "id": "bobert.gettingStarted.sessionHints",
             "title": "Nudges from your latest Kiro session",
-            "description": "Bobert can tell you when your newest Kiro session is nearly full or set to a pricier model. It reads only the newest session's model, context level and time, on your computer. Nothing is stored or sent. Turn it off any time. Seen on macOS; not yet verified on Windows or Linux.\n[Open session hint settings](command:workbench.action.openSettings?%5B%22bobert.sessionHints%22%5D)\n[What is read, exactly](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/privacy-and-storage.md)",
+            "description": "Bobert can tell you when your newest Kiro session is nearly full or set to a pricier model. It reads only the newest session's model, context level and time, on your computer. Nothing is stored or sent. Turn it off any time.\n[Open session hint settings](command:workbench.action.openSettings?%5B%22bobert.sessionHints%22%5D)\n[What is read, exactly](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/privacy-and-storage.md)",
             "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Session hint settings" },
             "completionEvents": ["onStepSelected"]
           }
@@ -259,7 +266,7 @@
           "type": "boolean",
           "default": true,
           "order": 3,
-          "description": "On macOS, Windows and Linux (Windows and Linux not yet verified natively), show a notice when your most recent Kiro session in this workspace is nearly full, or, when your budget is tight or the session is getting long, set to a model Kiro lists above Auto's credit rate. This parses up to 20 recently changed sessions' session.json files (each whole, in memory, including titles and workspace paths) to find the newest session of your folder, then loads up to the last 256 KiB of that session's conversation file (may contain prompts and replies) into memory. It keeps only that session's model, context percentage and time (read-only, nothing stored or sent). Turn off to stop all reading.",
+          "description": "Show a notice when your most recent Kiro session in this workspace is nearly full, or, when your budget is tight or the session is getting long, set to a model Kiro lists above Auto's credit rate. This parses up to 20 recently changed sessions' session.json files (each whole, in memory, including titles and workspace paths) to find the newest session of your folder, then loads up to the last 256 KiB of that session's conversation file (may contain prompts and replies) into memory. It keeps only that session's model, context percentage and time (read-only, nothing stored or sent). Turn off to stop all reading.",
           "scope": "application"
         },
         "bobert.auditReminderDays": {

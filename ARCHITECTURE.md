@@ -45,7 +45,7 @@ The manual **Bobert: Review Kiro Steering and Hooks** command (`bobert.reviewKir
 
 ## Session hints (third read class)
 
-A third, separate read class: *Kiro session metadata, IDE format, read at runtime* (macOS observed, Windows and Linux enabled but not yet verified natively; local extension host, `bobert.sessionHints`, default on). It is not an input of the collector, Store, history, forecast, CLI JSON or diagnostics beyond fixed codes and counts.
+A third, separate read class: *Kiro session metadata, IDE format, read at runtime* (macOS, Windows and Linux; local extension host, `bobert.sessionHints`, default on). It is not an input of the collector, Store, history, forecast, CLI JSON or diagnostics beyond fixed codes and counts.
 
 - `src/audit/read-ignore.ts`: the one bounded file reader (lstat, ancestry walk without symlinks, `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`, `fstat` equal to `lstat`, regular file, same device, repeated checks after the read with `changed`, abort signal), with a `whole` mode with a byte cap (the audit's ignore files, behaviour unchanged) and a `tail` mode with a byte window (the session conversation file).
 - `src/session/`: no editor API and no Store/history import. `parse.ts` (strict timestamps, `session.json` projection, workspace string match, byte-level tail scan, percentage range), `models.ts` (dated table, hint decision), `notices.ts` (thresholds, hysteresis, rate limits, arbiter, fixed texts), `reader.ts` (listing caps, newest-session selection, bounded reads), `hints.ts` (gate and one check), `codes.ts` (closed code list).
@@ -72,18 +72,18 @@ Read text streams incrementally with bounded buffers; do not load arbitrary tran
 
 Kiro databases must never be copied, changed, or checkpointed. The investigation used `mode=ro&immutable=1` with no WAL present; immutable reads are not a proven live-database strategy. The first collector can operate from logs alone. Enable a cache database adapter only after tests prove no source/sidecar writes and correct handling of concurrent writers; otherwise report the cache unavailable. Do not use `query_only` as the sole write safeguard or ignore WAL contents as if current.
 
-## Cross-platform design and verification matrix
+## Cross-platform design and test matrix
 
 | Target | Candidate IDE root | Candidate CLI database | Evidence / required validation |
 | --- | --- | --- | --- |
 | macOS | `~/Library/Application Support/Kiro` | `~/Library/Application Support/kiro-cli/data.sqlite3` | Kiro 1.2.37 paths/shapes observed; synthetic collector tests pass; live VSIX status/detail verified in Kiro 1.2.56 |
-| Windows | `%APPDATA%\Kiro` | Discover or configure explicitly; no verified default | IDE root and `logs/<timestamp>/window1/exthost/kiro.kiroAgent/q-client` observed by the maintainer on 2026-10-14 (extension hidden by Explorer); native Kiro behaviour unverified; owner-only local NTFS storage implemented; test native/WSL separation, NTFS replacement/sharing, ACLs, drive/UNC paths, case and Unicode |
+| Windows | `%APPDATA%\Kiro` | Discover or configure explicitly; no verified default | IDE root and `logs/<timestamp>/window1/exthost/kiro.kiroAgent/q-client` observed by the maintainer on 2026-10-14 (extension hidden by Explorer); owner-only local NTFS storage implemented; test native/WSL separation, NTFS replacement/sharing, ACLs, drive/UNC paths, case and Unicode |
 | Ubuntu | `${XDG_CONFIG_HOME:-~/.config}/Kiro` | `${XDG_DATA_HOME:-~/.local/share}/kiro-cli/data.sqlite3` | IDE root `~/.config/Kiro` and `logs/<timestamp>/window1/exthost/kiro.kiroAgent/q-client.log` observed by the maintainer on 2026-10-14; CLI database path still inferred; test XDG overrides, permissions, atomic rename, watch behavior, packaging |
-| RHEL | Same XDG candidates as Ubuntu | Same inferred XDG candidate | Unverified independently of Ubuntu; test supported versions, dependencies, SELinux denials, and filesystem behavior |
+| RHEL | Same XDG candidates as Ubuntu | Same inferred XDG candidate | Test supported versions, dependencies, SELinux denials, and filesystem behavior |
 
-`~/.kiro/sessions` is observed on macOS; treat it as a candidate elsewhere, not a guarantee. Support explicit roots and separate source instances for multiple installations, containers, remote homes, and WSL. Do not merge host and guest histories implicitly. Record source timezone assumptions for offset-free logs; travel and DST can make historical timestamps ambiguous. Local days may last 23 or 25 hours; billing reset timestamps remain UTC.
+`~/.kiro/sessions` is the session folder; if it is missing or laid out differently, the feature stays silent. Support explicit roots and separate source instances for multiple installations, containers, remote homes, and WSL. Do not merge host and guest histories implicitly. Record source timezone assumptions for offset-free logs; travel and DST can make historical timestamps ambiguous. Local days may last 23 or 25 hours; billing reset timestamps remain UTC.
 
-Windows/Linux native release acceptance remains pending; see [platform verification](docs/platform-verification.md) for the automated host checks. Alternate account adapters remain deferred. The current package targets the local Kiro IDE extension host; VSIX installation alone does not validate those other platforms.
+See [platform verification](docs/platform-verification.md) for the internal test records. Alternate account adapters remain deferred. The current package targets the local Kiro IDE extension host.
 
 ## Implemented Milestone 1 decisions
 

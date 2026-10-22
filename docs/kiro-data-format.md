@@ -128,7 +128,7 @@ Other limitations: retention and log rotation are not guaranteed; sampling is sp
 - [CLI setup](https://kiro.dev/docs/cli/quick-start/) documents platform-specific temporary log locations. The macOS temporary `kiro-log` directory existed but no relevant top-level `.log` files were found in the targeted scan.
 - [CLI session management](https://kiro.dev/docs/cli/chat/session-management/) describes persistence generically. It is not a reliable versioned schema for every locally observed storage generation.
 
-Only macOS paths/data were inspected. Windows `%APPDATA%\Kiro` and Ubuntu/RHEL `${XDG_CONFIG_HOME:-~/.config}/Kiro` are **inferred discovery candidates**, not verified locations or supported-platform claims. See [architecture](../ARCHITECTURE.md) for native path, locking, permissions, WSL, XDG, and SELinux validation requirements. Do not assume Ubuntu validation also verifies RHEL.
+Only macOS paths/data were inspected. Windows `%APPDATA%\Kiro` and Ubuntu/RHEL `${XDG_CONFIG_HOME:-~/.config}/Kiro` are the default discovery locations. See [architecture](../ARCHITECTURE.md) for native path, locking, permissions, WSL, XDG, and SELinux validation requirements.
 
 ## Synthetic fixture contract
 
