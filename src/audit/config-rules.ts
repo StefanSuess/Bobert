@@ -78,6 +78,7 @@ export function evaluateConfigRules(roots: readonly ConfigRootEntries[]): { find
     if (kind === 'prompt' || kind === 'stop') add('H3', location, 'info');
     if (kind !== 'once' && hook.promptBytes >= CONFIG_RULES.H4.bytes) add('H4', location, 'notice', { size: hook.promptBytes });
    }
+   if (hook.trigger === 'Manual') continue; // runs only when started by hand, so it cannot overlap another event
    const group = groups.get(hook.trigger) ?? []; group.push({ location, hook }); groups.set(hook.trigger, group);
   }
  }

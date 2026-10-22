@@ -57,6 +57,15 @@ test('H5 groups exact triggers and lexical equality only, across files and roots
  const overlap = result.findings.find(f=>f.id==='H5'); assert.equal(overlap?.agentHooks,0); assert.equal(overlap?.commandHooks,2); assert.equal(overlap?.severity,'info');
  assert.equal(result.findings.some(f=>['H1','H2','H3','H4'].includes(f.id)),false);
 });
+test('H5 ignores Manual hooks, which never start by themselves, but still counts automatic ones', () => {
+ const manual = (changes: Partial<HookConfig> = {}) => hook({trigger:'Manual',...changes});
+ let result = evaluateConfigRules([root({hooks:[manual({matcher:'broad'}),manual({index:1,matcher:'none'})]})]);
+ assert.equal(result.findings.some(f=>f.id==='H5'), false);
+ result = evaluateConfigRules([root({hooks:[manual({matcher:'specific',matcherKey:0}),manual({index:1,matcher:'specific',matcherKey:0})]})]);
+ assert.equal(result.findings.some(f=>f.id==='H5'), false);
+ result = evaluateConfigRules([root({hooks:[hook({matcher:'broad'}),hook({index:1,matcher:'none'}),manual({index:2,matcher:'none'})]})]);
+ assert.equal(result.findings.find(f=>f.id==='H5')?.agentHooks, 2);
+});
 test('ambiguous broad patterns are information only, with unknown total coverage and no S4 claim',()=>{
  const result=evaluateConfigRules([root({steering:[{...steering(40000,'fileMatch',false),broadUncertain:true}]})]);
  assert.deepEqual(result.findings,[]);assert.equal(result.alwaysIncluded.bytes,0);assert.equal(result.alwaysIncluded.incomplete,true);assert.deepEqual(result.patternNotAnalysed,[{root:0,rel:'.kiro/steering/synthetic.md'}]);
