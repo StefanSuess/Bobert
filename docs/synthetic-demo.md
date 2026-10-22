@@ -46,6 +46,26 @@ Linux setup and UI results need to be checked on a Linux host; macOS results do 
 Setup's automated checks exercise the collector in this checkout and verify the selected VSIX's content. The
 checklist tests the installed plugin itself. A supplied VSIX may behave differently from the current source.
 
+## Full acceptance environment (workspace, installed extension, chat hints)
+
+`pnpm demo:setup --rich --install --pace high --open` adds to the basic demo:
+
+- `--rich` fills the demo workspace with invented files so every Workspace audit group and every Steering and Hooks finding appears (large always-included Steering, a `fileMatch **/*` file, a large `AGENTS.md`, two broad agent hooks, `.env` and `server.pem` with inert sentinel content, and sparse dump, archive, CSV and log files), and turns workspace trust prompts off in the isolated profile.
+- `--install` installs the extension into the isolated profile with Kiro's own command-line wrapper (no window, no sign-in). If the wrapper is not found, setup says `INSTALL_SKIPPED` and you install `install-this.vsix` by hand.
+- Setup copies `seed-session.mjs` into the demo folder. `node seed-session.mjs <demo folder> --percent 88 --model claude-opus-4.5` writes one **invented** Kiro session into the demo's own home, so the context reminder and the model hint can be seen without Kiro's agent or any credits. Run it while the window is open, and again with another `--name`, `--percent` or `--model` for the next notice.
+
+One-command launchers that also install Node, pnpm and Git where missing, clone the repository and run this setup: `scripts/acceptance/mac.sh`, `scripts/acceptance/ubuntu.sh`, `scripts/acceptance/windows.ps1` (settings through environment variables, see the header of each file; `BOBERT_TESTS=1` also runs the automated tests). Run in a terminal on the machine under test:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/StefanSuess/Bobert/main/scripts/acceptance/ubuntu.sh | bash
+```
+
+```powershell
+irm https://raw.githubusercontent.com/StefanSuess/Bobert/main/scripts/acceptance/windows.ps1 | iex
+```
+
+Kiro itself shows a sign-in screen in the demo window: **the maintainer signs in; nobody else may**. That login lives in the demo folder, so delete the folder afterwards. Hide Kiro's own **Usage Meter** status bar item before any capture (it shows real usage). Automated tests (`tests/unit/acceptance-env.test.ts`) check that the rich workspace produces the expected audit and review findings and that the invented session is read and turned into the documented notices.
+
 ## Refresh and cleanup
 
 Run setup again for a fresh demo; each run creates a new folder and observations go stale after 24 hours.
