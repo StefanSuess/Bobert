@@ -1,8 +1,8 @@
 # Native macOS acceptance for a release candidate
 
-Native macOS acceptance checklist for a Bobert release candidate.
+Native macOS acceptance checklist for a Bobert release candidate. The full list of what is verified, and how, is [test-inventory.md](test-inventory.md); this file is the manual procedure for the rows marked **M** there. Prefer adding an automated check over adding a manual one.
 
-Rules: isolated synthetic instance only (own `HOME`, user-data and extensions directories, synthetic source and storage). Never use your normal Kiro profile, logs or store, not even metadata. Do not sign in. Do not use Kiro's agent. No real billing numbers in notes or screenshots. This is a macOS observation; it verifies nothing for Windows, Ubuntu or RHEL.
+Rules: isolated synthetic instance only (own `HOME`, user-data and extensions directories, synthetic source and storage). Never use your normal Kiro profile, logs or store, not even metadata. Do not use Kiro's agent. Kiro 1.4.13 shows a sign-in screen before the workbench opens in the demo window: the maintainer signs in there (an agent never enters credentials), and the demo folder, which then holds that login, is deleted after the run. Session hints are tested with invented `session.json` and `messages.jsonl` files under the demo `HOME`, not with real sessions. No real billing numbers in notes or screenshots. This is a macOS observation; it verifies nothing for Windows, Ubuntu or RHEL.
 
 ## 0. Candidate
 
@@ -44,7 +44,7 @@ printed `node ".../open-demo.mjs"` command.
 | A3 | Click it | A tab "Your credit budget" opens; hero, metrics, usage bar, chart with accessible text; tooltip is short and contains no path |
 | A4 | Command Palette, type "Bobert" | Entries start with "Bobert:"; no duplicates |
 | A5 | Cost Advisor via Command Palette, lightbulb title action and panel-visible status item | All open the native questions; Clear my answers resets; cancelling changes nothing. No old Optimizer commands |
-| A6 | Settings UI, search "bobert" | Three settings, each shown as a user-level setting |
+| A6 | Settings UI, search "bobert" (`@ext:StefanSuess.bobert`) | Ten settings (see [usage](usage.md#settings-and-defaults)), each shown as a user-level setting |
 | A7 | Cmd+Q, relaunch | Extension activates again; history from the first run is still reflected |
 
 ## B. Settings hardening (new in 0.5.2)
