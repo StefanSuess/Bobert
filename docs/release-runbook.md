@@ -59,7 +59,7 @@ CI builds the candidate once, verifies it (content allowlist, rebuild payload co
 ## What you must do manually
 
 ### 1. Verify `main` protection (once and after changes)
-Settings → Rules → Rulesets: the `main` ruleset should require a pull request (0 approvals), squash merges, **up-to-date branches**, all seven checks `verify (macos-latest)`, `verify (ubuntu-24.04)`, `verify (windows-2025)`, `release candidate (built once)`, `release candidate on macOS`, `release candidate on Windows` and `release candidate on Ubuntu`, and block force pushes and deletion. The maintainer confirms this in Settings → Rules and adds any missing check (maintainer only), and re-confirms after future edits.
+Settings → Rules → Rulesets: the `main` ruleset should require a pull request (0 approvals), squash merges, **signed commits** (see [development.md](development.md#signed-commits)), **up-to-date branches**, all seven checks `verify (macos-latest)`, `verify (ubuntu-24.04)`, `verify (windows-2025)`, `release candidate (built once)`, `release candidate on macOS`, `release candidate on Windows` and `release candidate on Ubuntu`, and block force pushes and deletion. The maintainer confirms this in Settings → Rules and adds any missing check (maintainer only), and re-confirms after future edits.
 
 ### 2. Create the `release` GitHub Environment (once, before any live run)
 Settings → Environments → New environment → name exactly `release`.

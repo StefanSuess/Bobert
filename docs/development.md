@@ -16,6 +16,31 @@ Equivalent manual build: `./node_modules/.bin/tsc --noEmit`, then esbuild to `di
 
 Packaging check after `pnpm package:vsix`: `unzip -l dist/bobert-<version>.vsix` must list exactly `extension/package.json`, `extension/readme.md`, `extension/LICENSE.txt`, `extension/changelog.md`, `extension/dist/extension.cjs`, `extension/assets/branding/bobert-icon-256.png` plus the two VSIX manifest files (8 entries, no `src/`, tests, logs or stores), and `unzip -p dist/bobert-<version>.vsix extension/LICENSE.txt | cmp - LICENSE` must report no difference. `tests/unit/identity.test.ts` also pins the `.vscodeignore` allowlist. For release candidates use the content verifier instead of eyeballing: see [release-process.md](release-process.md).
 
+## Signed commits
+
+The `main` ruleset requires verified signatures on every commit of a pull request (rule `required_signatures`). An unsigned commit leaves the PR blocked even with all checks green. Squash merges on GitHub are signed by GitHub itself.
+
+Bobert uses SSH signing with a key registered on GitHub as a **signing** key (Settings → SSH and GPG keys; an authentication key alone is not enough). Once per clone:
+
+```sh
+git config gpg.format ssh
+git config user.signingkey ~/.ssh/id_ed25519.pub
+git config commit.gpgsign true
+git config tag.gpgsign true
+# optional, lets `git log --show-signature` verify locally
+echo "<your commit email> $(cut -d' ' -f1,2 ~/.ssh/id_ed25519.pub)" >> ~/.config/git/allowed_signers
+git config gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers
+```
+
+To sign commits that are already on a branch, re-sign them and force-push the branch with `--force-with-lease` (only your own PR branch, never `main`):
+
+```sh
+git rebase --exec 'git commit --amend --no-edit -S' origin/main
+git push --force-with-lease
+```
+
+Check with `git log --format='%h %G? %s' origin/main..` (`G` = good signature).
+
 ## Simple synthetic plugin test
 
 Follow [synthetic-demo.md](synthetic-demo.md) for the short setup and five visible checks. On Windows, macOS and Linux:
