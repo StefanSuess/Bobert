@@ -183,7 +183,9 @@ async function readRelease(adapter: PromotionAdapter, tagName: string): Promise<
 }
 
 const DEFAULT_VERIFICATION_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000];
-const OPENVSX_VERIFICATION_DELAYS_MS = Array(18).fill(10_000) as number[];
+// Open VSX can take several minutes to make a new version visible (observed: over 3 minutes for 1.2.0).
+// 90 × 10 s = 15 minutes, well inside the 30-minute publish job timeout even after a 5-minute ovsx run.
+export const OPENVSX_VERIFICATION_DELAYS_MS = Array(90).fill(10_000) as number[];
 
 async function writeThenVerify(
   write: () => Promise<unknown>,
