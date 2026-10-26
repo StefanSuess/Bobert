@@ -39,7 +39,7 @@ printed `node ".../open-demo.mjs"` command.
 
 | # | Check | Expected |
 |---|---|---|
-| A1 | Extensions: Install from VSIX, pick `bobert-v<version>-<short-sha>-candidate.vsix` | Installs as **Bobert: Kiro Credit Tracker**, ID `StefanSuess.bobert`, flagged pre-release; icon shows |
+| A1 | Extensions: Install from VSIX, pick `bobert-v<version>-<short-sha>-candidate.vsix` | Installs as **Bobert: Kiro Credit Tracker**, ID `StefanSuess.bobert`, flagged pre-release for an odd minor and not flagged for an even minor; icon shows |
 | A2 | Reload window | Status bar item `Kiro: …` appears; no error toast |
 | A3 | Click it | A tab "Your credit budget" opens; hero, metrics, usage bar, chart with accessible text; tooltip is short and contains no path |
 | A4 | Command Palette, type "Bobert" | Entries start with "Bobert:"; no duplicates |
@@ -71,7 +71,7 @@ printed `node ".../open-demo.mjs"` command.
 | D3 | Collecting data, stale (24 h+), unavailable states | Each shows its own label and colour; nothing implies certainty it does not have |
 | D4 | Keyboard and screen reader | Tab reaches the collapsible sections; heading is read first |
 
-## E. Cost Advisor on this exact candidate (required before publication)
+## E. Cost Advisor on this exact candidate (required before a stable publication; for a pre-release only when it changes the Cost Advisor)
 
 Use the current-date [synthetic setup](synthetic-demo.md) with `--vsix` pointing at the exact candidate; its preflight must pass. Run the candidate in a fresh profile. In the Advisor choose **Pro Max → Personal subscription (consumer) → No purchased add-on credits**. The 5000-credit reported limit, fresh pooled forecast and 20 invented credits/day exercise a modelled next-reset difference. Record the exact candidate SHA-256 and setup UTC anchor with E1–E6 results.
 

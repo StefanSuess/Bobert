@@ -31,8 +31,8 @@ Follow this every time. `X.Y.Z` is the version being released. **[agent]** steps
 **F. Native acceptance of the exact CI candidate**
 1. [maintainer] Download the `release-candidate` artifact of that CI run and compare the SHA-256 of `bobert-v<version>-<sha12>-candidate.vsix` (`<sha12>` = first 12 characters of the CI run's commit) with the CI summary.
 2. [maintainer] Run macOS acceptance ([macos-acceptance.md](macos-acceptance.md)) at the depth the channel requires ([release-process.md](release-process.md#2-gates-before-publishing-all-mandatory), gate 3):
-   - **Pre-release:** section A plus a check of each user-visible change.
-   - **Stable:** sections A, B, D and E, after a published pre-release of the same line without open defects.
+   - **Pre-release:** steps 0–1, section A and step F, plus a check of each user-visible change.
+   - **Stable:** sections A, B, D and E. For an `X.Y.0` release, only after the odd-minor line it stabilizes was published as a pre-release with no open bug issue that this candidate does not fix.
 3. [maintainer] When the release names Windows or Ubuntu, smoke-test the same VSIX in native Kiro on each; this is required before a release that names Windows or Ubuntu (until itemised checklists exist, issue #61). Record Kiro and OS versions.
 
 **G. Dry run, then live run**
@@ -100,7 +100,7 @@ Only after the namespace is verified and Open VSX offers Trusted Publisher regis
 2. [ ] The release PR for `X.Y.Z` merged; CI on that `main` commit green; no newer `main` commit expected during approval.
 3. [ ] Dry run for `X.Y.Z` passed; you recorded commit, artifact ID and SHA-256.
 4. [ ] Download that exact artifact from the linked CI run; verify its SHA-256.
-5. [ ] Native macOS acceptance of that VSIX ([macos-acceptance.md](macos-acceptance.md)): section A and the changed features for a pre-release; sections A, B, D, E for a stable release. Smoke test on Windows and Ubuntu when the release names them.
+5. [ ] Native macOS acceptance of that VSIX ([macos-acceptance.md](macos-acceptance.md)): steps 0–1, section A, step F and the changed features for a pre-release; sections A, B, D, E for a stable release, and for `X.Y.0` a published pre-release of the odd-minor line without open bug issues. Smoke test on Windows and Ubuntu when the release names them.
 6. [ ] Dispatch `dry_run = false` with the chosen auth mode.
 7. [ ] In the run, re-read the preflight summary (same commit and SHA-256 as the dry run) and the release notes, then approve the `release` deployment.
 8. [ ] After success: check Open VSX listing/version, tag `vX.Y.Z`, the GitHub release (pre-release or stable per channel) and its two assets (`bobert-vX.Y.Z.vsix`, `SHA256SUMS.txt`); install from Open VSX in Kiro and run acceptance section C.
