@@ -59,6 +59,8 @@ What must be verified for Bobert, how each item is verified today, and what is s
 
 ## How to run a full acceptance
 
+A full walk of this table is for stable releases. A pre-release runs the subset in [release-process.md](release-process.md#2-gates-before-publishing-all-mandatory), gate 3.
+
 1. Automatic: `pnpm typecheck`, `pnpm test`, `pnpm test:release`, `python3 tests/fixtures/kiro/validate.py`, the CI run of the exact commit, checksum and `gh attestation verify` of the candidate.
 2. Native: follow [macos-acceptance.md](macos-acceptance.md) for the **M** rows, then walk this table and record every row as pass, fail, blocked or not run.
 3. Put the result, candidate SHA-256 and the "not covered" list in the release notes.
