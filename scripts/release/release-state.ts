@@ -106,6 +106,24 @@ async function openVsxRequest(url: string): Promise<{ status: number; value?: Re
   catch { throw new Error('OPENVSX_RESPONSE_INVALID'); }
 }
 
+/** Maps an ovsx failure to a fixed code (class plus exit status) so the cause is visible without logging any output. */
+export function classifyOvsxFailure(stderr: string, status: number | null, error?: Error): string {
+  if (error) return (error as NodeJS.ErrnoException).code === 'ETIMEDOUT' ? 'OPENVSX_PUBLISH_TIMEOUT' : 'OPENVSX_PUBLISH_SPAWN';
+  const text = stderr.toLowerCase();
+  const kind =
+    /already (exists|published)|version .* exists/.test(text) ? 'VERSION_EXISTS'
+    : /trusted publish|id token|oidc/.test(text) ? 'TRUSTED_PUBLISHING'
+    : /\b401\b|unauthori[sz]ed|invalid (access )?token|access token/.test(text) ? 'AUTH_REJECTED'
+    : /\b403\b|forbidden|not a member|permission/.test(text) ? 'FORBIDDEN'
+    : /namespace/.test(text) ? 'NAMESPACE'
+    : /licen[cs]e/.test(text) ? 'LICENSE'
+    : /enotfound|econn|etimedout|fetch failed|socket|network/.test(text) ? 'NETWORK'
+    : /\b5\d\d\b/.test(text) ? 'SERVER_ERROR'
+    : /\b4\d\d\b/.test(text) ? 'CLIENT_ERROR'
+    : 'UNKNOWN';
+  return `OPENVSX_PUBLISH_${kind}_EXIT_${status ?? 'NONE'}`;
+}
+
 export class GitHubOpenVsxAdapter implements PromotionAdapter {
   private readonly apiBase: string;
   private readonly repository: string;
@@ -272,13 +290,16 @@ export class GitHubOpenVsxAdapter implements PromotionAdapter {
         delete childEnv.ACTIONS_ID_TOKEN_REQUEST_URL;
         delete childEnv.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
       }
+      // stderr is read only to classify the failure; it is never printed, so no registry text or token can reach the log.
       const child = spawnSync(process.execPath, args, {
         cwd: this.publisherToolsDir,
         env: childEnv,
-        stdio: 'ignore',
+        stdio: ['ignore', 'ignore', 'pipe'],
+        encoding: 'utf8',
+        maxBuffer: 1024 * 1024,
         timeout: 300_000,
       });
-      if (child.error || child.status !== 0) throw new Error('OPENVSX_PUBLISH_FAILED');
+      if (child.error || child.status !== 0) throw new Error(classifyOvsxFailure(child.stderr ?? '', child.status, child.error));
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

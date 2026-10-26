@@ -390,3 +390,22 @@ test('an existing release whose prerelease value differs from the version channe
     }
   }
 });
+
+test('a classified Open VSX failure stops at once with its code and creates no tag', async () => {
+  const fake = fakeAdapter();
+  fake.adapter.publishOpenVsx = async () => { fake.writes.push('open-vsx'); throw new Error('OPENVSX_PUBLISH_AUTH_REJECTED_EXIT_1'); };
+  await assert.rejects(promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' }), { message: 'OPENVSX_PUBLISH_AUTH_REJECTED_EXIT_1' });
+  assert.deepEqual(fake.writes, ['open-vsx']);
+});
+
+test('an existing version reported by ovsx still waits for the exact read-back', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const fake = fakeAdapter();
+  let reads = 0;
+  const readOpenVsx = fake.adapter.readOpenVsx;
+  fake.adapter.publishOpenVsx = async () => { fake.writes.push('open-vsx'); throw new Error('OPENVSX_PUBLISH_VERSION_EXISTS_EXIT_1'); };
+  fake.adapter.readOpenVsx = async version => (fake.writes.includes('open-vsx') && ++reads > 2 ? { kind: 'present', sha256: digest(bytes) } : readOpenVsx(version));
+  const checked = promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' });
+  for (let step = 0; step < 4; step++) { await setImmediate(); t.mock.timers.tick(10_000); }
+  assert.equal((await checked).status, 'published');
+});

@@ -191,13 +191,17 @@ async function writeThenVerify(
   verify: (state: unknown) => void,
   retryDelaysMs = DEFAULT_VERIFICATION_DELAYS_MS,
 ): Promise<void> {
-  try { await write(); } catch { /* A raced retry is accepted only if the read proves the exact result. */ }
+  let writeError: unknown;
+  try { await write(); } catch (error) { writeError = error; /* A raced retry is accepted only if the read proves the exact result. */ }
+  // A classified Open VSX failure (other than an existing version) will not become visible later: fail with its code at once.
+  const fatal = writeError instanceof Error && /^OPENVSX_PUBLISH_[A-Z0-9_]+$/.test(writeError.message) && !writeError.message.startsWith('OPENVSX_PUBLISH_VERSION_EXISTS');
   for (let attempt = 0; ; attempt++) {
     const state = await reread();
     try {
       verify(state);
       return;
     } catch (error) {
+      if (fatal) throw new PromotionStateError((writeError as Error).message);
       // Retry visibility lag only; conflicts and unverifiable states still fail closed.
       if (!(error instanceof PromotionStateError) || error.code !== 'PROMOTION_WRITE_FAILED' || attempt === retryDelaysMs.length) throw error;
       await new Promise(resolve => setTimeout(resolve, retryDelaysMs[attempt]));
