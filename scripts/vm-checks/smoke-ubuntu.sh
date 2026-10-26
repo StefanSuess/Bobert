@@ -4,7 +4,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/StefanSuess/Bobert/chore/vm-smoke/scripts/vm-checks/smoke-ubuntu.sh | bash
 set -u
 REF="${BOBERT_REF:-ea6a9c0679ca}"; SHA="${BOBERT_SHA256:-f0bacc7124eeda9855eef71d29ad023afa8781f8e6b71ca1ddbc01968229c8b5}"
-V=""; for f in $(find "$HOME" -maxdepth 3 -name 'bobert-v[0-9]*-candidate.vsix' 2>/dev/null); do
+V=""; for f in $(find "$HOME" /mnt/hgfs -maxdepth 3 -name 'bobert-v[0-9]*-candidate.vsix' 2>/dev/null); do
   [ "$(sha256sum "$f" | cut -d' ' -f1)" = "$SHA" ] && { V="$f"; break; }; done
 [ -n "$V" ] && echo "SHA-256 OK: $V" || { echo "No candidate VSIX with SHA-256 $SHA in your home folder."; exit 1; }
 sudo apt-get update -qq && sudo apt-get install -y -qq git curl >/dev/null 2>&1
