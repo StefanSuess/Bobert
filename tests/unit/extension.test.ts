@@ -18,7 +18,7 @@ test('activation imports a synthetic account snapshot and click opens details', 
  const ui = { setStatus(value: string) { text = value; }, showDetails(value: string) { detail = value; }, onClick(fn: () => void) { command = fn; }, onChange(_fn: () => void) {}, everyMinute(fn: () => void) { timer = fn; }, dispose() {} };
  try {
   const extension = await startExtension(ui, { source: root, storage: store, timezone: 'Europe/Berlin', now: () => '2026-10-10T09:00:00.000Z' });
-  assert.match(text, /Collecting data/);
+  assert.match(text, /45\.6 left • 2\.1\/day/);
   command?.();
   assert.match(detail, /4\.35/);
   assert.match(detail, /45\.65/);
@@ -43,7 +43,7 @@ test('unchanged snapshot becomes stale without a new observation', async () => {
  const ui = { setStatus(value: string) { text = value; }, showDetails(_value: string) {}, onClick(_fn: () => void) {}, onChange(_fn: () => void) {}, everyMinute(_fn: () => void) {}, dispose() {} };
  try {
   const extension = await startExtension(ui, { source: root, storage: store, timezone: 'Europe/Berlin', now: () => now });
-  assert.match(text, /Collecting data/);
+  assert.match(text, /45\.6 left • 2\.1\/day/);
   now = '2026-10-12T09:00:00.000Z';
   await extension.refresh();
   assert.match(text, /stale/i);
@@ -61,16 +61,16 @@ test('log change refreshes the status and disposal stops later updates', async (
  const ui = { setStatus(value: string, detail: string) { text = value; html = detail; }, showDetails(_value: string) {}, onClick(_fn: () => void) {}, onChange(fn: () => void) { changed = fn; }, everyMinute(_fn: () => void) {}, dispose() {} };
  try {
   const extension = await startExtension(ui, { source: root, storage: store, timezone: 'Europe/Berlin', now: () => '2026-10-10T09:03:00.000Z' });
-  assert.match(text, /Collecting data/);
+  assert.match(text, /45\.6 left • 2\.1\/day/);
   await appendFile(log, syntheticLine.replace('10:00:00.000', '10:02:00.000').replace('4.35', '4.63'));
   changed?.();
   await extension.refresh();
-  assert.match(text, /Collecting data/); assert.match(html, /45\.37/);
+  assert.match(text, /45\.3 left • 2\/day/); assert.match(html, /45\.37/);
   extension.dispose();
   await appendFile(log, syntheticLine.replace('10:00:00.000', '10:03:00.000').replace('4.35', '5.00'));
   changed?.();
   await extension.refresh();
-  assert.match(text, /Collecting data/); assert.match(html, /45\.37/);
+  assert.match(text, /45\.3 left • 2\/day/); assert.match(html, /45\.37/);
  } finally { await rm(base, { recursive: true, force: true }); }
 });
 

@@ -16,9 +16,9 @@ What must be verified for Bobert, how each item is verified today, and what is s
 | --- | --- | --- | --- | --- |
 | Packaging | VSIX contents allowlist, ID, version, no tests/logs/caches, checksum, attestation | `tests/release/vsix`, `version-consistency`, `attestation-workflow`, CI | A | 2026-10-23 pass (aa42b39) |
 | Collector, store, history | Allowlisted fields only, repeat import, resets, UTC boundaries, read-only source | `collector`, `store-version`, `history`, `safety`, `projection`, `windows-storage` | A | pass |
-| Forecast, overage | Regular/qualified forecast, add-on credits, dollar figure | `forecast`, `overage`, `forecast-history`, `backtest` | A | pass (4210/5000, 963 credits, about $38.52) |
+| Forecast, overage | Regular/qualified forecast, add-on credits, dollar figure, at-least average since cycle start (lower bound, 31-day assumption) | `forecast`, `overage`, `forecast-history`, `forecast-floor`, `backtest` | A | pass (4210/5000, 963 credits, about $38.52) |
 | Credit view | Hero, metrics, chart text, About these numbers, narrow width, themes | `dashboard-*`, `chart`, `presentation`, `view` | A for content; **M** for look in Kiro | pass: Dark, Light, High Contrast Dark, about 390 px |
-| Status bar | Item text and state colour, opens the credit view | `view`, `presentation` | A for text; **M** for placement next to Kiro items | pass |
+| Status bar | Item text and state colour, opens the credit view; while collecting: credits left and allowance, warning when even the at-least average is above it | `view`, `presentation`, `forecast-floor` | A for text; **M** for placement next to Kiro items | pass |
 | Cost Advisor | Plan hint vs confirmed answer, modelled USD with UTC period, details, cancel keeps, clear/reload resets, unsupported inputs withhold figures | `cost-*`, `advisor-inline`, `plan-hints`, `cost-extension` | A; native questions flow **M** | pass (Pro Max path); unknown plan, Enterprise, entered add-ons, changed limit not run natively |
 | Budget warnings | Notice at the configured percent, once per cycle, Show details, Turn off | `budget-warning` | A | pass |
 | Session hints, context reminder | 70 % and 85 % notices, re-arm, per-session limits | `session-notices`, `session-hints`, `session-reader`, `session-parse`, `acceptance-env` (invented session, real reader) | A | pass (synthetic session files, 88 %) |
