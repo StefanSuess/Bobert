@@ -4,9 +4,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/StefanSuess/Bobert/chore/vm-smoke/scripts/vm-checks/smoke-ubuntu.sh | bash
 set -u
 REF="${BOBERT_REF:-ea6a9c0679ca}"; SHA="${BOBERT_SHA256:-f0bacc7124eeda9855eef71d29ad023afa8781f8e6b71ca1ddbc01968229c8b5}"
-V=$(find "$HOME" -maxdepth 3 -name 'bobert-v*-candidate.vsix' 2>/dev/null | head -1)
-[ -n "$V" ] || { echo "No bobert-v*-candidate.vsix found in your home folder."; exit 1; }
-[ "$(sha256sum "$V" | cut -d' ' -f1)" = "$SHA" ] && echo "SHA-256 OK: $V" || { echo "SHA-256 MISMATCH: $V"; exit 1; }
+V=""; for f in $(find "$HOME" -maxdepth 3 -name 'bobert-v[0-9]*-candidate.vsix' 2>/dev/null); do
+  [ "$(sha256sum "$f" | cut -d' ' -f1)" = "$SHA" ] && { V="$f"; break; }; done
+[ -n "$V" ] && echo "SHA-256 OK: $V" || { echo "No candidate VSIX with SHA-256 $SHA in your home folder."; exit 1; }
 sudo apt-get update -qq && sudo apt-get install -y -qq git curl >/dev/null 2>&1
 if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 24 ]; then
   curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash - >/dev/null 2>&1 && sudo apt-get install -y -qq nodejs >/dev/null 2>&1; fi
