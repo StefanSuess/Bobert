@@ -391,10 +391,41 @@ test('an existing release whose prerelease value differs from the version channe
   }
 });
 
-test('a classified Open VSX failure stops at once with its code and creates no tag', async () => {
+test('a definite Open VSX rejection stops at once with its code and creates no tag', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   const fake = fakeAdapter();
   fake.adapter.publishOpenVsx = async () => { fake.writes.push('open-vsx'); throw new Error('OPENVSX_PUBLISH_AUTH_REJECTED_EXIT_1'); };
   await assert.rejects(promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' }), { message: 'OPENVSX_PUBLISH_AUTH_REJECTED_EXIT_1' });
+  assert.deepEqual(fake.writes, ['open-vsx']);
+});
+
+test('a definite rejection whose exact upload is already visible still completes', async () => {
+  const fake = fakeAdapter();
+  fake.adapter.publishOpenVsx = async () => {
+    fake.writes.push('open-vsx');
+    fake.state.openVsx = { kind: 'present', sha256: digest(bytes) };
+    throw new Error('OPENVSX_PUBLISH_AUTH_REJECTED_EXIT_1');
+  };
+  assert.equal((await promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' })).status, 'published');
+});
+
+test('a conflicting read-back keeps its own code instead of the classified one', async () => {
+  const fake = fakeAdapter();
+  fake.adapter.publishOpenVsx = async () => {
+    fake.writes.push('open-vsx');
+    fake.state.openVsx = { kind: 'present', sha256: 'f'.repeat(64) };
+    throw new Error('OPENVSX_PUBLISH_UNKNOWN_EXIT_1');
+  };
+  await assert.rejects(promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' }), (error: Error) => error.message !== 'OPENVSX_PUBLISH_UNKNOWN_EXIT_1');
+});
+
+test('an ambiguous Open VSX failure keeps waiting and then reports its code', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const fake = fakeAdapter();
+  fake.adapter.publishOpenVsx = async () => { fake.writes.push('open-vsx'); throw new Error('OPENVSX_PUBLISH_NETWORK_EXIT_1'); };
+  const checked = assert.rejects(promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' }), { message: 'OPENVSX_PUBLISH_NETWORK_EXIT_1' });
+  for (let step = 0; step < 19; step++) { await setImmediate(); t.mock.timers.tick(10_000); }
+  await checked;
   assert.deepEqual(fake.writes, ['open-vsx']);
 });
 

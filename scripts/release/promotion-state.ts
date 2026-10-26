@@ -193,17 +193,20 @@ async function writeThenVerify(
 ): Promise<void> {
   let writeError: unknown;
   try { await write(); } catch (error) { writeError = error; /* A raced retry is accepted only if the read proves the exact result. */ }
-  // A classified Open VSX failure (other than an existing version) will not become visible later: fail with its code at once.
-  const fatal = writeError instanceof Error && /^OPENVSX_PUBLISH_[A-Z0-9_]+$/.test(writeError.message) && !writeError.message.startsWith('OPENVSX_PUBLISH_VERSION_EXISTS');
+  // A classified Open VSX failure names the cause instead of PROMOTION_WRITE_FAILED. Definite rejections cannot become
+  // visible later, so they stop at once; ambiguous ones (network, timeout, server) keep waiting for the exact read-back.
+  const code = writeError instanceof Error && /^OPENVSX_(PUBLISH_[A-Z0-9_]+|PAT_MISSING)$/.test(writeError.message) && !writeError.message.startsWith('OPENVSX_PUBLISH_VERSION_EXISTS') ? writeError.message : undefined;
+  const definite = code !== undefined && /^OPENVSX_(PAT_MISSING|PUBLISH_(AUTH_REJECTED|FORBIDDEN|TRUSTED_PUBLISHING|NAMESPACE|LICENSE|SPAWN)_)/.test(code + '_');
   for (let attempt = 0; ; attempt++) {
     const state = await reread();
     try {
       verify(state);
       return;
     } catch (error) {
-      if (fatal) throw new PromotionStateError((writeError as Error).message);
+      const lagOnly = error instanceof PromotionStateError && error.code === 'PROMOTION_WRITE_FAILED';
+      if (lagOnly && code && (definite || attempt === retryDelaysMs.length)) throw new PromotionStateError(code);
       // Retry visibility lag only; conflicts and unverifiable states still fail closed.
-      if (!(error instanceof PromotionStateError) || error.code !== 'PROMOTION_WRITE_FAILED' || attempt === retryDelaysMs.length) throw error;
+      if (!lagOnly || attempt === retryDelaysMs.length) throw error;
       await new Promise(resolve => setTimeout(resolve, retryDelaysMs[attempt]));
     }
   }
