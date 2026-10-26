@@ -41,6 +41,8 @@ git push --force-with-lease
 
 Check with `git log --format='%h %G? %s' origin/main..` (`G` = good signature).
 
+Do not name PR branches `release/*`: a separate ruleset protects them, so a re-signed branch could not be force-pushed there. Use for example `chore/release-X.Y.Z` for a release-preparation PR.
+
 ## Simple synthetic plugin test
 
 Follow [synthetic-demo.md](synthetic-demo.md) for the short setup and five visible checks. On Windows, macOS and Linux:
