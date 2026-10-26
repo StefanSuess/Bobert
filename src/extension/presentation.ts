@@ -160,6 +160,13 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const tier=stale ? 'Forecast paused — stale data' : f.tier==='provisional' && eligible ? 'Provisional estimate — limited history' : eligible ? 'Regular forecast' : collecting ? 'Forecast not ready yet — more history needed' : 'Forecast unavailable';
  const tag=f.tier==='provisional' ? 'Based on limited history' : 'Based on 7+ days';
  const budget=o.availablePerDay;
+ // Collecting with a known allowance: show what is certain (credits left, days left, the allowance) instead of a bare "Collecting data".
+ // With no base credits left, "0 left • 0/day" would mislead (usage above the limit may be a valid overage), so the old text stays.
+ const allowanceShown=collecting && budget!==null && o.remainingBaseCredits!==null && compare(o.remainingBaseCredits,'0')>0;
+ // The at-least average is a lower bound; it is only worded when no forecast is eligible and it reads as a number (at least 0.1).
+ const floor=allowanceShown && f.cycleAverageFloor && compare(f.cycleAverageFloor.ratePerDay,'0.1')>=0 ? f.cycleAverageFloor : null;
+ // Warn only when the shown figures agree and the floor spans at least a day, so a short burst after a reset is not alarmist.
+ const floorOver=!!floor && floor.budgetComparison==='above_budget' && Date.parse(floor.to)-Date.parse(floor.from)>=86400000 && (compare(budget!,'0.1')<0 || compare(compact(floor.ratePerDay),compact(budget!))>0);
  const exhausted=eligible && selected.exhaustionStatus==='already_exhausted_as_of';
  // Usage above the reported limit is a valid observation (e.g. Enterprise overage); the counter alone does not say why.
  const above=o.usage!==null && o.baseLimit!==null && compare(o.usage,o.baseLimit)>0;
@@ -168,10 +175,10 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const outlook=exhausted ? above ? 'Above reported limit' : 'Reported limit reached' : over ? 'Likely to exceed' : tight ? 'At risk' : eligible ? 'On track' : stale ? 'Stale data' : collecting ? 'Collecting data' : 'Unavailable';
  const exhaustion=eligible ? selected.estimatedExhaustionDayUTC : null;
  const allowance=budget===null ? '' : ` • ${compact(budget)}/day`;
- const status=stale ? 'Stale data' : !eligible ? collecting ? 'Collecting data' : 'Unavailable' : exhausted ? f.tier==='provisional' ? 'Provisional • limit reached' : above ? 'Above reported limit' : 'Reported limit reached' : f.tier==='provisional' ? `Provisional${exhaustion ? ` • runs out ${date(exhaustion)}` : allowance}` : over ? `Likely to exceed${exhaustion ? ` • runs out ${date(exhaustion)}` : allowance}` : `${tight ? 'At risk' : 'On track'}${allowance}`;
+ const status=stale ? 'Stale data' : !eligible ? collecting ? allowanceShown ? `${compact(o.remainingBaseCredits!)} left${allowance}` : 'Collecting data' : 'Unavailable' : exhausted ? f.tier==='provisional' ? 'Provisional • limit reached' : above ? 'Above reported limit' : 'Reported limit reached' : f.tier==='provisional' ? `Provisional${exhaustion ? ` • runs out ${date(exhaustion)}` : allowance}` : over ? `Likely to exceed${exhaustion ? ` • runs out ${date(exhaustion)}` : allowance}` : `${tight ? 'At risk' : 'On track'}${allowance}`;
  // Stale or unavailable data keeps only the warning icon. The warning background means budget risk; red means the reported limit is reached or exceeded.
- const alert=stale || over || tight || exhausted || (!eligible && !collecting);
- const risk=over || tight || exhausted;
+ const alert=stale || over || tight || exhausted || floorOver || (!eligible && !collecting);
+ const risk=over || tight || exhausted || floorOver;
  const severity: 'none' | 'warning' | 'error' = exhausted ? 'error' : risk ? 'warning' : 'none';
  const resetMs=o.resetAt ? Date.parse(o.resetAt) : NaN, evalMs=f.evaluatedAt ? Date.parse(f.evaluatedAt) : NaN;
  const daysLeft=Number.isFinite(resetMs) && Number.isFinite(evalMs) ? Math.ceil((resetMs-evalMs)/86400000) : null;
@@ -194,11 +201,11 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const priced=[observedOver,projectedOver].find(x=>x?.money);
  const priceNote=priced ? attempt(()=>`Dollar figures use $${priced.pricePerCredit} per credit from price list ${priced.catalogVersion}, reviewed ${date(priced.reviewedOn!,true)}.`) : '';
  const overFigure=observedOver ? `${creditsText(observedOver.credits)} credits` : '';
- const explanation=absent ? NOT_KIRO_TEXT : eligible ? exhausted ? above ? (observedOver ? '' : 'Usage was above the reported credit limit at the last account update.') : 'You had reached the reported credit limit at the last account update.' : exhaustion ? `At the observed pace your credits run out on ${date(exhaustion,true)} (UTC), before the reset${resetDate ? ` on ${resetDate}` : ''}.` : selected.exhaustionStatus==='zero_observed_rate' ? 'Your counter has not moved recently, so no run-out date is projected. New usage can change this.' : `${lastsLine ? lastsLine.replace(/\.$/,' — enough to last until then.') : 'Your credits are not projected to run out before the reset.'}${tight ? ' The margin is small: your pace is within 10% of the daily budget.' : ''}` : explanations[stale ? 'stale' : reason] ?? 'The available account updates do not support a safe forecast.';
+ const explanation=absent ? NOT_KIRO_TEXT : eligible ? exhausted ? above ? (observedOver ? '' : 'Usage was above the reported credit limit at the last account update.') : 'You had reached the reported credit limit at the last account update.' : exhaustion ? `At the observed pace your credits run out on ${date(exhaustion,true)} (UTC), before the reset${resetDate ? ` on ${resetDate}` : ''}.` : selected.exhaustionStatus==='zero_observed_rate' ? 'Your counter has not moved recently, so no run-out date is projected. New usage can change this.' : `${lastsLine ? lastsLine.replace(/\.$/,' — enough to last until then.') : 'Your credits are not projected to run out before the reset.'}${tight ? ' The margin is small: your pace is within 10% of the daily budget.' : ''}` : [allowanceShown && daysLeft!==null && daysLeft>0 ? `${compact(o.remainingBaseCredits!)} credits left and ${daysLeft} ${daysLeft===1 ? 'day' : 'days'} until the reset${resetDate ? ` on ${resetDate}` : ''}, so up to ${compact(budget!)} per day.` : '',floor ? `So far this cycle you have used at least ${compact(floor.ratePerDay)} credits per day on average${floor.basis==='maximum_cycle_length' ? ` (assuming the cycle started no earlier than ${date(floor.from)}; if it started later, your average was higher)` : ''}.${floorOver ? ' Even this minimum is above your daily allowance.' : ''}` : '',explanations[stale ? 'stale' : reason] ?? 'The available account updates do not support a safe forecast.'].filter(Boolean).join(' ');
  // A provisional estimate is never styled or headlined as reassuringly as a regular forecast.
  const early=eligible && f.tier==='provisional' && outlook==='On track';
- const heading=absent ? 'Kiro not detected' : early ? 'Looks on track so far' : outlook;
- const tone=absent ? 'neutral' : stale || (!eligible && !collecting) ? 'warn' : !eligible || early ? 'neutral' : exhausted || over ? 'bad' : tight ? 'warn' : 'ok';
+ const heading=absent ? 'Kiro not detected' : allowanceShown && !eligible ? `Up to ${compact(budget!)} credits/day until the reset` : early ? 'Looks on track so far' : outlook;
+ const tone=absent ? 'neutral' : stale || (!eligible && !collecting) || floorOver ? 'warn' : !eligible || early ? 'neutral' : exhausted || over ? 'bad' : tight ? 'warn' : 'ok';
  const icon={ok:'✓',warn:'!',bad:'✕',neutral:'…'}[tone];
  const usedPct=o.usage!==null && o.baseLimit!==null && compare(o.baseLimit,'0')>0 ? Math.max(0,Math.min(100,Math.round(Number(o.usage)/Number(o.baseLimit)*100))) : null;
  const limitations=eligible && f.tier==='provisional' ? 'This limited window may not represent future usage.' : '';

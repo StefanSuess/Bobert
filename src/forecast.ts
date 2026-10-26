@@ -28,14 +28,18 @@ export interface ForecastEstimate {
  evidenceCredits: string | null; evidenceMilliseconds: number | null; cyclesUsed: number | null; observedDays: number | null;
  zeroNetMilliseconds: number | null; excludedBreakMilliseconds: number | null;
 }
+/** A lower bound on the average daily usage so far this cycle. It is never an estimate and never selected. */
+export interface CycleAverageFloor { ratePerDay: string; from: string; to: string; basis: 'evidence_cycle_start' | 'maximum_cycle_length'; projectedUsageAtResetFloor: string; budgetComparison: string }
+export const MAX_CYCLE_DAYS = 31; // assumed, not documented by Kiro
 export interface ForecastResult {
- schemaVersion: 3; policy: { version: 3; regular: { minimumSpanDays: 7; minimumSnapshots: 8 }; provisional: { minimumSpanHours: 48; minimumSnapshots: 3 }; maximumGapHours: 36; maxAgeHours: number;
+ schemaVersion: 4; policy: { version: 3; regular: { minimumSpanDays: 7; minimumSnapshots: 8 }; provisional: { minimumSpanHours: 48; minimumSnapshots: 3 }; maximumGapHours: 36; maxAgeHours: number;
   history: Record<HistoryMethod, HistoryRequirement>; maximumSingleIntervalShare: '1/2'; heuristics: Heuristics };
  status: 'unavailable' | 'qualified'; tier: ForecastTier; unit: 'CREDIT'; reasons: string[]; assumptions: string[]; qualifiers: string[];
  asOf: string | null; evaluatedAt: string; resetAt: string | null; horizonDays: string | null;
  currentCycleUsage: string | null; baseCreditLimit: string | null; remainingBaseCredits: string | null; dynamicDailyBudget: string | null;
  selectedMethod: ForecastMethod | null; estimates: ForecastEstimate[]; coverage: AccountHistory['coverage'];
  recentTrend: { direction: string; recentRatePerDay: string | null; previousRatePerDay: string | null };
+ cycleAverageFloor: CycleAverageFloor | null;
 }
 const unavailable = (method: ForecastMethod, reasons: string[]): ForecastEstimate => ({ method,tier:'unavailable',status:'unavailable',reasons,
  windowFrom:null,windowTo:null,windowDays:null,snapshotCount:0,ratePerDay:null,projectedUsageAtReset:null,projectedRemainingBaseAtReset:null,
@@ -96,13 +100,13 @@ const adequate = (points: HistoryPoint[]) => points.length >= 8 && span(points) 
 export function forecast(h: AccountHistory, now = new Date().toISOString(), maxAgeHours = 24, options: { heuristics?: Partial<Heuristics> } = {}): ForecastResult {
  const latest=h.points.at(-1);
  const heuristics: Heuristics = { ...DEFAULT_HEURISTICS, ...options.heuristics };
- const result: ForecastResult = { schemaVersion:3,policy:{version:3,regular:{minimumSpanDays:7,minimumSnapshots:8},provisional:{minimumSpanHours:48,minimumSnapshots:3},maximumGapHours:36,maxAgeHours,
+ const result: ForecastResult = { schemaVersion:4,policy:{version:3,regular:{minimumSpanDays:7,minimumSnapshots:8},provisional:{minimumSpanHours:48,minimumSnapshots:3},maximumGapHours:36,maxAgeHours,
    history:HISTORY_POLICY,maximumSingleIntervalShare:'1/2',heuristics},
   status:'unavailable',tier:'unavailable',unit:'CREDIT',reasons:[],
   assumptions:['constant_future_net_rate','net_counter_changes_not_gross_charges','base_credits_only','unobserved_usage_since_snapshot_unknown','no_statistical_confidence_interval'],qualifiers:[],
   asOf:latest?.observedAt ?? null,evaluatedAt:now,resetAt:h.cycleResetAt,horizonDays:null,
   currentCycleUsage:latest?.usage ?? null,baseCreditLimit:latest?.baseLimit ?? null,remainingBaseCredits:null,dynamicDailyBudget:null,
-  selectedMethod:null,estimates:[],coverage:h.coverage,recentTrend:{direction:'unavailable',recentRatePerDay:null,previousRatePerDay:null} };
+  selectedMethod:null,estimates:[],coverage:h.coverage,recentTrend:{direction:'unavailable',recentRatePerDay:null,previousRatePerDay:null},cycleAverageFloor:null };
  const block = (reason: string) => {
   result.reasons.push(reason);
   result.estimates=ALL_METHODS.map(method=>unavailable(method,[reason]));
@@ -122,6 +126,15 @@ export function forecast(h: AccountHistory, now = new Date().toISOString(), maxA
  result.dynamicDailyBudget=allocation(result.remainingBaseCredits,resetMs-nowMs);
  const horizon=resetMs-observedMs;
  result.horizonDays=scaleRatio(String(horizon),1n,BigInt(DAY_MS));
+ // Lower bound, never an estimate: usage so far over the longest time the cycle can have lasted (an assumption), or over the evidence-backed cycle start.
+ const earliestStart=resetMs-MAX_CYCLE_DAYS*DAY_MS, floorStart=h.cycleStartAt ? Date.parse(h.cycleStartAt) : earliestStart;
+ // A reduced-precision counter may be rounded up, which would break the lower-bound claim.
+ if (observedMs > floorStart && Date.parse(h.points[0].observedAt) >= earliestStart && !latest.flags.includes('reduced_precision')) {
+  const duration=observedMs-floorStart, comparison=compareRatios(latest.usage,duration,result.remainingBaseCredits,resetMs-nowMs);
+  result.cycleAverageFloor={ratePerDay:scaleRatio(latest.usage,BigInt(DAY_MS),BigInt(duration)),from:iso(floorStart),to:latest.observedAt,basis:h.cycleStartAt ? 'evidence_cycle_start' : 'maximum_cycle_length',
+   projectedUsageAtResetFloor:combineRatio(latest.usage,latest.usage,BigInt(horizon),BigInt(duration)),budgetComparison:comparison > 0 ? 'above_budget' : comparison < 0 ? 'within_budget' : 'at_budget'};
+  if (!h.cycleStartAt) result.assumptions.push('maximum_cycle_length_assumed');
+ }
  // A usable window never crosses a quality barrier or an excessive gap.
  let cleanStart=0;
  for (let i=0;i<h.intervals.length;i++) if (h.intervals[i].status !== 'comparable') cleanStart=i+1;

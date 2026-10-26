@@ -38,7 +38,7 @@ test('provisional tier remains visible even when the early rate predicts exhaust
  assert.match(risk.tooltip,/Likely to exceed/);assert.equal(risk.warning,true);
 });
 test('collecting, stale and unsafe data never display reassuring outlooks',()=>{
- const collecting=render(10,'1000',1);assert.match(collecting.text,/Collecting data/);
+ const collecting=render(10,'1000',1);assert.equal(collecting.text,'$(gauge) Kiro credits: 1000 left • 33.3/day');
  assert.match(collecting.html,/Keep using Kiro\. A first estimate appears after about 2 days and 3 account updates; a regular forecast after 7 days\./);
  assert.match(collecting.html,/at least 48 hours/);assert.match(collecting.html,/at least 7 days/);
  const stale=render(10,'1000',8,'2030-06-09T00:00:00.001Z');assert.match(stale.text,/Stale data/);
@@ -146,7 +146,7 @@ test('hero answers used, remaining and reset first and labels the forecast statu
  assert.match(hero(render(10).html),/class="status-icon" aria-hidden="true"/);assert.match(render(10).html,/aria-labelledby="status-heading"/);
 });
 test('uncertain states are never styled as on track and keep their warning in the hero',()=>{
- for(const [r,label] of [[render(10,'1000',8,'2030-06-09T00:00:00.001Z'),'Stale data'],[render(10,'1000',1),'Collecting data'],[render(10,'1000',3),'Based on limited history']] as const){
+ for(const [r,label] of [[render(10,'1000',8,'2030-06-09T00:00:00.001Z'),'Stale data'],[render(10,'1000',1),'Up to 33\\.3 credits/day until the reset'],[render(10,'1000',3),'Based on limited history']] as const){
   const h=hero(r.html);assert.match(visible(h),new RegExp(label));assert.ok(!/class="hero ok"/.test(h));
  }
  assert.match(hero(render(10,'1000',8,'2030-06-09T00:00:00.001Z').html),/class="hero warn"/);
@@ -492,7 +492,7 @@ const leadOf = (html: string) => /<p class="lead">([^<]*)<\/p>/.exec(html)?.[1] 
 const PLAIN_STEP = 'Use Kiro for a few minutes so it can write a credit update. If this stays empty, use Report a problem below.';
 test('unavailable and collecting states say what to do next, in plain words', () => {
  assert.equal(leadOf(present(view([], NOW)).html), PLAIN_STEP);
- assert.equal(leadOf(render(10, '1000', 1).html), 'Keep using Kiro. A first estimate appears after about 2 days and 3 account updates; a regular forecast after 7 days.');
+ assert.equal(leadOf(render(10, '1000', 1).html), '1000 credits left and 30 days until the reset on 1 Jul, so up to 33.3 per day. Keep using Kiro. A first estimate appears after about 2 days and 3 account updates; a regular forecast after 7 days.');
  const unknownAccount = leadOf(at(view(series(10).map(p => ({ ...p, associated: false })), NOW)).html);
  const conflicting = leadOf(at(view([snapshot(NOW, '5'), snapshot(NOW, '6')], NOW)).html);
  const noReset = leadOf(at(view(series(10).map(p => ({ ...p, resetAt: null, resetText: null })), NOW)).html);

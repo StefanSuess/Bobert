@@ -38,7 +38,7 @@ export function buildDemand(f:ForecastResult,h:AccountHistory,manual:ManualDeman
     assumptions.push('standalone_comparison',`standalone_${s.billingSystem}`,'standalone_zero_opening_inventory','promotions_excluded','standalone_utc_calendar_schedule');reasons.push('standalone_hypothetical');
    }
   }else{
-   if(!f||f.schemaVersion!==3||f.policy?.version!==3||f.status!=='qualified'||h.status!=='available'||!validInstant(f.asOf)||!validInstant(f.resetAt))return fail('forecast_unavailable');
+   if(!f||f.schemaVersion!==4||f.policy?.version!==3||f.status!=='qualified'||h.status!=='available'||!validInstant(f.asOf)||!validInstant(f.resetAt))return fail('forecast_unavailable');
    const actual=qualify(h,now,f.policy.maxAgeHours,{heuristics:f.policy.heuristics});
    const selected=f.estimates.find(e=>e.method===f.selectedMethod), expected=actual.estimates.find(e=>e.method===actual.selectedMethod);
    if(actual.status!=='qualified'||!selected||!expected||selected.status!=='qualified'||actual.selectedMethod!==f.selectedMethod||actual.asOf!==f.asOf||actual.resetAt!==f.resetAt||actual.tier!==f.tier||JSON.stringify(f.policy)!==JSON.stringify(actual.policy)||['windowFrom','windowTo','snapshotCount','tier','evidenceCredits','evidenceMilliseconds'].some(k=>(selected as any)[k]!== (expected as any)[k]))return fail('forecast_evidence_mismatch');

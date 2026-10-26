@@ -38,7 +38,7 @@ test('Monday morning: zero-net weekend no longer blocks forecasting; baseline v2
  const s = fiveWeeks();
  assert.equal(forecastV2(historyV2(s), s.at(-1)!.observedAt).status, 'unavailable');
  const r = run(s);
- assert.equal(r.schemaVersion, 3); assert.equal(r.policy.version, 3);
+ assert.equal(r.schemaVersion, 4); assert.equal(r.policy.version, 3);
  assert.equal(r.status, 'qualified'); assert.equal(r.tier, 'regular'); assert.equal(r.selectedMethod, 'history_28_day');
  const e = method(r, 'history_28_day');
  assert.equal(e.evidenceCredits, '2000'); assert.equal(e.evidenceMilliseconds, 28 * DAY);

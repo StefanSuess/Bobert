@@ -16,7 +16,7 @@ test('CLI runs and restarts against synthetic sources with billing-only JSON out
  await writeFile(join(dir, 'q-client.log'), '2030-06-29 18:00:00.000 [info] synthetic {"commandName":"GetUsageLimitsCommand","output":{"userInfo":{"userId":"synthetic-user-private"},"nextDateReset":"2030-07-01T00:00:00Z","usageBreakdownList":[{"resourceType":"CREDIT","currentUsageWithPrecision":11.35,"usageLimitWithPrecision":100,"prompt":"SYNTHETIC_DO_NOT_RETAIN"}]},"metadata":{"httpStatusCode":200}}\n');
  const args = ['--source-root', root, '--store-dir', join(base, 'gauge'), '--source-timezone', 'Europe/Berlin', '--json'];
  const first = run(args), second = run(args); assert.equal(first.status, 0); assert.equal(second.status, 0);
- const r = JSON.parse(second.stdout); assert.equal(r.import.duplicates, 1); assert.equal(r.observation.usage, '11.35');
+ const r = JSON.parse(second.stdout); assert.equal(r.import.duplicates, 1); assert.equal(r.observation.usage, '11.35'); assert.equal(r.observation.forecast.schemaVersion, 4); assert.ok('cycleAverageFloor' in r.observation.forecast);
  for (const marker of [base, 'synthetic-user', 'SYNTHETIC_DO_NOT_RETAIN', 'partition']) assert.ok(!second.stdout.includes(marker));
  assert.equal(second.stderr, ''); await rm(base, {recursive:true});
 });

@@ -63,7 +63,7 @@ Free and open source, with no account, no sign-in and no telemetry. Everything s
 2. Click the credit item in the status bar, or run **Bobert: Show Credit Budget**.
 3. Run **Bobert: Run Workspace Audit** to see what Kiro reads that it doesn't need.
 
-The status bar shows "Collecting data" until Kiro has logged its first account usage. Your daily budget appears with the first update, and forecasts follow after a few days of history. Settings, the command-line tool and troubleshooting are in the [usage guide](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/usage.md).
+The status bar shows "Collecting data" until Kiro has logged its first account usage. From the first update it shows the credits left and your daily allowance (for example "380 left • 63.3/day"), and forecasts follow after a few days of history. Settings, the command-line tool and troubleshooting are in the [usage guide](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/usage.md).
 
 ## Good to know
 
