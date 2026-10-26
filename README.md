@@ -5,7 +5,7 @@
 **Bobert worries about your Kiro credits, so you don't have to.**
 
 [![Open VSX version](https://img.shields.io/open-vsx/v/StefanSuess/bobert)](https://open-vsx.org/extension/StefanSuess/bobert)
-![Development version 1.2.0 stable](https://img.shields.io/badge/development-1.2.0%20stable-blue)
+[![Latest release](https://img.shields.io/github/v/release/StefanSuess/Bobert?label=release)](https://github.com/StefanSuess/Bobert/releases/latest)
 [![CI + coverage ≥80%](https://img.shields.io/github/actions/workflow/status/StefanSuess/Bobert/ci.yml?branch=main&label=CI%20%2B%20coverage%20%E2%89%A580%25)](https://github.com/StefanSuess/Bobert/actions/workflows/ci.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/StefanSuess/Bobert/blob/HEAD/LICENSE)
 
