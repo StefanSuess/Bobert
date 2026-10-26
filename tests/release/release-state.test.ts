@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GitHubOpenVsxAdapter } from '../../scripts/release/release-state.ts';
+import { GitHubOpenVsxAdapter, classifyOvsxFailure } from '../../scripts/release/release-state.ts';
 
 const adapter = () => new GitHubOpenVsxAdapter({
   repository: 'StefanSuess/Bobert',
@@ -264,6 +264,41 @@ test('ovsx publish gets --pre-release only for pre-release versions', async () =
     }
   } finally {
     delete process.env.SYNTHETIC_ARGS_FILE;
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('ovsx failures map to fixed codes with the exit status and never carry output text', () => {
+  const cases: [string, string][] = [
+    ['Error: Extension StefanSuess.bobert 1.2.0 already exists', 'VERSION_EXISTS'],
+    ['Trusted publishing token exchange failed', 'TRUSTED_PUBLISHING'],
+    ['HTTP 401 Unauthorized synthetic-token-value', 'AUTH_REJECTED'],
+    ['403 Forbidden', 'FORBIDDEN'],
+    ['Unknown publisher namespace', 'NAMESPACE'],
+    ['missing LICENSE file', 'LICENSE'],
+    ['getaddrinfo ENOTFOUND open-vsx.org', 'NETWORK'],
+    ['Server responded 502', 'SERVER_ERROR'],
+    ['Request failed with 422', 'CLIENT_ERROR'],
+    ['something unexpected', 'UNKNOWN'],
+  ];
+  for (const [stderr, kind] of cases) assert.equal(classifyOvsxFailure(stderr, 1), `OPENVSX_PUBLISH_${kind}_EXIT_1`);
+  assert.equal(classifyOvsxFailure('', null), 'OPENVSX_PUBLISH_UNKNOWN_EXIT_NONE');
+  assert.equal(classifyOvsxFailure('', null, Object.assign(new Error('x'), { code: 'ETIMEDOUT' })), 'OPENVSX_PUBLISH_TIMEOUT');
+  assert.equal(classifyOvsxFailure('', null, new Error('x')), 'OPENVSX_PUBLISH_SPAWN');
+});
+
+test('a failing ovsx publish throws only the fixed code, not its stderr', async () => {
+  const temp = mkdtempSync(join(tmpdir(), 'synthetic-ovsx-fail-'));
+  try {
+    mkdirSync(join(temp, 'node_modules/ovsx/bin'), { recursive: true });
+    writeFileSync(join(temp, 'node_modules/ovsx/bin/ovsx'), `process.stderr.write('HTTP 401 Unauthorized synthetic-secret-sentinel\\n'); process.exit(1);\n`);
+    const client = new GitHubOpenVsxAdapter({ repository: 'StefanSuess/Bobert', token: 'synthetic-token', publisherToolsDir: temp, draftVisibility: 'full' });
+    await assert.rejects(client.publishOpenVsx(Uint8Array.from([1]), 'trusted-publishing', false), (error: Error) => {
+      assert.equal(error.message, 'OPENVSX_PUBLISH_AUTH_REJECTED_EXIT_1');
+      assert.ok(!error.message.includes('sentinel'));
+      return true;
+    });
+  } finally {
     rmSync(temp, { recursive: true, force: true });
   }
 });
