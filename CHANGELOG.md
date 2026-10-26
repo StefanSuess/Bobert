@@ -1,8 +1,16 @@
 # Changelog
 
-All notable changes to Bobert: Kiro Credit Tracker. Bobert is an unofficial project. Versions with an odd minor number are beta (pre-release) builds; versions with an even minor number (1.0.x) are stable releases; see [versioning](docs/release-process.md#versioning).
+All notable changes to Bobert: Kiro Credit Tracker. Bobert is an unofficial project. Versions with an odd minor number are beta (pre-release) builds; versions with an even minor number (such as 1.0.x and 1.2.x) are stable releases; see [versioning](docs/release-process.md#versioning).
 
 Bobert is the new name of Cyclegauge; this is its first release under the new name. Settings and history from Cyclegauge are not carried over. If you had turned off session hints (`bobert.sessionHints`), budget warnings (`bobert.budgetWarnings`) or support prompts (`bobert.supportPrompts`) in Cyclegauge, they are on again in Bobert; turn them off again in your user settings. Cyclegauge's stored history stays where it was until you delete it; see [data left by Cyclegauge](docs/privacy-and-storage.md#data-left-by-cyclegauge).
+
+## 1.2.0 (stable, macOS)
+
+The stable form of the 1.1.0 beta, with no new features. Everyone on the stable line now gets the 1.1.0 changes below: credits left and the daily allowance instead of a bare "Collecting data", and the at-least average since the cycle start. No settings, storage or defaults change.
+
+### Changed
+
+- The release tooling's transitive dependencies `undici` and `fast-uri` were updated for security fixes. They are used only to publish and are not part of the extension.
 
 ## 1.1.0 (beta, macOS)
 
