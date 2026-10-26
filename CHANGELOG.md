@@ -4,14 +4,14 @@ All notable changes to Bobert: Kiro Credit Tracker. Bobert is an unofficial proj
 
 Bobert is the new name of Cyclegauge; this is its first release under the new name. Settings and history from Cyclegauge are not carried over. If you had turned off session hints (`bobert.sessionHints`), budget warnings (`bobert.budgetWarnings`) or support prompts (`bobert.supportPrompts`) in Cyclegauge, they are on again in Bobert; turn them off again in your user settings. Cyclegauge's stored history stays where it was until you delete it; see [data left by Cyclegauge](docs/privacy-and-storage.md#data-left-by-cyclegauge).
 
-## 1.1.0 (beta, macOS, Windows, Ubuntu)
+## 1.1.0 (beta, macOS)
 
 A beta (pre-release) build: install it with **Switch to Pre-Release Version** on Bobert's page in the Extensions view. No settings, storage or defaults change.
 
 ### Changed
 
-- **No more bare "Collecting data".** Until a forecast is ready, a fresh account update already shows what is certain: the status bar reads the credits left and your daily allowance (for example `380 left • 63.3/day`), and the credit view says how many credits and days are left until the reset and how much you can use per day. "Collecting data" remains only until the first fresh update, and when no base credits are left.
-- **An at-least average since the cycle start.** While no forecast is ready, the credit view adds "So far this cycle you have used at least … credits per day on average". It is a lower bound, not a forecast: Kiro does not document when a billing cycle starts, so Bobert divides your usage so far by the longest time the cycle can have lasted, assuming a cycle lasts at most 31 days, or uses an observed cycle start when it has one. If even this minimum is above your daily allowance, the status bar and the credit view warn. It never says "On track", and it is left out when the counter has reduced precision.
+- **No more bare "Collecting data".** Until a forecast is ready, a fresh account update already shows what is certain: the status bar reads the credits left and your daily allowance (for example `380 left • 63.3/day`), and the credit view says how many credits and days are left until the reset and how much you can use per day. "Collecting data" remains mainly before the first fresh update, when no base credits are left, or when the allowance cannot be computed.
+- **An at-least average since the cycle start.** While no forecast is ready, the credit view adds "So far this cycle you have used at least … credits per day on average". It is a lower bound, not a forecast: Kiro does not document when a billing cycle starts, so Bobert divides your usage so far by the longest time the cycle can have lasted, assuming a cycle lasts at most 31 days, or uses an observed cycle start when it has one. If even this minimum, over at least a day, is above your daily allowance, the status bar and the credit view warn. It never says "On track", and it is left out when the counter has reduced precision, when it is below 0.1 credits a day, or when an update older than 31 days before the reset contradicts the assumption.
 - **JSON output.** The forecast in `--json` now has `schemaVersion` 4 with a new `cycleAverageFloor` field; the forecast policy (version 3) is unchanged.
 
 ## 1.0.0 (stable, macOS, Windows, Ubuntu)

@@ -1,6 +1,6 @@
 # Bobert roadmap
 
-Status: **Bobert 1.0.0** is the first release under the name Bobert (formerly Cyclegauge; Cyclegauge's last update is 0.8.0 and carries a move notice). 1.0.0 is not yet published. Remaining work beyond 1.0 (session aggregation, Crew integration, Kiro SQLite access, usage-efficiency insights) is deferred and unauthorized. The dated records below are decisions in force; where one says it supersedes another, the later one applies. They are not blanket authorization for new features.
+Status: **Bobert 1.0.0** is the first release under the name Bobert (formerly Cyclegauge; Cyclegauge's last update is 0.8.0 and carries a move notice). 1.0.0 was published on 24 October 2026; 1.1.0 is a beta (pre-release). Remaining work beyond 1.0 (session aggregation, Crew integration, Kiro SQLite access, usage-efficiency insights) is deferred and unauthorized. The dated records below are decisions in force; where one says it supersedes another, the later one applies. They are not blanket authorization for new features.
 
 ## Decisions in force
 
