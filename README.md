@@ -5,7 +5,7 @@
 **Bobert worries about your Kiro credits, so you don't have to.**
 
 [![Open VSX version](https://img.shields.io/open-vsx/v/StefanSuess/bobert)](https://open-vsx.org/extension/StefanSuess/bobert)
-![Development version 1.1.0 beta](https://img.shields.io/badge/development-1.1.0%20beta-blue)
+![Development version 1.2.0 stable](https://img.shields.io/badge/development-1.2.0%20stable-blue)
 [![CI + coverage ≥80%](https://img.shields.io/github/actions/workflow/status/StefanSuess/Bobert/ci.yml?branch=main&label=CI%20%2B%20coverage%20%E2%89%A580%25)](https://github.com/StefanSuess/Bobert/actions/workflows/ci.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/StefanSuess/Bobert/blob/HEAD/LICENSE)
 
@@ -63,7 +63,7 @@ Free and open source, with no account, no sign-in and no telemetry. Everything s
 2. Click the credit item in the status bar, or run **Bobert: Show Credit Budget**.
 3. Run **Bobert: Run Workspace Audit** to see what Kiro reads that it doesn't need.
 
-The status bar shows "Collecting data" until Kiro has logged its first account usage. From the first update it shows your daily budget; from 1.1.0 (a beta: **Switch to Pre-Release Version** on Bobert's Extensions page) it also shows the credits left and your daily allowance while it collects (for example "380 left • 63.3/day"). Forecasts follow after a few days of history. Settings, the command-line tool and troubleshooting are in the [usage guide](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/usage.md).
+The status bar shows "Collecting data" until Kiro has logged its first account usage. From the first update it shows the credits left and your daily allowance whenever it can compute them (for example "380 left • 63.3/day"), and forecasts follow after a few days of history. Settings, the command-line tool and troubleshooting are in the [usage guide](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/usage.md).
 
 ## Good to know
 
