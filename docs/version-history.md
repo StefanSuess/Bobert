@@ -4,7 +4,7 @@ Bobert was formerly called Cyclegauge. Earlier history lives in the archived Cyc
 
 ## Release summary
 
-- **1.2.0** Stable (macOS): the stable form of the 1.1.0 beta, with no new features.
+- **1.2.0** Stable (macOS, Windows, Ubuntu): the stable form of the 1.1.0 beta, with no new features.
 - **1.1.0** Beta (pre-release, macOS); published on 26 October 2026.
   - While no forecast is ready, the status bar and credit view show the credits left and the daily allowance instead of a bare "Collecting data", plus an at-least average since the cycle start (a lower bound, assuming a cycle lasts at most 31 days).
 - **1.0.0** First release under the name Bobert (macOS, Windows, Ubuntu); published on 24 October 2026.
