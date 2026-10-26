@@ -111,17 +111,17 @@ test('delayed Open VSX and draft visibility retries reads without repeating writ
   assert.deepEqual(fake.writes, expectedWrites);
 });
 
-test('Open VSX appearing at three minutes completes without uploading twice', async t => {
+test('Open VSX appearing after fifteen minutes completes without uploading twice', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const fake = fakeAdapter();
   const readOpenVsx = fake.adapter.readOpenVsx;
   let postWriteReads = 0;
   fake.adapter.readOpenVsx = async version => {
-    if (fake.writes.includes('open-vsx') && ++postWriteReads < 19) return { kind: 'absent' };
+    if (fake.writes.includes('open-vsx') && ++postWriteReads < 91) return { kind: 'absent' };
     return readOpenVsx(version);
   };
   const checked = promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' });
-  for (let step = 0; step < 18; step++) {
+  for (let step = 0; step < 90; step++) {
     await setImmediate();
     t.mock.timers.tick(10_000);
   }
@@ -129,7 +129,7 @@ test('Open VSX appearing at three minutes completes without uploading twice', as
   assert.deepEqual(fake.writes, expectedWrites);
 });
 
-test('missing Open VSX publication stops after three minutes and never creates a tag', async t => {
+test('missing Open VSX publication stops after fifteen minutes and never creates a tag', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const fake = fakeAdapter();
   let postWriteReads = 0;
@@ -138,12 +138,12 @@ test('missing Open VSX publication stops after three minutes and never creates a
     return { kind: 'absent' };
   };
   const checked = assert.rejects(promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' }), /PROMOTION_WRITE_FAILED/);
-  for (let step = 0; step < 18; step++) {
+  for (let step = 0; step < 90; step++) {
     await setImmediate();
     t.mock.timers.tick(10_000);
   }
   await checked;
-  assert.equal(postWriteReads, 19);
+  assert.equal(postWriteReads, 91);
   assert.deepEqual(fake.writes, ['open-vsx']);
 });
 
@@ -424,7 +424,7 @@ test('an ambiguous Open VSX failure keeps waiting and then reports its code', as
   const fake = fakeAdapter();
   fake.adapter.publishOpenVsx = async () => { fake.writes.push('open-vsx'); throw new Error('OPENVSX_PUBLISH_NETWORK_EXIT_1'); };
   const checked = assert.rejects(promoteCandidate(fake.adapter, candidate(), { dryRun: false, authMode: 'pat' }), { message: 'OPENVSX_PUBLISH_NETWORK_EXIT_1' });
-  for (let step = 0; step < 19; step++) { await setImmediate(); t.mock.timers.tick(10_000); }
+  for (let step = 0; step < 91; step++) { await setImmediate(); t.mock.timers.tick(10_000); }
   await checked;
   assert.deepEqual(fake.writes, ['open-vsx']);
 });
