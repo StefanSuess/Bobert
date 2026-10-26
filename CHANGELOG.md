@@ -6,7 +6,7 @@ Bobert is the new name of Cyclegauge; this is its first release under the new na
 
 ## 1.2.0 (stable, macOS)
 
-The stable form of the 1.1.0 beta, with no new features. Everyone on the stable line now gets the 1.1.0 changes below: credits left and the daily allowance instead of a bare "Collecting data", and the at-least average since the cycle start. No settings, storage or defaults change.
+The stable form of the 1.1.0 beta, with no new features. Everyone on the stable line now gets the 1.1.0 changes below: credits left and the daily allowance instead of a bare "Collecting data", the at-least average since the cycle start, and a new `--json` forecast field (`cycleAverageFloor`, `schemaVersion` 4). No settings, storage or defaults change.
 
 ### Changed
 
