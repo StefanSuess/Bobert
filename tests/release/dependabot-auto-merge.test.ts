@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
 // Exercise the exact inline verifier with synthetic API responses and no PR checkout.
@@ -119,4 +120,14 @@ test('privileged job checks source workflow and never runs untrusted code', () =
  assert.match(workflow, /github\.event\.workflow_run\.conclusion == 'success'/);
  assert.match(workflow, /github\.event\.workflow_run\.actor\.login == 'dependabot\[bot\]'/);
  assert.match(workflow, /gh pr merge --auto --squash/);
+});
+
+test('release publisher tools get weekly Dependabot updates that the patch auto-merge never accepts', () => {
+  const config = readFileSync(resolve(import.meta.dirname, '../../.github/dependabot.yml'), 'utf8');
+  assert.match(config, /directory: \/scripts\/release\/publisher-tools\n/);
+  assert.match(config, /groups:\n {6}publisher-tools:/);
+  const workflow = readFileSync(resolve(import.meta.dirname, '../../.github/workflows/dependabot-auto-merge.yml'), 'utf8');
+  const rule = /\/\^dependabot\\\/npm_and_yarn\\\/npm-patch-\[A-Za-z0-9_-\]\+\$\//;
+  assert.match(workflow, rule);
+  assert.doesNotMatch('dependabot/npm_and_yarn/scripts/release/publisher-tools/publisher-tools-0a1b2c3d4e', /^dependabot\/npm_and_yarn\/npm-patch-[A-Za-z0-9_-]+$/);
 });

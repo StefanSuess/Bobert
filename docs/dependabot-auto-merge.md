@@ -13,7 +13,7 @@ Do **not** add this PAT to the untrusted `ci.yml` workflow or to a `pull_request
 
 ## What happens
 
-- `.github/dependabot.yml` creates separate npm **`npm-patch`** and **`npm-minor`** groups. GitHub Actions dependency updates remain separate and are never auto-merged.
+- `.github/dependabot.yml` creates separate npm **`npm-patch`** and **`npm-minor`** groups. GitHub Actions dependency updates remain separate and are never auto-merged. The release publisher tools (`scripts/release/publisher-tools`, group **`publisher-tools`**) get weekly updates too, but their branch and group never match the auto-merge rule: a maintainer merges them after CI, not while a release is in progress.
 - A read-only **`ci`** run completes on a Dependabot PR.
 - `.github/workflows/dependabot-auto-merge.yml` starts from GitHub's **`workflow_run`** event. It does not check out or execute PR contents.
 - The workflow requires a *successful* pull-request CI run with Dependabot as the run actor; exactly one open, non-draft Dependabot PR targeting `main`; the PR's head SHA must match that successful CI run.

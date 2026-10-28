@@ -29,7 +29,8 @@ export const PAYLOAD = ALLOWLIST.filter(n => n.startsWith('extension/'));
 export const EXPECTED_ID = 'StefanSuess.bobert';
 const SETTING_KEYS = ['sourceRoot', 'storageRoot', 'sourceTimezone'];
 // The audit reminder, automatic configuration review, community prompt, budget warning and session hint settings are the user's own (application scope: a workspace cannot set them): exactly these keys, with exactly this scope, type, default and range.
-const USER_SETTINGS: Record<string, { type: string; default: unknown; minimum?: number; maximum?: number; enum?: string[] }> = {
+const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const USER_SETTINGS: Record<string, { type: string; default: unknown; minimum?: number; maximum?: number; enum?: string[]; itemsEnum?: string[] }> = {
  auditReminderDays: { type: 'number', default: 30, minimum: 0, maximum: 365 },
  auditAutomatically: { type: 'string', default: 'off', enum: ['off', 'onOpen', 'onOpenAndChanges'] },
  configReviewAutomatically: { type: 'string', default: 'off', enum: ['off', 'onOpen', 'onOpenAndChanges'] },
@@ -37,6 +38,7 @@ const USER_SETTINGS: Record<string, { type: string; default: unknown; minimum?: 
  budgetWarnings: { type: 'boolean', default: true },
  budgetWarningPercent: { type: 'number', default: 80, minimum: 0, maximum: 100 },
  sessionHints: { type: 'boolean', default: true },
+ budgetDays: { type: 'array', default: WEEKDAYS, itemsEnum: WEEKDAYS },
 };
 
 export interface FileHash { name: string; bytes: number; sha256: string }
@@ -87,8 +89,8 @@ export function verifyVsix(archive: Buffer): VerifyResult {
    for (const [key, expected] of Object.entries(USER_SETTINGS)) {
     const p = props[`bobert.${key}`];
     if (p?.scope !== 'application') problems.push('MANIFEST_SETTING_SCOPE');
-    if (p?.type !== expected.type || p?.default !== expected.default || p?.minimum !== expected.minimum || p?.maximum !== expected.maximum
-     || JSON.stringify(p?.enum) !== JSON.stringify(expected.enum)) problems.push('MANIFEST_SETTING_TYPE');
+    if (p?.type !== expected.type || JSON.stringify(p?.default) !== JSON.stringify(expected.default) || p?.minimum !== expected.minimum || p?.maximum !== expected.maximum
+     || JSON.stringify(p?.enum) !== JSON.stringify(expected.enum) || JSON.stringify(p?.items?.enum) !== JSON.stringify(expected.itemsEnum)) problems.push('MANIFEST_SETTING_TYPE');
    }
   } catch { problems.push('MANIFEST_JSON'); }
  }
