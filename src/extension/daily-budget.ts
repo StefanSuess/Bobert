@@ -64,33 +64,31 @@ export function dayBudget(o: ReturnType<typeof view>, now: string, zone: string,
  if (o.baseLimit === null || o.usage === null) return unavailable('missing_billing');
  const nowMs = Date.parse(now), resetMs = o.resetAt ? Date.parse(o.resetAt) : NaN;
  if (!Number.isFinite(nowMs) || !Number.isFinite(resetMs) || resetMs <= nowMs) return unavailable('reset_unknown');
- let today: string, points: typeof o.history.points;
- try {
-  today = localDay(now, zone);
-  points = o.history.points.filter(p => Date.parse(p.observedAt) <= nowMs && localDay(p.observedAt, zone) === today);
- } catch { return unavailable('unsupported_timezone'); }
+ let today: string;
+ try { today = localDay(now, zone); } catch { return unavailable('unsupported_timezone'); }
  const todayStart = midnight(today, zone);
  if (todayStart === null) return unavailable('unsupported_timezone');
+ // Today's updates are exactly those inside [local midnight, now]; no per-point formatting needed.
+ const points = o.history.points.filter(p => { const at = Date.parse(p.observedAt); return at >= todayStart && at <= nowMs; });
  const pace = usedToday(o, points, todayStart);
  // Stored text may carry another ISO spelling; report the canonical instant.
  const used = pace?.used ?? null, since = pace?.since ?? null, asOf = new Date(o.observedAt).toISOString();
  if (!days.includes(weekday(today))) return { status: 'day_off', day: today, used, since, asOf };
 
  // Sum the weights as an exact fraction so nothing is rounded before the final division.
- let num = 0n, den = 1n, ymd = today, count = 0;
+ // Today counts fully when it is a budget day, even if the reset falls later today; a future reset day counts its part before the reset.
+ let num = 0n, den = 1n, ymd = today, count = 0, start = todayStart;
  for (;;) {
-  const start = midnight(ymd, zone);
-  if (start === null) return unavailable('unsupported_timezone');
   if (start >= resetMs) break;
   if (++count > MAX_DAYS) return unavailable('reset_unknown');
   const following = nextDay(ymd), end = midnight(following, zone);
   if (end === null) return unavailable('unsupported_timezone');
   if (days.includes(weekday(ymd))) {
-   const n = BigInt(Math.min(end, resetMs) - start), d = BigInt(end - start);
+   const n = BigInt(ymd === today ? end - start : Math.min(end, resetMs) - start), d = BigInt(end - start);
    const sn = num * d + n * den, sd = den * d, g = gcd(sn, sd);
    num = sn / g; den = sd / g;
   }
-  ymd = following;
+  ymd = following; start = end;
  }
  if (num <= 0n) return unavailable('reset_unknown');
  const first = pace ? points[0]! : null;

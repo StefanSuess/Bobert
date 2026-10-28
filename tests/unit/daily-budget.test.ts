@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { compare } from '../../src/decimal.ts';
 import { view } from '../../src/view.ts';
 import { ALL_DAYS, dayBudget, daysLabel, restricted, type BudgetDay } from '../../src/extension/daily-budget.ts';
 import { syntheticSnapshot } from './synthetic.ts';
@@ -40,6 +41,49 @@ test('day budget counts only the part of the reset day before the reset', () => 
  assert.equal(r.allowance, '100');
  assert.equal(r.weightSum, '2.25');
  assert.equal(r.budgetDaysLeft, 3);
+});
+
+test('day budget counts today fully when the reset falls later today', () => {
+ const r = budget([s('2030-06-30T13:00:00Z', '900', { resetAt: '2030-07-01T00:00:00.000Z' })], '2030-06-30T14:00:00Z', 'America/New_York');
+ assert.ok(r.status === 'available');
+ assert.equal(r.day, '2030-06-30');
+ assert.equal(r.weightSum, '1');
+ assert.equal(r.remainingAtAnchor, '100');
+ assert.equal(r.allowance, '100');
+ assert.ok(compare(r.allowance, r.remainingAtAnchor) <= 0);
+});
+
+test('day budget counts today fully when the reset is shortly after local midnight', () => {
+ const r = budget([s('2030-06-30T22:10:00Z', '900', { resetAt: '2030-07-01T00:00:00.000Z' })], '2030-06-30T22:30:00Z', 'Europe/Berlin');
+ assert.ok(r.status === 'available');
+ assert.equal(r.day, '2030-07-01');
+ assert.equal(r.weightSum, '1');
+ assert.equal(r.allowance, r.remainingAtAnchor);
+ assert.ok(compare(r.allowance, r.remainingAtAnchor) <= 0);
+});
+
+test('day budget drops used today when usage decreases on the same cycle', () => {
+ const r = budget([s('2030-06-08T08:00:00Z', '300'), s('2030-06-08T12:00:00Z', '250')], '2030-06-08T13:00:00Z');
+ assert.ok(r.status === 'available');
+ assert.equal(r.used, null);
+ assert.equal(r.since, null);
+ assert.equal(r.anchorAt, '2030-06-08T12:00:00.000Z');
+});
+
+test('day budget drops used today when the limit changes during the day', () => {
+ const r = budget([s('2030-06-08T08:00:00Z', '300'), s('2030-06-08T12:00:00Z', '310', { limit: '1500' })], '2030-06-08T13:00:00Z');
+ assert.ok(r.status === 'available');
+ assert.equal(r.used, null);
+ assert.equal(r.since, null);
+ assert.equal(r.anchorAt, '2030-06-08T12:00:00.000Z');
+});
+
+test('day budget drops used today for conflicting updates at the same instant', () => {
+ const r = budget([s('2030-06-08T08:00:00Z', '300'), s('2030-06-08T08:00:00Z', '305'), s('2030-06-08T12:00:00Z', '320')], '2030-06-08T13:00:00Z');
+ assert.ok(r.status === 'available');
+ assert.equal(r.used, null);
+ assert.equal(r.since, null);
+ assert.equal(r.anchorAt, '2030-06-08T12:00:00.000Z');
 });
 
 test('day budget on a 23-hour daylight-saving day', () => {

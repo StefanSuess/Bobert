@@ -15,7 +15,7 @@ Bobert is the new name of Cyclegauge; this is its first release under the new na
 
 ### Changed
 
-- The daily figure now stays fixed during the day. Before, it shrank with each update; now it is set from your first update of the local day. Today's pace in the credit view also uses your local day instead of the UTC day.
+- The daily figure now stays fixed during the day. Before, it shrank with each update; now it is set from your first update of the local day (without a comparable update today, from the latest update). Today's pace in the credit view also uses your local day instead of the UTC day.
 - The 24-hour figure from the last update is labelled `24-hour allocation from the last update (CLI)` in the technical details. The command-line tool and its `availablePerDay` are unchanged.
 
 ## 1.2.0 (stable, macOS, Windows, Ubuntu)

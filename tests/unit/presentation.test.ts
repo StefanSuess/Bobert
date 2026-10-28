@@ -17,7 +17,7 @@ const render=(rate:number,limit='1000',count=8,now=`2030-06-${String(count).padS
 test('status emphasizes daily budget and outlook without repeating balance',()=>{
  const r=render(10);assert.equal(r.text,'$(gauge) Kiro credits: On track • 0/40.4 today');
  assert.ok(!r.text.includes('930'));assert.match(r.tooltip,/Regular forecast/);
- assert.match(r.tooltip,/^Today: 0 of 40\.4 credits used \(since your first Kiro update at 00:00\)$/m);assert.match(r.tooltip,/Observed rate: 10 credits per day/);
+ assert.match(r.tooltip,/^Today: 0 of 40\.4 credits used \(since your first Kiro update at 00:00, your time\)$/m);assert.match(r.tooltip,/Observed rate: 10 credits per day/);
  assert.match(r.html,/<dd class="muted small">Today: 0 of 40\.4 used<\/dd>/);assert.match(r.html,/Credits left/);
  assert.match(r.html,/id="status-heading"/);assert.match(r.html,/Data quality \/ notes/);
  assert.ok(r.html.indexOf('class="stats"')<r.html.indexOf('Observed history'));
@@ -66,7 +66,7 @@ test('headline live region contains only the changing credit figure', () => {
 test('static view gives today\'s usage since the first update, with the allowance and no short-window allocation claim', () => {
  const points = [snapshot('2030-06-08T00:40:00Z', '1.1'), snapshot('2030-06-08T02:50:00Z', '2.223456789')];
  const html = present(view(points, '2030-06-08T02:51:00Z'), [], '', '', undefined, '2030-06-08T02:51:00Z').html;
- assert.match(html, /<h3>Today<\/h3><p>Since 00:40: 1\.123456789 credits used, as of 8 Jun 2030, 02:50 UTC\. Today&#39;s allowance: 43\.4 credits\./);
+ assert.match(html, /<h3>Today<\/h3><p>Since 00:40 \(your time\): 1\.123456789 credits used, as of 8 Jun 2030, 02:50 UTC\. Today&#39;s allowance: 43\.4 credits\./);
  assert.ok(!html.includes('24-hour allocation as of the last update'));
 });
 
@@ -527,13 +527,13 @@ test('stat values do not repeat the unit, and an over-limit hero shows one figur
 });
 test('observed usage has plain headings, one sentence plus a next step when a part is empty, and no card when both are', () => {
  // A single update today already gives today's usage (0), so the card appears with the cycle part empty.
- assert.match(/<section id="usage-context"[\s\S]*?<\/section>/.exec(render(10).html)![0], /<h3>Today<\/h3><p>Since 00:00: 0 credits used, as of 8 Jun 2030, 00:00 UTC\. Today&#39;s allowance: 40\.4 credits\.<\/p>/);
+ assert.match(/<section id="usage-context"[\s\S]*?<\/section>/.exec(render(10).html)![0], /<h3>Today<\/h3><p>Since 00:00 \(your time\): 0 credits used, as of 8 Jun 2030, 00:00 UTC\. Today&#39;s allowance: 40\.4 credits\.<\/p>/);
  assert.ok(!render(10, '1000', 7, '2030-06-08T00:00:00Z').html.includes('id="usage-context"'), 'no update today and no cycle comparison: no card');
  assert.ok(!present(view([], NOW)).html.includes('id="usage-context"'));
  const points = [snapshot('2030-06-08T00:40:00Z', '1.1'), snapshot('2030-06-08T02:50:00Z', '2.223456789')];
  const html = present(view(points, '2030-06-08T02:51:00Z'), [], '', '', undefined, '2030-06-08T02:51:00Z').html;
  const ctx = /<section id="usage-context"[\s\S]*?<\/section>/.exec(html)![0];
- assert.match(ctx, /<h2 id="usage-context-heading">Observed usage<\/h2><h3>This cycle vs last cycle<\/h3><p>Not enough history yet to compare with last cycle\. This fills in after your next reset\.<\/p><h3>Today<\/h3><p>Since 00:40: 1\.123456789 credits used/);
+ assert.match(ctx, /<h2 id="usage-context-heading">Observed usage<\/h2><h3>This cycle vs last cycle<\/h3><p>Not enough history yet to compare with last cycle\. This fills in after your next reset\.<\/p><h3>Today<\/h3><p>Since 00:40 \(your time\): 1\.123456789 credits used/);
  assert.ok(!/quality barrier|not observed/.test(ctx));
  // Today's part empty while the cycle part has something to show.
  const stale = present(view(points, '2030-06-09T12:00:00Z'), [], '', '', undefined, '2030-06-09T12:00:00Z').html;
@@ -597,7 +597,7 @@ test('status bar shows used against today\'s allowance', () => {
  const r = withDay(dayPoints(), dayNow);
  assert.match(r.text, /On track • 55\/100 today/);
  assert.equal(r.allowance, true);
- assert.match(r.tooltip, /^Today: 55 of 100 credits used \(since your first Kiro update at 00:00\)$/m);
+ assert.match(r.tooltip, /^Today: 55 of 100 credits used \(since your first Kiro update at 00:00, your time\)$/m);
  assert.ok(!r.tooltip.includes('Daily credit budget until reset'));
  assert.match(r.html, /Today: 55 of 100 used/);
 });
@@ -617,7 +617,7 @@ test('status bar shows day off with and without usage', () => {
  const points = [...series(10, '1000', 7), snapshot('2030-06-08T00:00:00Z', '70'), snapshot('2030-06-08T10:00:00Z', '82')];
  const withUsage = withDay(points, dayNow, weekdays);
  assert.match(withUsage.text, / • 12 today \(day off\)$/);
- assert.match(withUsage.tooltip, /^Today is not a budget day: 12 credits used \(since 00:00\) · Budget days: Mon–Fri$/m);
+ assert.match(withUsage.tooltip, /^Today is not a budget day: 12 credits used \(since 00:00, your time\) · Budget days: Mon–Fri$/m);
  assert.match(withUsage.html, /<dd class="muted small">Today is not a budget day<\/dd>/);
 });
 test('budget days appear in the tooltip only when restricted', () => {
@@ -626,7 +626,7 @@ test('budget days appear in the tooltip only when restricted', () => {
  const all = withDay(points, monday, intraday());
  const some = withDay(points, monday, intraday(WEEKDAYS));
  assert.match(all.tooltip, /^Today: 0 of /m); assert.ok(!all.tooltip.includes('Budget days'));
- assert.match(some.tooltip, /^Today: 0 of [\d.]+ credits used \(since your first Kiro update at 00:00\) · Budget days: Mon–Fri$/m);
+ assert.match(some.tooltip, /^Today: 0 of [\d.]+ credits used \(since your first Kiro update at 00:00, your time\) · Budget days: Mon–Fri$/m);
  const noUpdate = withDay(series(10, '1000', 9), monday, intraday(['mon', 'wed']));
  assert.match(noUpdate.tooltip, /^Today: up to [\d.]+ credits · Budget days: Mon, Wed$/m);
  assert.match(noUpdate.text, /• [\d.]+\/day$/);
@@ -671,8 +671,8 @@ test('restricted days rename the floor comparison to calendar days', () => {
 test('observed usage card reports today in local time', () => {
  const points = [snapshot('2030-06-08T00:40:00Z', '1.1'), snapshot('2030-06-08T02:50:00Z', '2.223456789')];
  const card = (daily?: { days: readonly BudgetDay[]; zone: string }) => /<section id="usage-context"[\s\S]*?<\/section>/.exec(withDay(points, '2030-06-08T02:51:00Z', daily).html)![0];
- assert.match(card(), /<h3>Today<\/h3><p>Since 00:40: 1\.123456789 credits used, as of 8 Jun 2030, 02:50 UTC\. Today&#39;s allowance: 43\.4 credits\.<\/p>/);
- assert.match(card(intraday(ALL_DAYS, 'Europe/Berlin')), /<h3>Today<\/h3><p>Since 02:40: 1\.123456789 credits used, as of 8 Jun 2030, 02:50 UTC\. Today&#39;s allowance: 43\.2 credits\.<\/p>/);
+ assert.match(card(), /<h3>Today<\/h3><p>Since 00:40 \(your time\): 1\.123456789 credits used, as of 8 Jun 2030, 02:50 UTC\. Today&#39;s allowance: 43\.4 credits\.<\/p>/);
+ assert.match(card(intraday(ALL_DAYS, 'Europe/Berlin')), /<h3>Today<\/h3><p>Since 02:40 \(your time\): 1\.123456789 credits used, as of 8 Jun 2030, 02:50 UTC\. Today&#39;s allowance: 43\.2 credits\.<\/p>/);
  assert.ok(!card().includes('Today (UTC)'));
  const stale = withDay(points, '2030-06-09T12:00:00Z').html;
  assert.ok(!stale.includes('id="usage-context"') || /Today&#39;s usage isn&#39;t available yet\./.test(stale));
@@ -681,7 +681,7 @@ test('used above a zero allowance renders without negatives', () => {
  // Over the limit at the first update of the day: nothing was left, and the 12 used since then is still shown.
  const points = [...series(10, '60', 7), snapshot('2030-06-08T00:00:00Z', '70', { limit: '60' }), snapshot('2030-06-08T10:00:00Z', '82', { limit: '60' })];
  const r = withDay(points, dayNow);
- assert.match(r.tooltip, /^Today: 12 of 0 credits used \(since your first Kiro update at 00:00\)$/m);
+ assert.match(r.tooltip, /^Today: 12 of 0 credits used \(since your first Kiro update at 00:00, your time\)$/m);
  assert.ok(!/-\d/.test(r.tooltip)); assert.ok(!/NaN|undefined|Infinity/.test(r.text + r.tooltip + r.html));
  assert.ok(!r.text.includes('-'));
  assert.match(r.html, /At your first update today you had 0 credits left|Above reported limit/);
@@ -746,4 +746,10 @@ test('the controller calls the budget hook before the allowance hook in a render
   assert.deepEqual(order, ['budget', 'allowance']);
   extension.rerender(); assert.deepEqual(order, ['budget', 'allowance', 'budget', 'allowance']); extension.dispose();
  } finally { await rm(base, { recursive: true, force: true }); }
+});
+
+test('data quality note describes the day-anchored allowance and points to the exact 24-hour figure', () => {
+ const html = render(10).html;
+ assert.match(html, /<h3>Data quality \/ notes<\/h3><p>The daily budget summary is truncated to one decimal; the exact allowance is in the technical details\. Today's allowance is fixed from your first Kiro update of the local day and spread over your budget days until the reset; the exact 24-hour allocation \(CLI\) is in the technical details\./);
+ assert.ok(!html.includes('across the time left until reset, using 24-hour days'));
 });

@@ -38,7 +38,7 @@ A pure function, like `todayPace` in `src/extension/dashboard-insights.ts`, take
 - **Budget-day weight.** For each local calendar day from today up to and including the day that contains the reset:
   - The weight is 0 if the day's weekday is not a budget day.
   - Otherwise the weight is the share of that day before the reset: (min(end of day, reset) − start of day) / length of day.
-  - Today counts from its start, so a budget day today has weight 1. The reset day counts only with its part before the reset, and a reset at exactly midnight gives that day 0.
+  - Today counts from its start, so a budget day today has weight 1. The reset day counts only with its part before the reset, unless the reset day is today, which counts fully; a reset at exactly midnight gives that day 0.
 - **Today's allowance** = remaining at the anchor / sum of weights, using exact decimal and rational arithmetic and truncated to one decimal for display like every compact figure.
 - **Day off.** If today is not a budget day, today has no allowance; the result is `day_off` together with today's observed usage, if any. Usage on a day off lowers the remaining credits and so the next budget day's allowance; this is not hidden.
 - **No budget day left before the reset.** If the sum of weights is 0, the result is `no_budget_days_left` and the status bar shows no allowance.
@@ -59,7 +59,7 @@ A pure function, like `todayPace` in `src/extension/dashboard-insights.ts`, take
 
 The status bar's icon, colour and severity are unchanged and still come from the forecast.
 
-**Tooltip** adds one line, for example `Today: 55 of 100 credits used (since your first Kiro update at 08:12) · Budget days: Mon–Fri`. With all seven days, the budget-day part is omitted. On a day off it reads `Today is not a budget day: 12 credits used (since 08:12)`.
+**Tooltip** adds one line, for example `Today: 55 of 100 credits used (since your first Kiro update at 08:12, your time) · Budget days: Mon–Fri`. With all seven days, the budget-day part is omitted. On a day off it reads `Today is not a budget day: 12 credits used (since 08:12, your time)`.
 
 **Detail view**:
 - The *Credits left* card's subline becomes `Today: 55 of 100 used`, or `Up to 100 per budget day` without an update today.

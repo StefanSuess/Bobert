@@ -107,7 +107,7 @@ export async function startExtension(ui: ExtensionUi, options: ExtensionOptions)
   if(!disposed)ui.setStatus(presentation.text,detail,presentation);
   if(!disposed&&!presentation.absent)try{options.onBudget?.(observation,presentation.forecast,now(),insights);}catch{/* nor the budget warning */}
   // After onBudget: the budget notice claims the window's one prompt slot first (it outranks the budget days notice).
-  if(presentation.allowance)try{options.onAllowance?.();}catch{/* nor the budget days notice */}
+  if(!disposed&&presentation.allowance)try{options.onAllowance?.();}catch{/* nor the budget days notice */}
  };
  const refresh = async () => {
   if (disposed) return;
