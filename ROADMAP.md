@@ -10,6 +10,8 @@ Platform wording (approved 2026-10-22): Bobert is released for macOS, Windows an
 
 Add-on pricing (approved 2026-10-22): the price list records Kiro's documented add-on purchase rules (any number of credits from 125 at $0.04, up to $100 per pack, 5 packs; kiro.dev/docs/billing/add-on-credits, updated 2026-08-04), so the Cost Advisor prices a plan plus add-on credits and may recommend a smaller plan plus add-ons. The Advisor leads with one recommendation; details stay collapsible.
 
+Daily budget days and setup (approved 2026-10-28): the status bar shows today's observed usage against a day-anchored allowance (for example `On track • 55/100 today`), spread over the weekdays chosen in the new user-level setting `bobert.budgetDays` (default: every day). A new command **Bobert: Set Up** asks for budget days, budget notices and session hints and is the walkthrough's first step; existing users see one notice about budget days, once. Presentation only: the collector, Store, history, forecast policy and schema, CLI JSON and `availablePerDay` are unchanged. Design: [daily budget days proposal](docs/daily-budget-days-proposal.md). This approves the design; the implementation lands as its own reviewed PR and needs independent review.
+
 ### Scope of 1.0 (approved 2026-10-17)
 
 The maintainer approved a value-first plan (WP0). 1.0.0 is the first stable release and the first public announcement. Its scope is the current features plus the user-triggered workspace/ignore audit from #71 Capability A, on macOS, Windows and Ubuntu; RHEL and macOS Intel stay unsupported for 1.0. #71 Capabilities B–D are post-1.0.
@@ -138,3 +140,4 @@ Ideas already recorded, none approved:
 - An interactive dashboard with scripts (chart hovers, an inline Cost Advisor form) as a candidate for 1.1; it needs its own design and security review (nonce CSP, validated message protocol, accessibility).
 - Session attribution (#71 C) and usage-efficiency insights, each needing separate evidence and approval as described above.
 - Bobert's face could follow the budget state (smiling on track, worried when likely to exceed).
+- README badges (decided 2026-10-26): add the Open VSX downloads badge (`img.shields.io/open-vsx/dt/StefanSuess/bobert`) once the count supports the value message (a few thousand; 294 on 2026-10-26), and the rating badge (`img.shields.io/open-vsx/rating/StefanSuess/bobert`) once there are a few good reviews (0 on 2026-10-26). No release-workflow badge: it shows the last run, not the last successful release.

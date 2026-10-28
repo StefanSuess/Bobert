@@ -15,7 +15,9 @@ import { readConfigReviewMode } from './config-schedule.ts';
 import { IGNORE_USE_NOTE, MAX_DISMISSED, OPEN_SETTING, auditTree, auditSizeTotal, dismissHash, excludeAnnotation, findingKey, findingsToast, ignoreNotEffective, isHash, countFindings, kiroignoreAppend, revealTarget, sizePhrase, visibleFindings, type AuditNode, type AuditParts, type AuditSummary } from './audit-model.ts';
 import { startExtension, type ExtensionUi } from './controller.ts';
 import { buildDiagnostics, formatDiagnostics, runtimeFacts, type DiagnosticsInput } from '../diagnostics.ts';
-import { ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
+import { ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
+import { ALL_DAYS, type BudgetDay } from './daily-budget.ts';
+import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
 import { decideBudgetNotice } from './budget-warning.ts';
 import type { view } from '../view.ts';
 import type { PlanInsights } from '../cost/plan-hints.ts';
@@ -564,7 +566,7 @@ const SUPPORT_ADVISOR_KEY = 'bobert.support.advisorUsed.v1';
 const NOT_KIRO_KEY = 'bobert.notKiro.shown.v1';
 const SUPPORT_DELAY_MS = 180_000;
 const inKiro = (): boolean => { try { return isKiroEditor(vscode.env.appName, vscode.env.uriScheme); } catch { return false; } };
-interface SupportLink extends SupportGate { valueSeen(): void; detailOpened(): void; advisorUsed(): void; auditSaved(): void; absent(): void; pause(): void }
+interface SupportLink extends SupportGate { valueSeen(): void; detailOpened(): void; advisorUsed(): void; auditSaved(): void; absent(): void; pause(): void; prompted(): boolean }
 function registerSupport(context: vscode.ExtensionContext): SupportLink {
  let disposed = false, seen = false, shown = false, checking = false;
  // The configuration review's enable offer and this prompt never appear together (design 4.1); memory only.
@@ -646,6 +648,8 @@ function registerSupport(context: vscode.ExtensionContext): SupportLink {
   },
   // A budget notice was shown in this window: the support prompt does not pile on top of it.
   pause() { shown = true; },
+  // True once this window has shown, is showing or has reserved a support prompt, a configuration offer, or was paused by another notice; read-only.
+  prompted: () => shown || promptOpen || offerOpen || lastPromptAt !== undefined,
   promptOpen: () => promptOpen,
   lastPromptAt: () => lastPromptAt,
   offerOpen(open) { offerOpen = open; },
@@ -673,6 +677,8 @@ const WALKTHROUGH_KEY = 'bobert.walkthrough.shown.v1';
 const WALKTHROUGH_ID = 'StefanSuess.bobert#bobert.gettingStarted';
 // True once this window opened the walkthrough by itself; the first-time audit prompt then waits for a later window.
 let walkthroughOpenedNow = false;
+// True once this window recognised a new user (no earlier Bobert state); set synchronously, so the budget days notice never reaches them.
+let newUserNow = false;
 function registerWalkthrough(context: vscode.ExtensionContext): void {
  const open = async (): Promise<boolean> => { try { await vscode.commands.executeCommand('workbench.action.openWalkthrough', WALKTHROUGH_ID); return true; } catch { return false; /* the editor may not support walkthroughs */ } };
  context.subscriptions.push(registerCommand((id, f) => vscode.commands.registerCommand(id, f), 'gettingStarted', open));
@@ -683,8 +689,12 @@ function registerWalkthrough(context: vscode.ExtensionContext): void {
   const earlier = [SUPPORT_FIRST_KEY, SUPPORT_NEXT_KEY, SUPPORT_NEVER_KEY, SUPPORT_VALUE_KEY, SUPPORT_DETAIL_KEY, SUPPORT_ADVISOR_KEY, NOT_KIRO_KEY, 'bobert.budgetWarning.v1'];
   existing = earlier.some(key => context.globalState.get<unknown>(key) !== undefined)
    || !readSupportPrompts((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key));
+  if (!existing) newUserNow = true;
  } catch { return; }
  void (async () => {
+  try {
+   if (!existing) await context.globalState.update(BUDGET_DAYS_NOTICE_KEY, 'new_user'); // a new user never gets the notice about a feature the setup already covers
+  } catch { /* the flag above still covers this window */ }
   try {
    await context.globalState.update(WALKTHROUGH_KEY, true);
    if (!existing && await open()) walkthroughOpenedNow = true; // only an open that resolved replaces the first-time audit prompt
@@ -695,13 +705,14 @@ function registerWalkthrough(context: vscode.ExtensionContext): void {
 // state (one global-state key); it is written before the notice is shown, and a failed write means no notice. Every failure is swallowed.
 const BUDGET_KEY = 'bobert.budgetWarning.v1';
 const TURN_OFF_BUDGET = 'Turn off budget notices'; // turns off every kind of budget notice, the right-sizing tip included
-interface BudgetLink { evaluate(observation: ReturnType<typeof view>, eligible: boolean, now: string, insights: PlanInsights): void }
-function registerBudget(context: vscode.ExtensionContext, beforeShow: () => void): BudgetLink {
- let disposed = false, busy = false;
+interface BudgetLink { evaluate(observation: ReturnType<typeof view>, eligible: boolean, now: string, insights: PlanInsights): void; shown(): boolean }
+function registerBudget(context: vscode.ExtensionContext, beforeShow: () => void, claim: PromptClaim): BudgetLink {
+ let disposed = false, busy = false, budgetShown = false;
  context.subscriptions.push({ dispose() { disposed = true; } });
  const testing = (): boolean => vscode.ExtensionMode !== undefined && context.extensionMode === vscode.ExtensionMode.Test;
  const get = (prefix: string, key: string): unknown => vscode.workspace.getConfiguration(prefix).get<unknown>(key);
  return {
+  shown: () => budgetShown,
   evaluate(observation, eligible, now, insights) {
    if (disposed || busy) return;
    busy = true; // set before the first await: renders arriving while a notice is open or being decided are ignored, so a window shows at most one
@@ -713,20 +724,119 @@ function registerBudget(context: vscode.ExtensionContext, beforeShow: () => void
      try { stored = context.globalState.get<unknown>(BUDGET_KEY); } catch { stored = undefined; }
      const due = decideBudgetNotice({ view: observation, eligible, now, insights, state: stored, enabled: readBudgetWarnings(get), percent: readBudgetWarningPercent(get) });
      if (!due) return;
+     if (!claim.claim('budget')) return; // the budget days notice is open: defer without using up this notice's state; a later render shows it
      try { await context.globalState.update(BUDGET_KEY, due.state); } catch { return; }
      if (disposed) return;
      kept = true; // this window has shown its one notice
+     budgetShown = true;
      try { beforeShow(); } catch { /* nothing else depends on it */ }
      const choice = await vscode.window.showInformationMessage(due.text, 'Show details', TURN_OFF_BUDGET);
      if (choice === 'Show details') await vscode.commands.executeCommand(commandId('showUsage'));
      else if (choice === TURN_OFF_BUDGET) await vscode.workspace.getConfiguration(ID_PREFIX).update('budgetWarnings', false, vscode.ConfigurationTarget.Global);
-    } catch { /* fixed and silent */ } finally { if (!kept) busy = false; }
+    } catch { /* fixed and silent */ } finally { if (!kept) { busy = false; claim.release('budget'); } }
    })();
   },
  };
 }
+// Bobert: Set Up. Up to three quick picks (budget days, budget notices, session hints); each answer is written to the user's (global) settings when it
+// is chosen, exactly like the "Turn off budget notices" button, and nothing else is written. Escape ends the run and keeps the answers already given.
+interface Choice<T> extends vscode.QuickPickItem { id: T }
+const DAY_NAMES: readonly [BudgetDay, string][] = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
+const HINT_DETAIL = "Reads only the newest session's model, context level and time, on your computer. Nothing is stored or sent.";
+// One quick pick; resolves with the accepted item (or items) or undefined when it is hidden. An accept with nothing selected is ignored.
+function pick<T>(title: string, step: number, totalSteps: number, items: Choice<T>[], active: T[], many: boolean): Promise<T[] | undefined> {
+ return new Promise(resolve => {
+  const quick = vscode.window.createQuickPick<Choice<T>>();
+  let done = false;
+  const finish = (value: T[] | undefined): void => { if (done) return; done = true; resolve(value); quick.dispose(); };
+  quick.title = title; quick.step = step; quick.totalSteps = totalSteps; quick.ignoreFocusOut = true; quick.canSelectMany = many; quick.items = items;
+  const current = items.filter(i => active.includes(i.id));
+  if (many) quick.selectedItems = current; else if (current.length) quick.activeItems = current;
+  quick.onDidAccept(() => { const chosen = quick.selectedItems.length ? quick.selectedItems : many ? [] : quick.activeItems; if (chosen.length) finish(chosen.map(i => i.id)); });
+  quick.onDidHide(() => finish(undefined));
+  quick.show();
+ });
+}
+interface SetupLink { run(scope: 'all' | 'days'): Promise<void> }
+function registerSetup(context: vscode.ExtensionContext): SetupLink {
+ let open = false;
+ const config = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration(ID_PREFIX);
+ const get = (prefix: string, key: string): unknown => vscode.workspace.getConfiguration(prefix).get<unknown>(key);
+ const apply = async (writes: SetupWrite[]): Promise<void> => { for (const w of writes) await config().update(w.key, w.value, vscode.ConfigurationTarget.Global); };
+ const steps = (scope: 'all' | 'days'): number => scope === 'all' ? 3 : 1;
+ const days = async (scope: 'all' | 'days'): Promise<boolean> => {
+  const current = readBudgetDays(config().inspect('budgetDays'));
+  const choice = await pick<DayChoice>('Bobert: Budget days', 1, steps(scope), [{ id: 'every_day', label: 'Every day' }, { id: 'weekdays', label: 'Monday to Friday' }, { id: 'custom', label: 'Choose days…' }], [currentDayChoice(current)], false);
+  if (!choice) return false;
+  if (choice[0] !== 'custom') { await apply(dayWrites(choice[0])); return true; }
+  const chosen = await pick<BudgetDay>('Bobert: Budget days', 1, steps(scope), DAY_NAMES.map(([id, label]) => ({ id, label })), current, true);
+  if (!chosen) return false;
+  await apply(dayWrites(ALL_DAYS.filter(d => chosen.includes(d))));
+  return true;
+ };
+ const notices = async (): Promise<boolean> => {
+  const choice = await pick<NoticeChoice>('Bobert: Budget notices', 2, 3, [{ id: 'notify_80', label: 'Notify at 80 % (recommended)' }, { id: 'notify_90', label: 'Notify at 90 %' }, { id: 'off', label: 'Off' }], [currentNoticeChoice(readBudgetWarnings(get), readBudgetWarningPercent(get))].filter((c): c is NoticeChoice => c !== null), false);
+  if (!choice) return false;
+  await apply(noticeWrites(choice[0]));
+  return true;
+ };
+ const hints = async (): Promise<boolean> => {
+  const choice = await pick<'on' | 'off'>('Bobert: Session hints', 3, 3, [{ id: 'on', label: 'On', detail: HINT_DETAIL }, { id: 'off', label: 'Off', detail: HINT_DETAIL }], [readSessionHints(config().inspect('sessionHints')) ? 'on' : 'off'], false);
+  if (!choice) return false;
+  await apply(hintWrites(choice[0] === 'on'));
+  return true;
+ };
+ const link: SetupLink = {
+  async run(scope) {
+   if (open) return;
+   open = true;
+   try {
+    if (!(await days(scope))) return;
+    if (scope === 'days') return;
+    if (!(await notices()) || !(await hints())) return;
+    const choice = await vscode.window.showInformationMessage('Bobert is set up. You can change this any time in Settings.', 'Open settings');
+    if (choice === 'Open settings') await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:StefanSuess.bobert');
+   } catch { /* fixed and silent: a failed setup never affects the gauge */ } finally { open = false; }
+  },
+ };
+ context.subscriptions.push(registerCommand((id, f) => vscode.commands.registerCommand(id, f), 'setup', () => link.run('all')));
+ return link;
+}
+// One-time notice for a user who used Bobert before the budget days setting: once, after the status bar first shows an allowance, in Kiro only and never in the
+// extension tests. Never with another prompt (budget notice shown, support prompt paused) and never for a new user. The flag is written before the notice is
+// shown and a failed write means no notice; it is evaluated at most once per window, with its flag set before the first await.
+function registerBudgetDaysNotice(context: vscode.ExtensionContext, deps: { choose(): Promise<void>; pause(): void; claim: PromptClaim; supportBusy(): boolean }): () => void {
+ let disposed = false, decided = false;
+ context.subscriptions.push({ dispose() { disposed = true; } });
+ return () => {
+  if (disposed || decided) return;
+  // Everything up to the claim is synchronous. A notice that is not due is decided for the window; a notice held back by another prompt is not (it keeps its stored
+  // state and is looked at again on a later render or in a later window).
+  let claimed = false;
+  try {
+   const testing = vscode.ExtensionMode !== undefined && context.extensionMode === vscode.ExtensionMode.Test;
+   let stored: unknown;
+   try { stored = context.globalState.get<unknown>(BUDGET_DAYS_NOTICE_KEY); } catch { stored = undefined; }
+   if (!budgetDaysNoticeDue({ kiro: inKiro(), testing, stored, newUser: newUserNow, daysSet: vscode.workspace.getConfiguration(ID_PREFIX).inspect('budgetDays')?.globalValue !== undefined, otherPromptShown: false, allowanceShown: true })) { decided = true; return; }
+   let busy = false;
+   try { busy = deps.supportBusy(); } catch { busy = true; }
+   if (!deps.claim.claim('days', busy)) return;
+   claimed = true;
+   decided = true;
+   // Reserved before any await, so the support prompt cannot open between the claim and the notice.
+   try { deps.pause(); } catch { /* nothing else depends on it */ }
+  } catch { decided = true; return; }
+  void (async () => {
+   try {
+    try { await context.globalState.update(BUDGET_DAYS_NOTICE_KEY, 'shown'); } catch { return; }
+    if (disposed) return;
+    if (await vscode.window.showInformationMessage(NOTICE_TEXT, 'Choose days', 'No thanks') === 'Choose days') await deps.choose();
+   } catch { /* fixed and silent */ } finally { if (claimed) deps.claim.release('days'); }
+  })();
+ };
+}
 async function runBobert(context: vscode.ExtensionContext): Promise<void> {
- gaugeState.gauge = 'starting'; gaugeState.diagnostics = undefined; gaugeState.config = undefined; walkthroughOpenedNow = false;
+ gaugeState.gauge = 'starting'; gaugeState.diagnostics = undefined; gaugeState.config = undefined; walkthroughOpenedNow = false; newUserNow = false;
  try { await startGauge(context); } catch (e) { gaugeState.gauge = 'failed_to_start'; throw e; }
 }
 async function startGauge(context: vscode.ExtensionContext): Promise<void> {
@@ -734,7 +844,11 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
  let controllerRef: Awaited<ReturnType<typeof startExtension>> | undefined;
  try { registerWalkthrough(context); } catch { /* The walkthrough must never stop the gauge either. */ }
  try { support = registerSupport(context); } catch { /* Nor must the community prompts. */ }
- try { budget = registerBudget(context, () => support?.pause()); } catch { /* Nor the budget warning. */ }
+ const claim = new PromptClaim(); // the window's one prompt slot: budget notice, then support prompt, then the budget days notice
+ try { budget = registerBudget(context, () => support?.pause(), claim); } catch { /* Nor the budget warning. */ }
+ let setup: SetupLink | undefined, onAllowance: (() => void) | undefined;
+ try { setup = registerSetup(context); } catch { /* Nor the setup command. */ }
+ try { onAllowance = registerBudgetDaysNotice(context, { choose: () => setup?.run('days') ?? Promise.resolve(), pause: () => support?.pause(), claim, supportBusy: () => support?.prompted() ?? false }); } catch { /* Nor the budget days notice. */ }
  try { results = registerResults(context, () => controllerRef?.cycle() ?? null, () => controllerRef?.rerender()); } catch { /* Nor the results summary. */ }
  try { recap = registerRecap(context); } catch { /* Nor the cycle recap. */ }
  sessionHints = undefined;
@@ -827,8 +941,9 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
  };
  gaugeState.config = { storage: chosenStorage ? 'chosen' : 'default', source: setting('sourceRoot') ? 'chosen' : 'default', timezone: setting('sourceTimezone') ? 'chosen' : 'device' };
  try {
-  const controller = await startExtension(ui, { source, storage, profileStorage: !chosenStorage, timezone, auditSummary: audit?.summary, resultsSummary: results?.summary, recapState: recap?.state, recapLink: () => readSupportPrompts((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key)), recapShown: cycle => recap?.shown(cycle), recapDismiss: cycle => recap?.dismiss(cycle) ?? Promise.resolve(false), notKiro: !inKiro() && !setting('sourceRoot'), onAdvisorUsed: () => support?.advisorUsed(), onForecast: () => support?.valueSeen(), onAbsent: () => support?.absent(), onBudget: (o, eligible, now, insights) => budget?.evaluate(o, eligible, now, insights) });
+  const controller = await startExtension(ui, { source, storage, profileStorage: !chosenStorage, timezone, auditSummary: audit?.summary, resultsSummary: results?.summary, recapState: recap?.state, recapLink: () => readSupportPrompts((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key)), recapShown: cycle => recap?.shown(cycle), recapDismiss: cycle => recap?.dismiss(cycle) ?? Promise.resolve(false), notKiro: !inKiro() && !setting('sourceRoot'), onAdvisorUsed: () => support?.advisorUsed(), onForecast: () => support?.valueSeen(), onAbsent: () => support?.absent(), onBudget: (o, eligible, now, insights) => budget?.evaluate(o, eligible, now, insights), onAllowance, budgetDays: () => readBudgetDays(vscode.workspace.getConfiguration(ID_PREFIX).inspect('budgetDays')), dayZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
   controllerRef = controller;
+  try { context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('bobert.budgetDays')) controllerRef?.rerender(); })); } catch { /* the gauge then updates at its next refresh */ }
   audit?.onChange(controller.rerender);
   gaugeState.diagnostics = controller.diagnostics; gaugeState.gauge = 'running';
   stop = controller.dispose;

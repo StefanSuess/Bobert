@@ -24,7 +24,11 @@ test('CHANGELOG has a nonempty section for the version, as the release workflow 
   assert.ok(extractChangelogSection(changelog, version).length > 0);
 });
 
-test('version history and README badge mention the version', () => {
+test('version history mentions the version and the README shows the automatic release badges', () => {
   assert.ok(read('docs/version-history.md').includes(`**${version}**`));
-  assert.ok(read('README.md').split('\n').some((line) => line.includes('img.shields.io/badge/development') && line.includes(version)));
+  // The README badges are automatic (Open VSX version, latest GitHub release), so no hand-kept version can go stale.
+  const readme = read('README.md');
+  assert.ok(readme.includes('img.shields.io/open-vsx/v/StefanSuess/bobert'));
+  assert.ok(readme.includes('img.shields.io/github/v/release/StefanSuess/Bobert'));
+  assert.ok(!readme.includes('img.shields.io/badge/development'));
 });

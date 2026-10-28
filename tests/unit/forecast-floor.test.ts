@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { forecast } from '../../src/forecast.ts';
 import { history, DAY_MS } from '../../src/history.ts';
 import { view } from '../../src/view.ts';
-import { present } from '../../src/extension/presentation.ts';
+import { present as presentAt } from '../../src/extension/presentation.ts';
 import { syntheticSnapshot as snapshot } from './synthetic.ts';
 import type { StoredSnapshot } from '../../src/store.ts';
 
@@ -56,12 +56,14 @@ test('C6 a floor next to a regular forecast changes neither selection, tier nor 
 });
 
 // Part B: the allowance instead of a bare "Collecting data".
+// Rendered at the view's own evaluation time, so the day budget never depends on the real clock.
+const present = (o: ReturnType<typeof view>) => presentAt(o, [], '', '', undefined, o.forecast.evaluatedAt!);
 const hero = (html: string) => /<section class="hero[^"]*"[\s\S]*?<\/section>/.exec(html)![0];
 test('B1 collecting shows credits left, the allowance and the floor sentence with its assumption', () => {
  const r = present(view(one('620'), '2030-06-25T00:00:00Z')), h = hero(r.html);
- assert.equal(r.text, '$(gauge) Kiro credits: 380 left • 63.3/day'); assert.ok(!r.text.includes('$(warning)')); assert.equal(r.warning, false);
+ assert.equal(r.text, '$(gauge) Kiro credits: 380 left • 0/63.3 today'); assert.ok(!r.text.includes('$(warning)')); assert.equal(r.warning, false);
  assert.match(h, /Up to 63\.3 credits\/day until the reset/); assert.ok(!h.includes('Collecting data'));
- assert.match(h, /380 credits left and 6 days until the reset on 1 Jul, so up to 63\.3 per day\. So far this cycle you have used at least 24\.8 credits per day on average \(assuming the cycle started no earlier than 31 May; if it started later, your average was higher\)\. Keep using Kiro\./);
+ assert.match(h, /At your first update today you had 380 credits left and 6 days until the reset on 1 Jul, so up to 63\.3 per day; 0 used so far\. So far this cycle you have used at least 24\.8 credits per day on average \(assuming the cycle started no earlier than 31 May; if it started later, your average was higher\)\. Keep using Kiro\./);
  assert.ok(!/On track|Likely to exceed|runs? out/.test(h)); assert.match(h, /class="hero neutral"/);
  assert.match(r.html, /Forecast not ready yet — more history needed/);
  assert.ok(!r.html.includes('Even this minimum'));
@@ -71,7 +73,7 @@ test('B2 a floor above the allowance gets the warning tone and one extra sentenc
  assert.match(h, /class="hero warn"/); assert.match(h, /at least 36 credits per day on average/); assert.match(h, /Even this minimum is above your daily allowance\./);
  assert.ok(!/On track|Likely to exceed|runs? out|exhaust/i.test(h)); assert.ok(!/Likely to exceed/.test(r.text + r.tooltip));
  // The status bar warns like other budget risk (warning icon and background), but never says On track or Likely to exceed.
- assert.equal(r.text, '$(warning) Kiro credits: 100 left • 16.6/day'); assert.equal(r.warning, true); assert.equal(r.severity, 'warning'); assert.equal(r.forecast, false);
+ assert.equal(r.text, '$(warning) Kiro credits: 100 left • 0/16.6 today'); assert.equal(r.warning, true); assert.equal(r.severity, 'warning'); assert.equal(r.forecast, false);
  const evidence = present(view([snapshot('2030-05-31T22:00:00Z', '900', { resetAt: '2030-06-01T00:00:00.000Z' }), snapshot('2030-06-11T00:00:00Z', '300')], '2030-06-11T00:00:00Z'));
  assert.match(hero(evidence.html), /at least 30 credits per day on average\./); assert.ok(!hero(evidence.html).includes('assuming the cycle'));
 });
@@ -80,7 +82,7 @@ test('B3 stale and eligible states are unchanged', () => {
  assert.equal(stale.text, '$(warning) Kiro credits: Stale data'); assert.ok(!stale.html.includes('Up to ')); assert.ok(!stale.html.includes('used at least'));
  const s = Array.from({ length: 8 }, (_, i) => snapshot(new Date(Date.parse('2030-06-01T00:00:00Z') + i * DAY_MS).toISOString(), String(i * 10)));
  const ok = present(view(s, '2030-06-08T00:00:00Z'));
- assert.equal(ok.text, '$(gauge) Kiro credits: On track • 40.4/day'); assert.ok(!ok.html.includes('used at least')); assert.ok(!hero(ok.html).includes('Up to 40'));
+ assert.equal(ok.text, '$(gauge) Kiro credits: On track • 0/40.4 today'); assert.ok(!ok.html.includes('used at least')); assert.ok(!hero(ok.html).includes('Up to 40'));
 });
 
 // Review follow-ups: edges where the floor or the allowance would mislead.

@@ -16,10 +16,10 @@ Follow this every time. `X.Y.Z` is the version being released. **[agent]** steps
 **C. Release-preparation PR**
 1. [agent] Set `version` to `X.Y.Z` in `package.json` (nothing else in that file).
 2. [agent] Add a nonempty `CHANGELOG.md` section `## X.Y.Z (...)`, with an upgrade note whenever defaults, storage or settings change. Never edit a released section.
-3. [agent] Update the README badges and platform table, `docs/usage.md`, `docs/version-history.md`, and `ROADMAP.md` if the scope changes.
+3. [agent] Update the README platform table (the version badges are automatic), `docs/usage.md`, `docs/version-history.md`, and `ROADMAP.md` if the scope changes.
 4. [agent] Keep the security checkpoint wording (SC1, SC5) consistent with [release-process.md](release-process.md); file follow-up work as GitHub issues rather than leaving it implicit.
 5. [agent] Check that `verifiedOn` in `src/cost/catalog.ts` is within 30 days of the planned release; otherwise review the pricing catalog against Kiro's published prices first (the Cost Advisor shows `catalog_review_due` after 30 days).
-6. [agent] Run `pnpm typecheck`, `pnpm test`, `pnpm test:release` (includes an automated version-consistency check of `package.json`, `CHANGELOG.md`, `docs/version-history.md` and the README badge), `python3 tests/fixtures/kiro/validate.py` and `git diff --check`.
+6. [agent] Run `pnpm typecheck`, `pnpm test`, `pnpm test:release` (includes an automated version-consistency check of `package.json`, `CHANGELOG.md`, `docs/version-history.md` and the automatic README release badges), `python3 tests/fixtures/kiro/validate.py` and `git diff --check`.
 
 **D. Independent review**
 1. [agent] An independent, read-only review of the release PR is mandatory (high-risk change): version, changelog accuracy, evidence claims per platform, no overclaiming. Fix findings before merging.

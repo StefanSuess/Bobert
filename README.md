@@ -5,7 +5,7 @@
 **Bobert worries about your Kiro credits, so you don't have to.**
 
 [![Open VSX version](https://img.shields.io/open-vsx/v/StefanSuess/bobert)](https://open-vsx.org/extension/StefanSuess/bobert)
-![Development version 1.2.0 stable](https://img.shields.io/badge/development-1.2.0%20stable-blue)
+[![Latest release](https://img.shields.io/github/v/release/StefanSuess/Bobert?label=release)](https://github.com/StefanSuess/Bobert/releases/latest)
 [![CI + coverage ≥80%](https://img.shields.io/github/actions/workflow/status/StefanSuess/Bobert/ci.yml?branch=main&label=CI%20%2B%20coverage%20%E2%89%A580%25)](https://github.com/StefanSuess/Bobert/actions/workflows/ci.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/StefanSuess/Bobert/blob/HEAD/LICENSE)
 
@@ -24,7 +24,7 @@ Kiro tells you how many credits you have used. Bobert helps you plan ahead: whet
 - **Review files Kiro may not need.** The workspace audit flags possible secret files, database dumps, archives and build output by filename and prepares `.kiroignore` lines for you to review. It does not measure their credit consumption.
 - **Review automatic context and agent work.** Bobert flags large always-included Steering files and hooks that trigger agent work automatically. It suggests changes for you to review; actual credit savings depend on how you use Kiro.
 - **Keep context and model choices in view.** You get a nudge when a session's context is about 70 % or 85 % full, or a model hint based on Kiro's published credit rates when your budget is tight or context is filling up, with [tips for spending fewer credits](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/credit-tips.md).
-- **Your whole cycle at a glance.** The status bar shows your daily budget. The credit view adds a usage chart with forecast scenarios and a recap of the last cycle that you can share.
+- **Your whole cycle at a glance.** The status bar shows today's usage against your daily budget, and you can spread that budget over only the days you work. The credit view adds a usage chart with forecast scenarios and a recap of the last cycle that you can share.
 
 Free and open source, with no account, no sign-in and no telemetry. Everything stays on your machine, and Kiro's files are only ever read.
 
@@ -63,7 +63,7 @@ Free and open source, with no account, no sign-in and no telemetry. Everything s
 2. Click the credit item in the status bar, or run **Bobert: Show Credit Budget**.
 3. Run **Bobert: Run Workspace Audit** to see what Kiro reads that it doesn't need.
 
-The status bar shows "Collecting data" until Kiro has logged its first account usage. From the first update it shows the credits left and your daily allowance whenever it can compute them (for example "380 left • 63.3/day"), and forecasts follow after a few days of history. Settings, the command-line tool and troubleshooting are in the [usage guide](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/usage.md).
+The status bar shows "Collecting data" until Kiro has logged its first account usage. From the first update it shows the credits left and your daily allowance whenever it can compute them (for example "380 left • 55/100 today": 55 credits used today of a fixed allowance of 100), and forecasts follow after a few days of history. The allowance stays fixed during the day (without an update yet today, it comes from your latest update). If you work only some weekdays, run **Bobert: Set Up** to choose your budget days. Settings, the command-line tool and troubleshooting are in the [usage guide](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/usage.md).
 
 ## Good to know
 

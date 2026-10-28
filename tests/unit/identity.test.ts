@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { isPreReleaseVersion } from '../../scripts/release/channel.ts';
-import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, registerCommand } from '../../src/extension/identity.ts';
+import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, registerCommand } from '../../src/extension/identity.ts';
 
 const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 const stub = (log: string[]) => (id: string) => { log.push(id); return { dispose() {} }; };
@@ -22,20 +22,22 @@ test('the getting-started walkthrough has actionable steps, completion events an
  const [walkthrough, ...rest] = manifest.contributes.walkthroughs;
  assert.equal(rest.length, 0); assert.equal(walkthrough.id, commandId('gettingStarted')); assert.equal(walkthrough.title, 'Get started with Bobert');
  const steps: any[] = walkthrough.steps;
- assert.deepEqual(steps.map(s => s.title), ['See your Kiro credits', "Find files Kiro doesn't need", 'Find ways to use fewer credits', 'Get warned before credits run out', 'Look back on each cycle', 'Nudges from your latest Kiro session']);
+ assert.deepEqual(steps.map(s => s.title), ['Set up Bobert', 'See your Kiro credits', "Find files Kiro doesn't need", 'Find ways to use fewer credits', 'Get warned before credits run out', 'Look back on each cycle', 'Nudges from your latest Kiro session']);
  // The editor requires media on every step and only the icon is packaged; each step names what it is about instead of repeating "Bobert icon".
  for (const step of steps) { assert.ok(step.id && step.description); assert.deepEqual(step.media, { image: manifest.icon, altText: step.media.altText }); assert.equal(step.media.image, 'assets/branding/bobert-icon-256.png'); assert.ok(step.media.altText); }
  assert.equal(new Set(steps.map(s => s.media.altText)).size, steps.length); assert.ok(!steps.some(s => /Bobert icon/i.test(s.media.altText)));
- assert.match(steps[0].description, /\(command:bobert\.showUsage\)/); assert.deepEqual(steps[0].completionEvents, ['onCommand:bobert.showUsage']);
- assert.match(steps[1].description, /\(command:bobert\.auditWorkspace\)/); assert.deepEqual(steps[1].completionEvents, ['onCommand:bobert.auditWorkspace']);
- assert.match(steps[1].description, /\[Run the workspace audit\]/);
- assert.match(steps[2].description, /\(command:bobert\.costAdvisor\).*\(command:bobert\.reviewKiroConfig\)/s); assert.deepEqual(steps[2].completionEvents, ['onCommand:bobert.costAdvisor', 'onCommand:bobert.reviewKiroConfig']);
- assert.match(steps[3].description, /\(command:workbench\.action\.openSettings\?/);
+ assert.equal(steps[0].id, 'bobert.gettingStarted.setup'); assert.match(steps[0].description, /\[Set up Bobert\]\(command:bobert\.setup\)/); assert.deepEqual(steps[0].completionEvents, ['onCommand:bobert.setup']);
+ assert.match(steps[1].description, /\(command:bobert\.showUsage\)/); assert.deepEqual(steps[1].completionEvents, ['onCommand:bobert.showUsage']);
+ assert.match(steps[1].description, /It shows how much of today's budget you have used, for example "55\/100 today"\./);
+ assert.match(steps[2].description, /\(command:bobert\.auditWorkspace\)/); assert.deepEqual(steps[2].completionEvents, ['onCommand:bobert.auditWorkspace']);
+ assert.match(steps[2].description, /\[Run the workspace audit\]/);
+ assert.match(steps[3].description, /\(command:bobert\.costAdvisor\).*\(command:bobert\.reviewKiroConfig\)/s); assert.deepEqual(steps[3].completionEvents, ['onCommand:bobert.costAdvisor', 'onCommand:bobert.reviewKiroConfig']);
+ assert.match(steps[4].description, /\(command:workbench\.action\.openSettings\?/);
  assert.ok(!steps.some(s => /When the forecast appears/.test(s.title)), 'the forecast note is part of the first step');
- assert.equal(steps[5].description.split('\n')[0], "Bobert can tell you when your newest Kiro session is nearly full or set to a pricier model. It reads only the newest session's model, context level and time, on your computer. Nothing is stored or sent. Turn it off any time.");
- assert.equal(steps[4].description.split('\n')[0], 'When a billing cycle ends, Bobert shows a short recap card that you can save or share. You can also export your observed usage as CSV from the credit budget view.');
- assert.match(steps[4].description, /\(command:bobert\.showUsage\)/);
- assert.match(steps[5].description, /\(command:workbench\.action\.openSettings\?%5B%22bobert\.sessionHints%22%5D\)/);
+ assert.equal(steps[6].description.split('\n')[0], "Bobert can tell you when your newest Kiro session is nearly full or set to a pricier model. It reads only the newest session's model, context level and time, on your computer. Nothing is stored or sent. Turn it off any time.");
+ assert.equal(steps[5].description.split('\n')[0], 'When a billing cycle ends, Bobert shows a short recap card that you can save or share. You can also export your observed usage as CSV from the credit budget view.');
+ assert.match(steps[5].description, /\(command:bobert\.showUsage\)/);
+ assert.match(steps[6].description, /\(command:workbench\.action\.openSettings\?%5B%22bobert\.sessionHints%22%5D\)/);
  // Only Bobert commands, the editor's settings opener and the one fixed privacy document are linked.
  for (const step of steps) for (const [, target] of step.description.matchAll(/\]\(([^)]*)\)/g)) assert.match(target, /^(command:(bobert\.[A-Za-z.]+|workbench\.action\.openSettings\?%5B%22bobert\.(budgetWarnings|sessionHints)%22%5D)|https:\/\/github\.com\/StefanSuess\/Bobert\/blob\/HEAD\/docs\/privacy-and-storage\.md)$/);
  for (const step of steps) for (const id of step.completionEvents ?? []) assert.ok(id === 'onStepSelected' || id.startsWith('onCommand:bobert.'), id);
@@ -61,7 +63,7 @@ test('only current settings are declared under the Bobert prefix', () => {
  assert.ok(!/\bstar\b/i.test(prompts.description));
  // User-facing settings come first; the testing and storage overrides come last. Raw values and the legacy true are not in the visible text.
  const order = Object.entries(props).sort((a: any, b: any) => a[1].order - b[1].order).map(([k]) => k.replace('bobert.', ''));
- assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone']);
+ assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'budgetDays', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone']);
  assert.equal(new Set(Object.values(props).map((p: any) => p.order)).size, Object.keys(props).length);
  for (const k of ['auditAutomatically', 'configReviewAutomatically']) {
   assert.deepEqual(props[`bobert.${k}`].enumItemLabels, ['Off', 'On open', 'On open and on changes'], k);
@@ -77,6 +79,20 @@ test('only current settings are declared under the Bobert prefix', () => {
  const { budgetWarnings: budget, budgetWarningPercent: percent } = Object.fromEntries(BUDGET_SETTING_KEYS.map(k => [k, props[`bobert.${k}`]]));
  assert.deepEqual([budget.type, budget.default, budget.scope], ['boolean', true, 'application']);
  assert.deepEqual([percent.type, percent.default, percent.minimum, percent.maximum, percent.scope], ['number', 80, 0, 100, 'application']);
+ const budgetDays = props['bobert.budgetDays'];
+ assert.deepEqual([budgetDays.type, budgetDays.default, budgetDays.items.type, budgetDays.items.enum, budgetDays.uniqueItems, budgetDays.scope], ['array', ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], 'string', ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], true, 'application']);
+ assert.ok(manifest.contributes.commands.some((c: { command: string; title: string }) => c.command === 'bobert.setup' && c.title === 'Bobert: Set Up'));
+});
+test('readBudgetDays reads only the global value or default, validated and ordered', () => {
+ const all = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+ assert.deepEqual(readBudgetDays(undefined), all);
+ assert.deepEqual(readBudgetDays({ defaultValue: all }), all);
+ assert.deepEqual(readBudgetDays({ globalValue: ['fri', 'mon'], defaultValue: all }), ['mon', 'fri']);
+ assert.deepEqual(readBudgetDays({ defaultValue: all, workspaceValue: ['mon'] } as never), all);
+ assert.deepEqual(readBudgetDays({ globalValue: [], defaultValue: all }), all);
+ assert.deepEqual(readBudgetDays({ globalValue: ['xyz', 3] }), all);
+ assert.deepEqual(readBudgetDays({ globalValue: 'mon' }), all);
+ assert.deepEqual(readBudgetDays({ globalValue: ['tue', 'bogus', 'tue', 'mon'] }), ['mon', 'tue']);
 });
 
 test('the share and support commands are declared; the support reset is visible in the palette', () => {
