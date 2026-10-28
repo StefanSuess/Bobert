@@ -1,6 +1,6 @@
 # Today's usage against a day-anchored budget, budget days and a short setup — design proposal
 
-Status: **design agreed with the maintainer on 2026-10-28; this written proposal awaits approval.** It changes how the extension presents the daily budget, adds one setting, one command and one one-time notice. The daily budget shown to users is forecast presentation, which is high-risk, so the implementation needs independent review.
+Status: **approved by the maintainer on 2026-10-28.** It changes how the extension presents the daily budget, adds one setting, one command and one one-time notice. The daily budget shown to users is forecast presentation, which is high-risk, so the implementation needs independent review.
 
 ## Problem
 
