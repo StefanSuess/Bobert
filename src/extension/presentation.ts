@@ -11,7 +11,8 @@ import { rightSizeText } from './budget-warning.ts';
 import { ESTIMATE_MARKER } from './advisor-presentation.ts';
 import { reviewedCatalog } from '../cost/catalog.ts';
 import { NO_INSIGHTS, type PlanInsights } from '../cost/plan-hints.ts';
-import { cycleComparison, todayPace } from './dashboard-insights.ts';
+import { cycleComparison } from './dashboard-insights.ts';
+import { ALL_DAYS, dayBudget, daysLabel, localTime, restricted, type BudgetDay, type DayBudget } from './daily-budget.ts';
 import { resultsText, type StoredResults } from './results-summary.ts';
 import type { Recap } from './recap.ts';
 import { recapSection } from './recap-presentation.ts';
@@ -111,24 +112,24 @@ export function inlineAdvisorForm(a:AdvisorAnswers,epoch:number):string {
  <div class="form-actions"><button type="submit">Update estimate</button><button id="advisor-review-again" type="button" hidden>Reload my answers</button></div></fieldset></form></details><p id="advisor-status" class="small" role="status" aria-live="polite"></p>`;
 }
 
-function observedContext(h: ReturnType<typeof view>['history'], now: string): string {
- const comparison = cycleComparison(h), pace = todayPace(h, now);
- if (comparison.status === 'not_observed' && pace.status === 'not_observed') return ''; // nothing to show yet: no card at all
+function observedContext(h: ReturnType<typeof view>['history'], day: DayBudget, zone: string): string {
+ const comparison = cycleComparison(h);
+ const usedToday = day.status === 'unavailable' ? null : day.used;
+ if (comparison.status === 'not_observed' && usedToday === null) return ''; // nothing to show yet: no card at all
  const elapsed = (ms: number) => `${Math.floor(ms / 86400000)} d ${Math.floor(ms % 86400000 / 3600000)} h`;
- const duration = (ms: number) => `${Math.floor(ms / 3600000)} h ${Math.floor(ms % 3600000 / 60000)} min`;
  let cycle = 'Not enough history yet to compare with last cycle. This fills in after your next reset.';
  if (comparison.status === 'not_comparable') cycle = "Last cycle can't be compared because of a gap or limit change in the history.";
  if (comparison.status === 'observed') cycle = `${elapsed(comparison.offsetMs!)} into the cycle: ${comparison.current!.usage} credits as of ${updated(comparison.current!.at)}. Last cycle at the same point: ${comparison.previous!.usage} credits as of ${updated(comparison.previous!.at)}.`;
  if (comparison.status === 'bracketed') cycle = `${elapsed(comparison.offsetMs!)} into the cycle: ${comparison.current!.usage} credits as of ${updated(comparison.current!.at)}. Last cycle had no update near that point; it stood at ${comparison.before!.usage} credits on ${updated(comparison.before!.at)} and ${comparison.after!.usage} credits on ${updated(comparison.after!.at)}.`;
- let today = "Today's pace isn't available yet.";
- if (pace.status === 'not_comparable') today = "Today's pace can't be compared because of a gap or limit change in the history.";
- if (pace.status === 'observed') today = `Since ${pace.from!.slice(11, 16)} UTC: ${pace.netChange} credits over ${duration(pace.elapsedMs!)}, as of ${updated(pace.asOf!)}.${pace.allocation === null ? '' : ` The 24-hour allocation at the last update was ${pace.allocation} credits — context, not a daily verdict.`}`;
- return `<section id="usage-context" aria-labelledby="usage-context-heading"><h2 id="usage-context-heading">Observed usage</h2><h3>This cycle vs last cycle</h3><p>${safe(cycle)}</p><h3>Today (UTC)</h3><p>${safe(today)}</p></section>`;
+ let today = "Today's usage isn't available yet.";
+ if (day.status !== 'unavailable' && day.used !== null && day.since !== null)
+  today = `Since ${localTime(day.since, zone)}: ${day.used} credits used, as of ${updated(day.asOf)}.${day.status === 'available' ? ` Today's allowance: ${compact(day.allowance)} credits.` : ''}`;
+ return `<section id="usage-context" aria-labelledby="usage-context-heading"><h2 id="usage-context-heading">Observed usage</h2><h3>This cycle vs last cycle</h3><p>${safe(cycle)}</p><h3>Today</h3><p>${safe(today)}</p></section>`;
 }
 
 // The observed-usage card can never take the gauge down.
-function contextCard(h: ReturnType<typeof view>['history'], now: string): string {
- try { return observedContext(h, now); } catch { return ''; }
+function contextCard(h: ReturnType<typeof view>['history'], day: DayBudget, zone: string): string {
+ try { return observedContext(h, day, zone); } catch { return ''; }
 }
 
 // Static, script-free summary of saved exclusions and the observed use trend; every string is escaped here and a failure only omits the section.
@@ -147,7 +148,7 @@ function recapCard(recap: Recap | undefined): string {
 }
 
 /** Presentation only: billing eligibility and exact projections remain in the core. */
-export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], costHtml = '', advisorHtml = '', audit?: AuditSummary, now = new Date().toISOString(), notKiro = false, insights: PlanInsights = NO_INSIGHTS, advisorForm = '', results?: StoredResults, recap?: Recap, addOnsApply = false) {
+export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], costHtml = '', advisorHtml = '', audit?: AuditSummary, now = new Date().toISOString(), notKiro = false, insights: PlanInsights = NO_INSIGHTS, advisorForm = '', results?: StoredResults, recap?: Recap, addOnsApply = false, daily: { days: readonly BudgetDay[]; zone: string } = { days: ALL_DAYS, zone: 'UTC' }) {
  const h=o.history,f=o.forecast;
  const selected=f.estimates.find(e=>e.method===f.selectedMethod && e.status==='qualified');
  const stale=o.status==='stale' || f.reasons.includes('stale');
@@ -160,6 +161,10 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const tier=stale ? 'Forecast paused — stale data' : f.tier==='provisional' && eligible ? 'Provisional estimate — limited history' : eligible ? 'Regular forecast' : collecting ? 'Forecast not ready yet — more history needed' : 'Forecast unavailable';
  const tag=f.tier==='provisional' ? 'Based on limited history' : 'Based on 7+ days';
  const budget=o.availablePerDay;
+ // Today's usage against the day-anchored allowance; any failure only withdraws the day figures, never the gauge.
+ let day: DayBudget, restrictedDays = false;
+ try { day=dayBudget(o,now,daily.zone,daily.days); restrictedDays=restricted(daily.days); } catch { day={status:'unavailable',reason:'not_observed'}; }
+ const perDay=restrictedDays ? 'budget day' : 'day';
  // Collecting with a known allowance: show what is certain (credits left, days left, the allowance) instead of a bare "Collecting data".
  // With no base credits left, "0 left • 0/day" would mislead (usage above the limit may be a valid overage), so the old text stays.
  const allowanceShown=collecting && budget!==null && o.remainingBaseCredits!==null && compare(o.remainingBaseCredits,'0')>0;
@@ -174,7 +179,9 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const tight=eligible && !over && budget!==null && compare(budget,'0')>0 && compareRatios(selected.ratePerDay!,9,budget,10)>=0;
  const outlook=exhausted ? above ? 'Above reported limit' : 'Reported limit reached' : over ? 'Likely to exceed' : tight ? 'At risk' : eligible ? 'On track' : stale ? 'Stale data' : collecting ? 'Collecting data' : 'Unavailable';
  const exhaustion=eligible ? selected.estimatedExhaustionDayUTC : null;
- const allowance=budget===null ? '' : ` • ${compact(budget)}/day`;
+ const allowance=day.status==='available' ? day.used!==null ? ` • ${compact(day.used)}/${compact(day.allowance)} today` : ` • ${compact(day.allowance)}/day`
+  : day.status==='day_off' ? day.used!==null ? ` • ${compact(day.used)} today (day off)` : ' • day off'
+  : budget===null ? '' : ` • ${compact(budget)}/day`;
  const status=stale ? 'Stale data' : !eligible ? collecting ? allowanceShown ? `${compact(o.remainingBaseCredits!)} left${allowance}` : 'Collecting data' : 'Unavailable' : exhausted ? f.tier==='provisional' ? 'Provisional • limit reached' : above ? 'Above reported limit' : 'Reported limit reached' : f.tier==='provisional' ? `Provisional${exhaustion ? ` • runs out ${date(exhaustion)}` : allowance}` : over ? `Likely to exceed${exhaustion ? ` • runs out ${date(exhaustion)}` : allowance}` : `${tight ? 'At risk' : 'On track'}${allowance}`;
  // Stale or unavailable data keeps only the warning icon. The warning background means budget risk; red means the reported limit is reached or exceeded.
  const alert=stale || over || tight || exhausted || floorOver || (!eligible && !collecting);
@@ -201,15 +208,23 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const priced=[observedOver,projectedOver].find(x=>x?.money);
  const priceNote=priced ? attempt(()=>`Dollar figures use $${priced.pricePerCredit} per credit from price list ${priced.catalogVersion}, reviewed ${date(priced.reviewedOn!,true)}.`) : '';
  const overFigure=observedOver ? `${creditsText(observedOver.credits)} credits` : '';
- const explanation=absent ? NOT_KIRO_TEXT : eligible ? exhausted ? above ? (observedOver ? '' : 'Usage was above the reported credit limit at the last account update.') : 'You had reached the reported credit limit at the last account update.' : exhaustion ? `At the observed pace your credits run out on ${date(exhaustion,true)} (UTC), before the reset${resetDate ? ` on ${resetDate}` : ''}.` : selected.exhaustionStatus==='zero_observed_rate' ? 'Your counter has not moved recently, so no run-out date is projected. New usage can change this.' : `${lastsLine ? lastsLine.replace(/\.$/,' — enough to last until then.') : 'Your credits are not projected to run out before the reset.'}${tight ? ' The margin is small: your pace is within 10% of the daily budget.' : ''}` : [allowanceShown && daysLeft!==null && daysLeft>0 ? `${compact(o.remainingBaseCredits!)} credits left and ${daysLeft} ${daysLeft===1 ? 'day' : 'days'} until the reset${resetDate ? ` on ${resetDate}` : ''}, so up to ${compact(budget!)} per day.` : '',floor ? `So far this cycle you have used at least ${compact(floor.ratePerDay)} credits per day on average${floor.basis==='maximum_cycle_length' ? ` (assuming the cycle started no earlier than ${date(floor.from)}; if it started later, your average was higher)` : ''}.${floorOver ? ' Even this minimum is above your daily allowance.' : ''}` : '',explanations[stale ? 'stale' : reason] ?? 'The available account updates do not support a safe forecast.'].filter(Boolean).join(' ');
+ const untilReset=(n:number,unit:string)=>`${n} ${n===1 ? unit : `${unit}s`} until the reset${resetDate ? ` on ${resetDate}` : ''}`;
+ const collectingSentence=day.status==='available'
+  ? `${day.used!==null ? 'At your first update today you had ' : ''}${compact(day.remainingAtAnchor)} credits left and ${untilReset(day.budgetDaysLeft,restrictedDays ? 'budget day' : 'day')}, so up to ${compact(day.allowance)} per ${perDay}${day.used!==null ? `; ${compact(day.used)} used so far` : ''}.`
+  : allowanceShown && daysLeft!==null ? `${compact(o.remainingBaseCredits!)} credits left and ${untilReset(daysLeft,'day')}, so up to ${compact(budget!)} per day.` : '';
+ const explanation=absent ? NOT_KIRO_TEXT : eligible ? exhausted ? above ? (observedOver ? '' : 'Usage was above the reported credit limit at the last account update.') : 'You had reached the reported credit limit at the last account update.' : exhaustion ? `At the observed pace your credits run out on ${date(exhaustion,true)} (UTC), before the reset${resetDate ? ` on ${resetDate}` : ''}.` : selected.exhaustionStatus==='zero_observed_rate' ? 'Your counter has not moved recently, so no run-out date is projected. New usage can change this.' : `${lastsLine ? lastsLine.replace(/\.$/,' — enough to last until then.') : 'Your credits are not projected to run out before the reset.'}${tight ? ' The margin is small: your pace is within 10% of the daily budget.' : ''}` : [allowanceShown && daysLeft!==null && daysLeft>0 ? collectingSentence : '',floor ? `So far this cycle you have used at least ${compact(floor.ratePerDay)} credits per day on average${floor.basis==='maximum_cycle_length' ? ` (assuming the cycle started no earlier than ${date(floor.from)}; if it started later, your average was higher)` : ''}.${floorOver ? restrictedDays ? ` Even this minimum is above the ${compact(budget!)} credits per calendar day that would last until the reset.` : ' Even this minimum is above your daily allowance.' : ''}` : '',explanations[stale ? 'stale' : reason] ?? 'The available account updates do not support a safe forecast.'].filter(Boolean).join(' ');
  // A provisional estimate is never styled or headlined as reassuringly as a regular forecast.
  const early=eligible && f.tier==='provisional' && outlook==='On track';
- const heading=absent ? 'Kiro not detected' : allowanceShown && !eligible ? `Up to ${compact(budget!)} credits/day until the reset` : early ? 'Looks on track so far' : outlook;
+ const heading=absent ? 'Kiro not detected' : allowanceShown && !eligible ? day.status==='available' ? `Up to ${compact(day.allowance)} credits${restrictedDays ? ' per budget day' : '/day'} until the reset` : `Up to ${compact(budget!)} credits/day until the reset` : early ? 'Looks on track so far' : outlook;
  const tone=absent ? 'neutral' : stale || (!eligible && !collecting) || floorOver ? 'warn' : !eligible || early ? 'neutral' : exhausted || over ? 'bad' : tight ? 'warn' : 'ok';
  const icon={ok:'✓',warn:'!',bad:'✕',neutral:'…'}[tone];
  const usedPct=o.usage!==null && o.baseLimit!==null && compare(o.baseLimit,'0')>0 ? Math.max(0,Math.min(100,Math.round(Number(o.usage)/Number(o.baseLimit)*100))) : null;
  const limitations=eligible && f.tier==='provisional' ? 'This limited window may not represent future usage.' : '';
- const tooltip=[eligible ? `${outlook} · ${tier}` : outlook,`Daily credit budget until reset: ${budget===null ? 'Not available' : `${budget} credits per day`}`,eligible ? `Observed rate: ${selected.ratePerDay} credits per day` : '',`Last account update: ${o.observedAt ? updated(o.observedAt) : 'Not available'}. Click to open your budget.`].filter(Boolean).join('\n');
+ const budgetDays=restrictedDays ? ` · Budget days: ${daysLabel(daily.days)}` : '';
+ const todayLine=day.status==='available' ? `${day.used!==null && day.since!==null ? `Today: ${compact(day.used)} of ${compact(day.allowance)} credits used (since your first Kiro update at ${localTime(day.since,daily.zone)})` : `Today: up to ${compact(day.allowance)} credits`}${budgetDays}`
+  : day.status==='day_off' ? `Today is not a budget day${day.used!==null && day.since!==null ? `: ${compact(day.used)} credits used (since ${localTime(day.since,daily.zone)})` : ''}${budgetDays}`
+  : `Daily credit budget until reset: ${budget===null ? 'Not available' : `${budget} credits per day`}`;
+ const tooltip=[eligible ? `${outlook} · ${tier}` : outlook,todayLine,eligible ? `Observed rate: ${selected.ratePerDay} credits per day` : '',`Last account update: ${o.observedAt ? updated(o.observedAt) : 'Not available'}. Click to open your budget.`].filter(Boolean).join('\n');
  const coverage=`${h.coverage.snapshotCount} distinct snapshots; ${h.coverage.completeUtcDays} complete, ${h.coverage.partialUtcDays} partial, ${h.coverage.unknownUtcDays} unknown UTC days; ${h.coverage.gaps.length} gaps or quality barriers`;
  const forecastRows=row('Observed spending rate',eligible ? `${selected.ratePerDay} credits per day` : null)
   +row('Projected credit usage at reset',eligible ? selected.projectedUsageAtReset : null)
@@ -226,12 +241,15 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
   +row('Forecast qualifiers',f.qualifiers.length ? f.qualifiers.map(readable).join(', ') : null)
   +row('Evidence-backed cycle start (UTC)',h.cycleStartAt)+row('Cycle start coverage',h.coverage.initialPeriodUnknown ? 'Unknown or partially observed' : 'Boundary observed')
   +row('Interval average net change / 24h',h.averageObservedNetChangePerDay)+row('Recent 7-day trend',readable(f.recentTrend.direction))
-  +row('Exact daily credit budget / 24h',budget)+row('Exact billing reset (UTC)',o.resetAt)+row('Exact last account update (UTC)',o.observedAt)+row('Source time interpretation',o.flags.includes('assumed_source_timezone') ? 'Device timezone assumed for offset-free source timestamps' : 'See source timestamp metadata')
+  +row('24-hour allocation from the last update (CLI)',budget)+row("Today's allowance (exact)",day.status==='available' ? day.allowance : null)+row("Today's allowance anchor (UTC)",day.status==='available' ? day.anchorAt : null)+row('Used today since (UTC)',day.status!=='unavailable' ? day.since : null)+row('Budget days',day.status!=='unavailable' ? daysLabel(daily.days) : null)+row('Budget-day weight until reset',day.status==='available' ? day.weightSum : null)+row('Exact billing reset (UTC)',o.resetAt)+row('Exact last account update (UTC)',o.observedAt)+row('Source time interpretation',o.flags.includes('assumed_source_timezone') ? 'Device timezone assumed for offset-free source timestamps' : 'See source timestamp metadata')
   +row('Quality codes',notes);
  const chart=presentChartParts(o);
  const hasFigures=o.usage!==null || o.baseLimit!==null || o.resetAt!==null; // with no account update there are no figures to show
 
  const freshness=stale ? 'Stale — waiting for a fresh account update' : o.status==='observed' ? 'Fresh' : 'Not current';
+ const creditsLeftNote=day.status==='available' ? day.used!==null ? `Today: ${compact(day.used)} of ${compact(day.allowance)} used` : `Up to ${compact(day.allowance)} per ${perDay}`
+  : day.status==='day_off' ? 'Today is not a budget day'
+  : budget!==null && compare(budget,'0')>0 ? `Daily budget until reset: ${compact(budget)} per day` : '';
  const stat=(label:string,value:string,note='',live=false)=>`<div class="stat"><dt>${safe(label)}</dt><dd${live ? ' id="usage-live" aria-live="polite" aria-atomic="true"' : ''}>${safe(value)}</dd>${note ? `<dd class="muted small">${safe(note)}</dd>` : ''}</div>`;
  const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your credit budget</title><style>
  :root{--ok:var(--vscode-charts-green,#3fb950);--warn:var(--vscode-editorWarning-foreground,#cca700);--bad:var(--vscode-errorForeground,#f14c4c);--neutral:var(--vscode-descriptionForeground,#888)}
@@ -265,10 +283,10 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  <section class="hero ${tone}" aria-labelledby="status-heading"><h2 id="status-heading"><span class="status-icon" aria-hidden="true">${icon}</span>${safe(heading)}${eligible ? `<span class="tag">${safe(tag)}</span>` : ''}</h2>
  ${overFigure ? `<p class="lead overage-now"><strong>${safe(overFigure)}</strong> over the limit so far${safe(moneyText(observedOver!))}.</p>` : ''}${explanation ? `<p class="lead">${safe(explanation)}</p>` : ''}${limitations ? `<p class="small">${safe(limitations)}</p>` : ''}${noteLines.map(l=>`<p class="small overage">${safe(l)}</p>`).join('')}
  ${usedPct===null ? '' : `<svg class="bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect width="${usedPct}" height="10"/></svg><p class="bar-label muted small">${usedPct}% of the reported credit limit used</p>`}
- ${hasFigures ? `<dl class="stats">${stat('Credits used',o.usage ?? 'Not available',o.baseLimit===null ? '' : `of ${o.baseLimit} reported credits`,true)}${above ? '' : stat('Credits left',o.remainingBaseCredits ?? 'Not available',budget!==null && compare(budget,'0')>0 ? `Daily budget until reset: ${compact(budget)} per day` : '')}${stat('Next reset',o.resetAt ? date(o.resetAt,true) : 'Not available',[resetIn,'UTC'].filter(Boolean).join(' · '))}</dl>` : ''}
+ ${hasFigures ? `<dl class="stats">${stat('Credits used',o.usage ?? 'Not available',o.baseLimit===null ? '' : `of ${o.baseLimit} reported credits`,true)}${above ? '' : stat('Credits left',o.remainingBaseCredits ?? 'Not available',creditsLeftNote)}${stat('Next reset',o.resetAt ? date(o.resetAt,true) : 'Not available',[resetIn,'UTC'].filter(Boolean).join(' · '))}</dl>` : ''}
  ${o.observedAt ? `<div class="meta muted small"><p>Last account update: ${safe(`${updated(o.observedAt)} · ${freshness}`)}</p><details class="about"><summary><span aria-hidden="true">ⓘ</span> About these numbers</summary><p>${safe(ABOUT)}</p>${priceNote ? `<p>${safe(priceNote)}</p>` : ''}</details></div>` : ''}</section>
  ${chart.main}
- ${contextCard(h, now)}
+ ${contextCard(h, day, daily.zone)}
  ${recapCard(recap)}
  ${withAdvisorButton(advisorHtml,advisorForm)}
  ${auditCard(audit, now)}
@@ -282,7 +300,7 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  <div id="export-tools"><h3>Export your observed history</h3><p>Save your retained account updates as a CSV file. You choose where it goes.</p><p class="recap-actions"><button type="button" id="export-csv" hidden>Export CSV…</button></p><p id="export-status" role="status"></p></div>
  </details></section>
  ${FOOTER}</main></body></html>`;
- if(absent)return {text:'$(info) Kiro not detected',tooltip:NOT_KIRO_TEXT,warning:false,severity:'none' as const,html,forecast:false,absent:true};
- if(blocked)return {text:`$(warning) ${BLOCKED_TEXT[blocked]}`,tooltip:explanations[blocked],warning:false,severity:'none' as const,html,forecast:false,absent:false};
- return {text:`${alert ? '$(warning)' : '$(gauge)'} Kiro credits: ${status}`,tooltip,warning:risk,severity,html,forecast:eligible,absent:false};
+ if(absent)return {text:'$(info) Kiro not detected',tooltip:NOT_KIRO_TEXT,warning:false,severity:'none' as const,html,forecast:false,absent:true,allowance:false};
+ if(blocked)return {text:`$(warning) ${BLOCKED_TEXT[blocked]}`,tooltip:explanations[blocked],warning:false,severity:'none' as const,html,forecast:false,absent:false,allowance:false};
+ return {text:`${alert ? '$(warning)' : '$(gauge)'} Kiro credits: ${status}`,tooltip,warning:risk,severity,html,forecast:eligible,absent:false,allowance:day.status==='available' && allowance!=='' && status.endsWith(allowance)};
 }
