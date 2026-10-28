@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ALL_DAYS } from '../../src/extension/daily-budget.ts';
-import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, WEEKDAYS, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim } from '../../src/extension/setup.ts';
+import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, WEEKDAYS, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner } from '../../src/extension/setup.ts';
 
 test('WEEKDAYS is mon..fri and the notice constants are fixed', () => {
  assert.deepEqual([...WEEKDAYS], ['mon', 'tue', 'wed', 'thu', 'fri']);
@@ -60,4 +60,30 @@ test('the prompt claim gives the window one prompt: budget first, then support, 
  assert.equal(third.claim('budget', true), true);
  const fourth = new PromptClaim();
  assert.equal(fourth.claim('days', false), true); assert.equal(fourth.claim('days', true), true); // re-claim by the holder
+});
+
+test('setupRunner ignores a second start while steps are open, but not while the confirmation is open', async () => {
+ const run = setupRunner();
+ let release!: () => void, confirmed = 0, steps = 0;
+ const gate = new Promise<void>(resolve => { release = resolve; });
+ const step = async () => { steps++; return true; };
+ const first = run([async () => { await gate; return true; }, step], async () => { confirmed++; await new Promise(() => {}); });
+ await run([step]); // ignored: the first run's steps are still open
+ assert.equal(steps, 0);
+ release();
+ await new Promise(resolve => setImmediate(resolve));
+ assert.equal(steps, 1);
+ assert.equal(confirmed, 1); // the confirmation never resolves, as when it sits in the notification centre
+ await run([step]);
+ assert.equal(steps, 2); // a new run starts anyway
+ void first;
+});
+
+test('setupRunner stops at a step the user ends and shows no confirmation; a failing step stays silent', async () => {
+ const run = setupRunner();
+ const calls: string[] = [];
+ await run([async () => { calls.push('a'); return false; }, async () => { calls.push('b'); return true; }], async () => { calls.push('confirm'); });
+ await run([async () => { calls.push('c'); throw new Error('synthetic-failure'); }], async () => { calls.push('confirm'); });
+ await run([async () => { calls.push('d'); return true; }], async () => { calls.push('confirm'); });
+ assert.deepEqual(calls, ['a', 'c', 'd', 'confirm']);
 });
