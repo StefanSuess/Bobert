@@ -140,3 +140,4 @@ Ideas already recorded, none approved:
 - An interactive dashboard with scripts (chart hovers, an inline Cost Advisor form) as a candidate for 1.1; it needs its own design and security review (nonce CSP, validated message protocol, accessibility).
 - Session attribution (#71 C) and usage-efficiency insights, each needing separate evidence and approval as described above.
 - Bobert's face could follow the budget state (smiling on track, worried when likely to exceed).
+- README badges (decided 2026-10-26): add the Open VSX downloads badge (`img.shields.io/open-vsx/dt/StefanSuess/bobert`) once the count supports the value message (a few thousand; 294 on 2026-10-26), and the rating badge (`img.shields.io/open-vsx/rating/StefanSuess/bobert`) once there are a few good reviews (0 on 2026-10-26). No release-workflow badge: it shows the last run, not the last successful release.
