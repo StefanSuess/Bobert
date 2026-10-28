@@ -5,6 +5,6 @@
   "description": "Pinned Open VSX CLI used only by the protected Bobert release job.",
   "type": "module",
   "devDependencies": {
-    "ovsx": "1.2.0"
+    "ovsx": "1.3.0"
   }
 }
