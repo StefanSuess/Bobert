@@ -45,7 +45,7 @@ test('packaged Advisor native commands, conditional figure, cancellation and pan
   const module={exports:{} as any};
   runInThisContext(`(function(require,module,exports,Date){${bundle}\n})`)((id:string)=>id==='vscode'?vscode:require(id),module,module.exports,SyntheticDate);
   extension=module.exports;await extension.activate({subscriptions});
-  assert.deepEqual([...commands.keys()].sort(),[...AUDIT_COMMANDS,...CONFIG_COMMANDS,'bobert.copyDiagnostics','bobert.costAdvisor','bobert.gettingStarted','bobert.reportProblem','bobert.showUsage','bobert.share','bobert.support.reset'].sort());
+  assert.deepEqual([...commands.keys()].sort(),[...AUDIT_COMMANDS,...CONFIG_COMMANDS,'bobert.copyDiagnostics','bobert.costAdvisor','bobert.gettingStarted','bobert.reportProblem','bobert.setup','bobert.showUsage','bobert.share','bobert.support.reset'].sort());
   assert.ok(api.state.providers.has('bobert.auditView'));
   const advisor=items.find(i=>i.command==='bobert.costAdvisor');assert.equal(advisor.visible,false);
   await commands.get('bobert.showUsage')!();assert.equal(advisor.visible,true);

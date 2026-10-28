@@ -3,6 +3,7 @@ import { snapshotFacts, storeStateFor, type DiagnosticsInput, type StoreState } 
 import { collect } from '../collector.ts';
 import { view } from '../view.ts';
 import { present, inlineAdvisorForm } from './presentation.ts';
+import { ALL_DAYS, type BudgetDay } from './daily-budget.ts';
 import type { AuditSummary } from './audit-model.ts';
 import {calculateCosts,type NativeCostInput} from './cost-inputs.ts';
 import {AdvisorInputs,reviewAdvisor,validateAdvisorAnswers,type AdvisorFormValues} from './advisor-inputs.ts';
@@ -44,6 +45,11 @@ export interface ExtensionOptions { source: string; storage: string; profileStor
  onAbsent?: () => void;
  // Called after each render with the latest observation, whether its forecast is fresh and qualified, and the render time; used only for the budget warning and never allowed to affect the gauge.
  onBudget?: (observation: ReturnType<typeof view>, eligible: boolean, now: string, insights: PlanInsights) => void;
+ // Called when a render shows today's allowance in the status text; used only for the one-time budget days notice and never allowed to affect the gauge.
+ onAllowance?: () => void;
+ // The days the budget is spread over, read on every render (default: every day), and the zone that defines the calendar day (default: UTC).
+ budgetDays?: () => readonly BudgetDay[];
+ dayZone?: string;
  onAdvisorUsed?: () => void }
 
 export async function startExtension(ui: ExtensionUi, options: ExtensionOptions) {
@@ -92,12 +98,16 @@ export async function startExtension(ui: ExtensionUi, options: ExtensionOptions)
    }
   }catch{recap=undefined;}
   shownRecap=recap;
-  const presentation=present(observation,codes,'',advisorHtml,audit,now(),options.notKiro===true,insights,inlineAdvisorForm(advisor.value,advisor.epoch),results,recap,addOnsApply);
+  let budgetDays:readonly BudgetDay[];
+  try{budgetDays=options.budgetDays?.()??ALL_DAYS;}catch{budgetDays=ALL_DAYS;}
+  const presentation=present(observation,codes,'',advisorHtml,audit,now(),options.notKiro===true,insights,inlineAdvisorForm(advisor.value,advisor.epoch),results,recap,addOnsApply,{days:budgetDays,zone:options.dayZone??'UTC'});
   detail=presentation.html;
   if(presentation.forecast)try{options.onForecast?.();}catch{/* the support prompt never affects the gauge */}
   if(presentation.absent)try{options.onAbsent?.();}catch{/* nor the not-Kiro note */}
   if(!disposed)ui.setStatus(presentation.text,detail,presentation);
   if(!disposed&&!presentation.absent)try{options.onBudget?.(observation,presentation.forecast,now(),insights);}catch{/* nor the budget warning */}
+  // After onBudget: the budget notice claims the window's one prompt slot first (it outranks the budget days notice).
+  if(!disposed&&presentation.allowance)try{options.onAllowance?.();}catch{/* nor the budget days notice */}
  };
  const refresh = async () => {
   if (disposed) return;

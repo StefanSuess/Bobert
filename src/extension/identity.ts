@@ -1,4 +1,5 @@
 // Technical identity of the extension. No vscode import: unit-testable and shared by the manifest test.
+import { ALL_DAYS, type BudgetDay } from './daily-budget.ts';
 export const ID_PREFIX = 'bobert';
 export const PANEL_VIEW_TYPE = `${ID_PREFIX}.usage`;
 export const SETTING_KEYS = ['sourceRoot', 'storageRoot', 'sourceTimezone'] as const;
@@ -9,7 +10,7 @@ export const CONFIG_REVIEW_SETTING_KEYS = ['configReviewAutomatically'] as const
 // The community prompts' user setting (application scope, boolean, default on).
 export const SUPPORT_SETTING_KEYS = ['supportPrompts'] as const;
 // The budget warning's user settings (application scope): an on/off switch and the usage share (percent of the reported limit) that triggers the early notice.
-export const BUDGET_SETTING_KEYS = ['budgetWarnings', 'budgetWarningPercent'] as const;
+export const BUDGET_SETTING_KEYS = ['budgetWarnings', 'budgetWarningPercent', 'budgetDays'] as const;
 export const BUDGET_PERCENT_DEFAULT = 80;
 // The session hints' user setting (application scope, boolean, default on): the context reminder and the model hint read from the newest IDE session.
 export const SESSION_HINT_SETTING_KEYS = ['sessionHints'] as const;
@@ -56,6 +57,13 @@ export function readBudgetWarnings(get: Getter): boolean {
 /** Session hints are on unless the user's own (application-scope) value is explicitly false; workspace and folder values are never consulted. */
 export function readSessionHints(inspect: { globalValue?: unknown; defaultValue?: unknown } | undefined): boolean {
  return (inspect?.globalValue ?? inspect?.defaultValue) !== false;
+}
+/** Budget days from the user's own (application-scope) value only; unique, Mon..Sun order. Invalid or empty falls back to every day. */
+export function readBudgetDays(inspect: { globalValue?: unknown; defaultValue?: unknown } | undefined): BudgetDay[] {
+ const value = inspect?.globalValue ?? inspect?.defaultValue;
+ if (!Array.isArray(value)) return [...ALL_DAYS];
+ const days = ALL_DAYS.filter(d => value.includes(d));
+ return days.length ? days : [...ALL_DAYS];
 }
 /** Whole percent of the reported limit, 0..100; anything that is not a finite number uses the default. 0 turns the percent notice off. */
 export function readBudgetWarningPercent(get: Getter): number {

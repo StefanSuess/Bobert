@@ -1,4 +1,4 @@
-import { allocation, compare, subtract } from '../decimal.ts';
+import { compare, subtract } from '../decimal.ts';
 import type { AccountHistory, EvidenceCycle } from '../history.ts';
 
 export type Observation = { at: string; usage: string };
@@ -6,12 +6,7 @@ export type CycleComparison = {
  status: 'observed' | 'bracketed' | 'not_observed' | 'not_comparable'; offsetMs: number | null;
  current: Observation | null; previous: Observation | null; before: Observation | null; after: Observation | null;
 };
-export type TodayPace = {
- status: 'observed' | 'not_observed' | 'not_comparable'; day: string | null; from: string | null; asOf: string | null;
- netChange: string | null; elapsedMs: number | null; allocation: string | null;
-};
 const noComparison = (status: CycleComparison['status']): CycleComparison => ({ status, offsetMs: null, current: null, previous: null, before: null, after: null });
-const noPace = (status: TodayPace['status']): TodayPace => ({ status, day: null, from: null, asOf: null, netChange: null, elapsedMs: null, allocation: null });
 const add = (a: string, b: string) => subtract(a, subtract('0', b));
 
 // A cycle counter is known only at the ends of an unbroken chain beginning with
@@ -48,27 +43,4 @@ export function cycleComparison(h: AccountHistory): CycleComparison {
  if (before && target - Date.parse(before.at) <= 2 * 3600000)
   return { status: 'observed', offsetMs, current: latest, previous: before, before: null, after: null };
  return { status: before && after ? 'bracketed' : 'not_observed', offsetMs, current: latest, previous: null, before, after };
-}
-
-export function todayPace(h: AccountHistory, now: string): TodayPace {
- if (h.status !== 'available' || !h.points.length) return noPace('not_observed');
- const latest = h.points.at(-1)!;
- const nowMs = Date.parse(now);
- if (!Number.isFinite(nowMs)) return noPace('not_observed');
- const today = new Date(nowMs).toISOString().slice(0, 10), asOfDay = latest.observedAt.slice(0, 10);
- if (asOfDay !== today || Date.parse(latest.observedAt) > nowMs) return noPace('not_observed');
- const points = h.points.filter(p => p.observedAt.slice(0, 10) === today);
- if (points.length < 2) return noPace('not_observed');
- const first = points[0]!;
- if (points.some(p => p.conflicting || p.usage === null || p.baseLimit === null || p.resetAt !== latest.resetAt || p.baseLimit !== latest.baseLimit || p.flags.includes('unsupported_extra_credits')))
-  return noPace('not_comparable');
- const intervals = h.intervals.filter(iv => iv.from >= first.observedAt && iv.to <= latest.observedAt);
- if (intervals.length !== points.length - 1 || intervals.some((iv, i) => iv.from !== points[i]!.observedAt || iv.to !== points[i+1]!.observedAt || iv.status !== 'comparable'))
-  return noPace('not_comparable');
- const elapsedMs = Date.parse(latest.observedAt) - Date.parse(first.observedAt);
- const remaining = subtract(latest.baseLimit!, latest.usage!);
- const context = elapsedMs >= 18 * 3600000 && latest.resetAt
-  ? allocation(compare(remaining, '0') < 0 ? '0' : remaining, Date.parse(latest.resetAt) - Date.parse(latest.observedAt)) : null;
- return { status: 'observed', day: today, from: first.observedAt, asOf: latest.observedAt,
-  netChange: subtract(latest.usage!, first.usage!), elapsedMs, allocation: context };
 }

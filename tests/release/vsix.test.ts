@@ -163,6 +163,14 @@ test('the verifier rejects extra entries, missing entries, leaked paths and work
  assert.ok(edited(p => { p[percent].default = 90; }).problems.includes('MANIFEST_SETTING_TYPE'));
  assert.ok(edited(p => { p[percent].minimum = 1; }).problems.includes('MANIFEST_SETTING_TYPE'));
  assert.ok(edited(p => { p[percent].maximum = 1000; }).problems.includes('MANIFEST_SETTING_TYPE'));
+ // The budget days setting is pinned too: application scope, an array of the seven weekdays, default every day.
+ const budgetDays = 'bobert.budgetDays';
+ assert.ok(edited(p => { p[budgetDays].scope = 'machine'; }).problems.includes('MANIFEST_SETTING_SCOPE'));
+ assert.ok(edited(p => { p[budgetDays].scope = 'resource'; }).problems.includes('MANIFEST_SETTING_SCOPE'));
+ assert.ok(edited(p => { delete p[budgetDays]; }).problems.includes('MANIFEST_SETTING_PROPERTIES'));
+ assert.ok(edited(p => { p[budgetDays].type = 'string'; }).problems.includes('MANIFEST_SETTING_TYPE'));
+ assert.ok(edited(p => { p[budgetDays].default = ['mon', 'tue', 'wed', 'thu', 'fri']; }).problems.includes('MANIFEST_SETTING_TYPE'));
+ assert.ok(edited(p => { p[budgetDays].items.enum = ['mon']; }).problems.includes('MANIFEST_SETTING_TYPE'));
  assert.ok(edited(p => { delete p[percent].minimum; }).problems.includes('MANIFEST_SETTING_TYPE'));
  // The existing machine-scoped keys may not move to resource scope.
  assert.ok(edited(p => { p['bobert.sourceRoot'].scope = 'resource'; }).problems.includes('MANIFEST_SETTING_SCOPE'));
