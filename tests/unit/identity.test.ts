@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { isPreReleaseVersion } from '../../scripts/release/channel.ts';
-import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, registerCommand } from '../../src/extension/identity.ts';
+import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, registerCommand } from '../../src/extension/identity.ts';
 
 const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 const stub = (log: string[]) => (id: string) => { log.push(id); return { dispose() {} }; };
@@ -61,7 +61,7 @@ test('only current settings are declared under the Bobert prefix', () => {
  assert.ok(!/\bstar\b/i.test(prompts.description));
  // User-facing settings come first; the testing and storage overrides come last. Raw values and the legacy true are not in the visible text.
  const order = Object.entries(props).sort((a: any, b: any) => a[1].order - b[1].order).map(([k]) => k.replace('bobert.', ''));
- assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone']);
+ assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'budgetDays', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone']);
  assert.equal(new Set(Object.values(props).map((p: any) => p.order)).size, Object.keys(props).length);
  for (const k of ['auditAutomatically', 'configReviewAutomatically']) {
   assert.deepEqual(props[`bobert.${k}`].enumItemLabels, ['Off', 'On open', 'On open and on changes'], k);
@@ -77,6 +77,20 @@ test('only current settings are declared under the Bobert prefix', () => {
  const { budgetWarnings: budget, budgetWarningPercent: percent } = Object.fromEntries(BUDGET_SETTING_KEYS.map(k => [k, props[`bobert.${k}`]]));
  assert.deepEqual([budget.type, budget.default, budget.scope], ['boolean', true, 'application']);
  assert.deepEqual([percent.type, percent.default, percent.minimum, percent.maximum, percent.scope], ['number', 80, 0, 100, 'application']);
+ const budgetDays = props['bobert.budgetDays'];
+ assert.deepEqual([budgetDays.type, budgetDays.default, budgetDays.items.type, budgetDays.items.enum, budgetDays.uniqueItems, budgetDays.scope], ['array', ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], 'string', ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], true, 'application']);
+ assert.ok(manifest.contributes.commands.some((c: { command: string; title: string }) => c.command === 'bobert.setup' && c.title === 'Bobert: Set Up'));
+});
+test('readBudgetDays reads only the global value or default, validated and ordered', () => {
+ const all = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+ assert.deepEqual(readBudgetDays(undefined), all);
+ assert.deepEqual(readBudgetDays({ defaultValue: all }), all);
+ assert.deepEqual(readBudgetDays({ globalValue: ['fri', 'mon'], defaultValue: all }), ['mon', 'fri']);
+ assert.deepEqual(readBudgetDays({ defaultValue: all, workspaceValue: ['mon'] } as never), all);
+ assert.deepEqual(readBudgetDays({ globalValue: [], defaultValue: all }), all);
+ assert.deepEqual(readBudgetDays({ globalValue: ['xyz', 3] }), all);
+ assert.deepEqual(readBudgetDays({ globalValue: 'mon' }), all);
+ assert.deepEqual(readBudgetDays({ globalValue: ['tue', 'bogus', 'tue', 'mon'] }), ['mon', 'tue']);
 });
 
 test('the share and support commands are declared; the support reset is visible in the palette', () => {
