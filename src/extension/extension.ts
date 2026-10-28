@@ -17,7 +17,7 @@ import { startExtension, type ExtensionUi } from './controller.ts';
 import { buildDiagnostics, formatDiagnostics, runtimeFacts, type DiagnosticsInput } from '../diagnostics.ts';
 import { ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
 import { ALL_DAYS, type BudgetDay } from './daily-budget.ts';
-import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
+import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
 import { decideBudgetNotice } from './budget-warning.ts';
 import type { view } from '../view.ts';
 import type { PlanInsights } from '../cost/plan-hints.ts';
@@ -742,7 +742,7 @@ function registerBudget(context: vscode.ExtensionContext, beforeShow: () => void
 // is chosen, exactly like the "Turn off budget notices" button, and nothing else is written. Escape ends the run and keeps the answers already given.
 interface Choice<T> extends vscode.QuickPickItem { id: T }
 const DAY_NAMES: readonly [BudgetDay, string][] = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
-const HINT_DETAIL = "Reads only the newest session's model, context level and time, on your computer. Nothing is stored or sent.";
+const HINT_DETAIL = "Reads the newest session's model, context and time locally; stores and sends nothing.";
 // One quick pick; resolves with the accepted item (or items) or undefined when it is hidden. An accept with nothing selected is ignored.
 function pick<T>(title: string, step: number, totalSteps: number, items: Choice<T>[], active: T[], many: boolean): Promise<T[] | undefined> {
  return new Promise(resolve => {
@@ -759,7 +759,7 @@ function pick<T>(title: string, step: number, totalSteps: number, items: Choice<
 }
 interface SetupLink { run(scope: 'all' | 'days'): Promise<void> }
 function registerSetup(context: vscode.ExtensionContext): SetupLink {
- let open = false;
+ const runSteps = setupRunner();
  const config = (): vscode.WorkspaceConfiguration => vscode.workspace.getConfiguration(ID_PREFIX);
  const get = (prefix: string, key: string): unknown => vscode.workspace.getConfiguration(prefix).get<unknown>(key);
  const apply = async (writes: SetupWrite[]): Promise<void> => { for (const w of writes) await config().update(w.key, w.value, vscode.ConfigurationTarget.Global); };
@@ -781,22 +781,18 @@ function registerSetup(context: vscode.ExtensionContext): SetupLink {
   return true;
  };
  const hints = async (): Promise<boolean> => {
-  const choice = await pick<'on' | 'off'>('Bobert: Session hints', 3, 3, [{ id: 'on', label: 'On', detail: HINT_DETAIL }, { id: 'off', label: 'Off', detail: HINT_DETAIL }], [readSessionHints(config().inspect('sessionHints')) ? 'on' : 'off'], false);
+  const choice = await pick<'on' | 'off'>('Bobert: Session hints', 3, 3, [{ id: 'on', label: 'On', detail: HINT_DETAIL }, { id: 'off', label: 'Off' }], [readSessionHints(config().inspect('sessionHints')) ? 'on' : 'off'], false);
   if (!choice) return false;
   await apply(hintWrites(choice[0] === 'on'));
   return true;
  };
  const link: SetupLink = {
   async run(scope) {
-   if (open) return;
-   open = true;
-   try {
-    if (!(await days(scope))) return;
-    if (scope === 'days') return;
-    if (!(await notices()) || !(await hints())) return;
+   if (scope === 'days') return runSteps([() => days(scope)]);
+   return runSteps([() => days(scope), notices, hints], async () => {
     const choice = await vscode.window.showInformationMessage('Bobert is set up. You can change this any time in Settings.', 'Open settings');
     if (choice === 'Open settings') await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:StefanSuess.bobert');
-   } catch { /* fixed and silent: a failed setup never affects the gauge */ } finally { open = false; }
+   });
   },
  };
  context.subscriptions.push(registerCommand((id, f) => vscode.commands.registerCommand(id, f), 'setup', () => link.run('all')));

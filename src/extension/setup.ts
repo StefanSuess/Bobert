@@ -48,3 +48,22 @@ export class PromptClaim {
  release(kind: PromptKind): void { if (this.#holder === kind) this.#holder = null; }
  held(): PromptKind | null { return this.#holder; }
 }
+
+/**
+ * Runs Set Up's steps in order; a start while steps are open is ignored. Each step resolves false when the user ends it (Escape).
+ * The closing confirmation runs after the guard is released, so a confirmation left in the notification centre never blocks the next run.
+ * Failures stay silent: a failed setup never affects the gauge.
+ */
+export function setupRunner(): (steps: readonly (() => Promise<boolean>)[], confirm?: () => Promise<void>) => Promise<void> {
+ let open = false;
+ return async (steps, confirm) => {
+  if (open) return;
+  open = true;
+  let finished = false;
+  try {
+   finished = true;
+   for (const step of steps) if (!(await step())) { finished = false; break; }
+  } catch { finished = false; } finally { open = false; }
+  if (finished && confirm) try { await confirm(); } catch { /* fixed and silent */ }
+ };
+}
