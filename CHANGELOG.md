@@ -4,6 +4,20 @@ All notable changes to Bobert: Kiro Credit Tracker. Bobert is an unofficial proj
 
 Bobert is the new name of Cyclegauge; this is its first release under the new name. Settings and history from Cyclegauge are not carried over. If you had turned off session hints (`bobert.sessionHints`), budget warnings (`bobert.budgetWarnings`) or support prompts (`bobert.supportPrompts`) in Cyclegauge, they are on again in Bobert; turn them off again in your user settings. Cyclegauge's stored history stays where it was until you delete it; see [data left by Cyclegauge](docs/privacy-and-storage.md#data-left-by-cyclegauge).
 
+## Unreleased
+
+### Added
+
+- See what you used today against your allowance in the status bar, for example `On track • 55/100 today`, and in the credit view. Today's usage counts from your first Kiro update of the day, so it is a lower bound.
+- Spread your daily budget over only the days you work with the new setting `bobert.budgetDays` (default: every day). A day off shows `day off` instead of an allowance.
+- **Bobert: Set Up** (`bobert.setup`) asks up to three quick questions (budget days, budget notices, session hints) and is the first step of the walkthrough.
+- A one-time notice offers existing users to choose their budget days. It shows once, only in Kiro.
+
+### Changed
+
+- The daily figure now stays fixed during the day. Before, it shrank with each update; now it is set from your first update of the local day. Today's pace in the credit view also uses your local day instead of the UTC day.
+- The 24-hour figure from the last update is labelled `24-hour allocation from the last update (CLI)` in the technical details. The command-line tool and its `availablePerDay` are unchanged.
+
 ## 1.2.0 (stable, macOS, Windows, Ubuntu)
 
 The stable form of the 1.1.0 beta, with no new features. Everyone on the stable line now gets the 1.1.0 changes below: credits left and the daily allowance instead of a bare "Collecting data", the at-least average since the cycle start, and a new `--json` forecast field (`cycleAverageFloor`, `schemaVersion` 4). No settings, storage or defaults change.
