@@ -178,9 +178,16 @@
         "description": "See your Kiro credits, find files Kiro doesn't need and get warned before credits run out.",
         "steps": [
           {
+            "id": "bobert.gettingStarted.setup",
+            "title": "Set up Bobert",
+            "description": "Tell Bobert on which days you work, when to warn you about your budget and whether to show session hints. Takes under a minute; you can change everything later in Settings.\n[Set up Bobert](command:bobert.setup)",
+            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Bobert setup questions" },
+            "completionEvents": ["onCommand:bobert.setup"]
+          },
+          {
             "id": "bobert.gettingStarted.credits",
             "title": "See your Kiro credits",
-            "description": "The status bar shows how many Kiro credits you have used and whether you are on track until the reset. A forecast appears after a few days of usage; just keep working in Kiro.\n[Show credit budget](command:bobert.showUsage)",
+            "description": "The status bar shows how many Kiro credits you have used and whether you are on track until the reset. A forecast appears after a few days of usage; just keep working in Kiro. It shows how much of today's budget you have used, for example \"55/100 today\".\n[Show credit budget](command:bobert.showUsage)",
             "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Bobert status bar item and credit budget" },
             "completionEvents": ["onCommand:bobert.showUsage"]
           },

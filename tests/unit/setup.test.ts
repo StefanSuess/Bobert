@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ALL_DAYS } from '../../src/extension/daily-budget.ts';
-import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, WEEKDAYS, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites } from '../../src/extension/setup.ts';
+import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, WEEKDAYS, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim } from '../../src/extension/setup.ts';
 
 test('WEEKDAYS is mon..fri and the notice constants are fixed', () => {
  assert.deepEqual([...WEEKDAYS], ['mon', 'tue', 'wed', 'thu', 'fri']);
@@ -40,4 +40,24 @@ test('budgetDaysNoticeDue needs every condition', () => {
  for (const flip of [{ kiro: false }, { testing: true }, { stored: true }, { stored: 1 }, { newUser: true }, { daysSet: true }, { otherPromptShown: true }, { allowanceShown: false }]) {
   assert.equal(budgetDaysNoticeDue({ ...ok, ...flip }), false, JSON.stringify(flip));
  }
+});
+
+test('the prompt claim gives the window one prompt: budget first, then support, then the days notice', () => {
+ // The budget notice claimed first (or already shown): the days notice is refused and the budget notice keeps its slot.
+ const first = new PromptClaim();
+ assert.equal(first.claim('budget'), true); assert.equal(first.held(), 'budget');
+ assert.equal(first.claim('days'), false); first.release('days'); assert.equal(first.held(), 'budget');
+ // The days notice is open: the budget notice is refused (and consumes nothing), then wins once the days notice closed.
+ const second = new PromptClaim();
+ assert.equal(second.claim('days'), true);
+ assert.equal(second.claim('budget'), false); assert.equal(second.held(), 'days');
+ second.release('budget'); assert.equal(second.held(), 'days'); // only the holder releases
+ second.release('days'); assert.equal(second.held(), null);
+ assert.equal(second.claim('budget'), true);
+ // An open or already shown support prompt blocks the days notice, never the budget notice; a refusal leaves the slot free.
+ const third = new PromptClaim();
+ assert.equal(third.claim('days', true), false); assert.equal(third.held(), null);
+ assert.equal(third.claim('budget', true), true);
+ const fourth = new PromptClaim();
+ assert.equal(fourth.claim('days', false), true); assert.equal(fourth.claim('days', true), true); // re-claim by the holder
 });

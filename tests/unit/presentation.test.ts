@@ -693,3 +693,57 @@ test('a failing day budget keeps the gauge up without day figures', () => {
  assert.equal(r!.allowance, false); assert.ok(!r!.text.includes('today')); assert.match(r!.text, /On track • 99\.\d\/day/);
  assert.ok(r!.tooltip.includes('Daily credit budget until reset: ')); assert.ok(!r!.tooltip.includes('Budget days'));
 });
+
+// Controller wiring of the day budget (synthetic source log; 2030-06-08 is a Saturday, 55 credits used today against an allowance of 100).
+async function daySource(prefix: string) {
+ const base = await realpath(await mkdtemp(join(tmpdir(), prefix)));
+ const dir = join(base, 'source', 'logs', 'synthetic-run', 'synthetic-window', 'exthost', 'kiro.kiroAgent'); await mkdir(dir, { recursive: true });
+ const line = (at: string, usage: number) => `${at.slice(0, 10)} ${at.slice(11, 19)}.000 [info] synthetic-envelope ` + JSON.stringify({ commandName: 'GetUsageLimitsCommand', input: {}, output: { userInfo: { userId: 'synthetic-day-account' }, nextDateReset: '2030-07-01T00:00:00Z', usageBreakdownList: [{ resourceType: 'CREDIT', unit: 'INVOCATIONS', currentUsageWithPrecision: usage, usageLimitWithPrecision: 2370, nextDateReset: '2030-07-01T00:00:00Z', bonuses: [], overageCredits: [] }] }, metadata: { httpStatusCode: 200 } }) + '\n';
+ const updates: [string, number][] = [...Array.from({ length: 8 }, (_, i): [string, number] => [`2030-06-0${i + 1}T00:00:00`, i * 10]), ['2030-06-08T10:00:00', 125]];
+ await writeFile(join(dir, 'q-client.log'), updates.map(([at, usage]) => line(at, usage)).join(''));
+ return { base, source: join(base, 'source'), storage: join(base, 'owned') };
+}
+const quietUi = (texts: string[]) => ({ setStatus(t: string) { texts.push(t); }, showDetails() {}, onClick() {}, onChange() {}, everyMinute() {}, dispose() {} });
+test('the controller applies the budget days and zone it is given and re-reads them on rerender', async () => {
+ const { base, source, storage } = await daySource('synthetic-day-days-');
+ const texts: string[] = [];
+ let days: readonly BudgetDay[] = WEEKDAYS;
+ try {
+  const extension = await startExtension(quietUi(texts), { source, storage, timezone: 'UTC', now: () => dayNow, budgetDays: () => days, dayZone: 'UTC' });
+  assert.match(texts.at(-1)!, /day off/);
+  days = ALL_DAYS; extension.rerender();
+  assert.match(texts.at(-1)!, /55\/100 today/); assert.ok(!texts.at(-1)!.includes('day off'));
+  extension.dispose();
+ } finally { await rm(base, { recursive: true, force: true }); }
+});
+test('the controller defaults to every day in UTC when no budget days are given', async () => {
+ const { base, source, storage } = await daySource('synthetic-day-default-');
+ const texts: string[] = [];
+ try {
+  const extension = await startExtension(quietUi(texts), { source, storage, timezone: 'UTC', now: () => dayNow });
+  assert.match(texts.at(-1)!, /55\/100 today/); extension.dispose();
+ } finally { await rm(base, { recursive: true, force: true }); }
+});
+test('the allowance hook runs once per render with an allowance, never when stale, and a throwing hook cannot affect the gauge', async () => {
+ const { base, source, storage } = await daySource('synthetic-day-hook-');
+ const texts: string[] = [];
+ let calls = 0, now = dayNow;
+ try {
+  const extension = await startExtension(quietUi(texts), { source, storage, timezone: 'UTC', now: () => now, onAllowance: () => { calls++; throw new Error('synthetic-failure'); } });
+  assert.equal(calls, 1); assert.match(texts.at(-1)!, /55\/100 today/);
+  extension.rerender(); assert.equal(calls, 2);
+  now = '2030-06-12T12:00:00Z'; await extension.refresh(); // the last update is four days old
+  assert.match(texts.at(-1)!, /Stale data/); assert.equal(calls, 2);
+  extension.dispose();
+ } finally { await rm(base, { recursive: true, force: true }); }
+});
+
+test('the controller calls the budget hook before the allowance hook in a render, so the budget notice can claim the slot first', async () => {
+ const { base, source, storage } = await daySource('synthetic-day-order-');
+ const order: string[] = [];
+ try {
+  const extension = await startExtension(quietUi([]), { source, storage, timezone: 'UTC', now: () => dayNow, onBudget: () => { order.push('budget'); }, onAllowance: () => { order.push('allowance'); } });
+  assert.deepEqual(order, ['budget', 'allowance']);
+  extension.rerender(); assert.deepEqual(order, ['budget', 'allowance', 'budget', 'allowance']); extension.dispose();
+ } finally { await rm(base, { recursive: true, force: true }); }
+});

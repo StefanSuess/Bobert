@@ -1,4 +1,4 @@
-// Pure setup choices and the one-time notice rule. No vscode import: Task 4 wires these into the UI.
+// Pure setup choices, the one-time notice rule and the per-window prompt claim. No vscode import: extension.ts wires these into the UI.
 import { ALL_DAYS, type BudgetDay } from './daily-budget.ts';
 
 export type SetupWrite = { key: 'budgetDays' | 'budgetWarnings' | 'budgetWarningPercent' | 'sessionHints'; value: unknown };
@@ -28,4 +28,23 @@ export function hintWrites(on: boolean): SetupWrite[] {
 }
 export function budgetDaysNoticeDue(i: { kiro: boolean; testing: boolean; stored: unknown; newUser: boolean; daysSet: boolean; otherPromptShown: boolean; allowanceShown: boolean }): boolean {
  return i.kiro && !i.testing && i.stored === undefined && !i.newUser && !i.daysSet && !i.otherPromptShown && i.allowanceShown;
+}
+
+export type PromptKind = 'budget' | 'days';
+/**
+ * One Bobert notice at a time per window. Priority: budget notice, then the support prompt, then the budget days notice.
+ * A notice claims synchronously, after its own due decision and before its first await. A refused claim consumes nothing: the caller just does not show this time.
+ * The budget notice keeps its claim for the rest of the window once shown; the days notice releases it when it closes.
+ */
+export class PromptClaim {
+ #holder: PromptKind | null = null;
+ claim(kind: PromptKind, supportBusy = false): boolean {
+  if (this.#holder === kind) return true;
+  if (this.#holder !== null) return false;
+  if (kind === 'days' && supportBusy) return false;
+  this.#holder = kind;
+  return true;
+ }
+ release(kind: PromptKind): void { if (this.#holder === kind) this.#holder = null; }
+ held(): PromptKind | null { return this.#holder; }
 }

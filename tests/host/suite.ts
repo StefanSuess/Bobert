@@ -47,6 +47,8 @@ export async function run(): Promise<void> {
   assert.ok(commands.includes('bobert.copyDiagnostics')); // registered only; not executed here
   assert.ok(commands.includes('bobert.reportProblem')); // registered only; it would open the browser
   assert.ok(commands.includes('bobert.share')); // registered only; the footer link runs it
+  assert.ok(commands.includes('bobert.setup')); // registered only; it opens quick picks and writes user settings
+  assert.equal(extension.packageJSON.contributes.walkthroughs[0].steps[0].id, 'bobert.gettingStarted.setup');
   phase = 'panel';
   await vscode.commands.executeCommand('bobert.showUsage');
   await until(() => vscode.window.tabGroups.all.some(group => group.tabs.some(tab => tab.label === 'Your credit budget')), 5_000);
