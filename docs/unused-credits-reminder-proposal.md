@@ -4,7 +4,7 @@ Status: **proposal, not approved.** It is outside the approved 1.0 scope, so it 
 
 ## Problem
 
-Bobert warns before credits run out (the WP7 budget notices) and, after two cycles with many unused credits, hints at a smaller plan (WP8b, the `rightsize` notice). Nothing covers the common case in between: a user on the right plan who simply had a quiet month and has many credits left a few days before the reset. Kiro's plan credits don't carry over, so a short reminder at that point, with a few ideas for useful work, turns a quiet month into progress instead of nothing.
+Bobert warns before credits run out (the WP7 budget notices) and, after two cycles with many unused credits, hints at a smaller plan (WP8b, the `rightsize` notice). Nothing covers the common case in between: a user on the right plan who simply had a quiet month and has many credits left a few days before the reset. Kiro's plan credits lapse at the reset, so a short reminder at that point, with a few ideas for useful work, turns a quiet month into progress instead of nothing.
 
 ## Goals
 
@@ -22,25 +22,27 @@ Bobert warns before credits run out (the WP7 budget notices) and, after two cycl
 
 ## Evidence: do plan credits expire at the reset?
 
-Checked on 2026-10-29 in public Kiro documentation only:
+Checked on 2026-10-29 in public Kiro documentation, plus one maintainer statement:
 
 | Source | What it says | Label |
 | --- | --- | --- |
 | [kiro.dev/pricing](https://kiro.dev/pricing/), FAQ "What happens if I don't use all my monthly credits?" | Usage limits reset at the start of each billing month; unused credits do not roll over to the next month. | Documentation |
 | [kiro.dev/docs/billing](https://kiro.dev/docs/billing/) (page updated 2026-08-04), "Credit reset" | For all tiers, the usage cap renews at the beginning of the next billing cycle. It says nothing about rollover. | Documentation |
 | [kiro.dev/docs/billing/add-on-credits](https://kiro.dev/docs/billing/add-on-credits/) (page updated 2026-08-04) | Add-on credits roll over month to month and expire 12 months after purchase; the earliest-expiring pack is used first. | Documentation (add-ons only) |
+| Maintainer, 2026-10-29 | Plan credits are refilled at the reset, and the old ones lapse automatically (no rollover). | Maintainer statement |
 
 Conclusions:
 
-- **Documented:** plan credits do not roll over to the next month. The pricing FAQ is the only source that says so; the billing page only says the cap renews.
-- **Not documented, so unknown:** whether a mid-cycle plan change, a promotion or a trial changes this; how bonus credits behave; and whether the reset Bobert observes always matches the "billing month" in the FAQ. The pricing page is not a versioned contract and can change.
-- **Not observed:** Bobert has no local evidence of what happens to unused credits. It sees the reported limit and usage reset; that does not prove where unused credits go.
+- **Settled for this design:** plan credits lapse at the reset and do not roll over. The pricing FAQ documents it; the maintainer confirmed it on 2026-10-29. The billing page only says the cap renews.
+- **Not documented, so unknown:** whether a mid-cycle plan change, a promotion or a trial changes this; how bonus credits behave (Bobert does not support accounts with extra credits, so no notice relies on it); and whether the reset Bobert observes always matches the "billing month" in the FAQ. The pricing page is not a versioned contract and can change.
+- **Not observed:** Bobert has no local evidence of what happens to unused credits; it sees the reported limit and usage reset. The statement above rests on documentation and the maintainer, not on Bobert's data.
+- **Add-on credits differ:** they roll over and expire 12 months after purchase. Nothing in this design says anything about them.
 
 Wording rules that follow from this:
 
-- The notice may say **"plan credits don't carry over to the next month"**, which restates the FAQ. It must not say credits are "lost", "wasted" or "thrown away", and never anything about add-on credits.
+- The notice may say that **the remaining plan credits lapse at the reset**. It says "plan credits", never just "credits", and nothing about add-on credits. It avoids loaded words such as "wasted" or "thrown away".
 - The tips section cites the pricing FAQ with its check date, like the dated model-rate table.
-- If a later check finds the FAQ changed or removed, the sentence is dropped and the notice keeps only the projection (see Open questions).
+- If a later check finds the FAQ changed or removed, the maintainer decides whether the sentence stays.
 
 ## Design
 
@@ -91,7 +93,7 @@ And the other way round: when `unused` is shown, `rightsize` is marked done for 
 
 A new section in [credit-tips.md](credit-tips.md), **"Credits left before the reset"**, static and the same for everyone. The notice's **Show tips** button opens it the same way the model hint opens that page (`LINKS.tips` in `identity.ts`, a public GitHub page, with an anchor for the new section). Draft:
 
-> Kiro's plan credits don't carry over to the next month (Kiro pricing FAQ, checked 2026-10-29). If you have time before the reset, a few kinds of work suit spare credits well:
+> Kiro's plan credits lapse at the reset and don't carry over to the next month (Kiro pricing FAQ, checked 2026-10-29). Add-on credits you bought are different: they last 12 months. If you have time before the reset, a few kinds of work suit spare credits well:
 >
 > - **Tests** for code that has none, or for the bug you fixed last week.
 > - **Docs:** a README, a setup guide or comments for the module only you understand.
@@ -108,7 +110,7 @@ The tips name kinds of work, not anything Bobert has seen. Nothing in them depen
 
 **Notice** (information message, not a warning), example on a 1,000-credit plan with every day a budget day:
 
-> You'll likely have about 420 of your 1,000 Kiro credits left when they reset in 3 days. Plan credits don't carry over, so it's a good moment for the tests, docs or refactor you've been putting off.
+> You'll likely have about 420 of your 1,000 Kiro credits left when they reset in 3 days. Unused plan credits lapse at the reset, so it's a good moment for the tests, docs or refactor you've been putting off.
 >
 > Buttons: **Show tips** · **Don't remind me**
 
@@ -117,7 +119,7 @@ The tips name kinds of work, not anything Bobert has seen. Nothing in them depen
 - **Show tips** opens the tips section. **Don't remind me** writes `bobert.unusedCreditsPercent: 0` to the user settings, leaving the other budget notices on. Dismissal does nothing further.
 - Credits only. No dollar figure: the value of unused plan credits is not money the user gets back, and a figure could be misread that way.
 
-**Dashboard:** during the last `UNUSED_DAYS` days, when the trigger's data conditions 1–5 hold (whether or not the notice was shown or turned off), the forecast card adds one line: `Likely left at the reset: about 420 credits. Plan credits don't carry over — see tips.` with a link to the tips section. This lets a user who turned the notice off still see the figure where they look for it.
+**Dashboard:** during the last `UNUSED_DAYS` days, when the trigger's data conditions 1–5 hold (whether or not the notice was shown or turned off), the forecast card adds one line: `Likely left at the reset: about 420 credits. Unused plan credits lapse at the reset — see tips.` with a link to the tips section. This lets a user who turned the notice off still see the figure where they look for it.
 
 **Status bar:** unchanged. A notice once per cycle plus one dashboard line is enough; the status bar stays about today's budget.
 
@@ -155,7 +157,7 @@ All with synthetic data.
   - never after `limit`, `forecast` or `rightsize` in the same cycle; shown after `percent`; showing it marks `rightsize` done;
   - once per cycle; a new reset instant re-arms it; a stored state from an older version with or without `unused` reads correctly;
   - exact rational threshold comparison (no floating point at the boundary), credits rounded down, one-decimal limits;
-  - copy: example text, budget-day variant, `today` / `in 1 day` wording, no dollar figure, no "lost"/"wasted".
+  - copy: example text, budget-day variant, `today` / `in 1 day` wording, no dollar figure, "plan credits" (never just "credits") in the lapse sentence, no "wasted".
 - **Settings:** `bobert.unusedCreditsPercent` default, bounds, invalid value counts as default, `application` scope (extension-host suite).
 - **Presentation/dashboard:** the line appears only in the last 3 days with the data conditions met, also when the notice is off, and never in run-out states.
 - **Docs:** a link check that the notice's tips target exists in `credit-tips.md`.
@@ -164,7 +166,7 @@ All with synthetic data.
 
 | Area | What to verify | Automated by | Status | Last native result |
 | --- | --- | --- | --- | --- |
-| Unused-credits reminder | Due only 3 days or less before the reset with a fresh regular forecast, projected remaining at or above `bobert.unusedCreditsPercent`, on a budget day; once per cycle; never with `limit`, `forecast` or `rightsize`; copy without "lost" or money; **Don't remind me** sets 0; dashboard line | `budget-warning`, `presentation`, extension-host suite (setting) | A for those; **M** for the notice and **Show tips** opening the page in Kiro (needs Kiro's own notification UI) | not run natively |
+| Unused-credits reminder | Due only 3 days or less before the reset with a fresh regular forecast, projected remaining at or above `bobert.unusedCreditsPercent`, on a budget day; once per cycle; never with `limit`, `forecast` or `rightsize`; lapse sentence names plan credits only, no money; **Don't remind me** sets 0; dashboard line | `budget-warning`, `presentation`, extension-host suite (setting) | A for those; **M** for the notice and **Show tips** opening the page in Kiro (needs Kiro's own notification UI) | not run natively |
 
 ## Documentation
 
@@ -172,8 +174,10 @@ With the implementation: [SPEC.md](../SPEC.md) (budget notices), [credit-tips.md
 
 ## Open questions for the maintainer
 
+Resolved on 2026-10-29: plan credits lapse at the reset (maintainer statement, matching the pricing FAQ), so the copy may say so.
+
+
 1. **Scope:** approve adding this to the roadmap (it is outside the 1.0 scope line)?
 2. **Threshold and timing:** 30 % and 3 days as defaults, or different values? Should the days be a setting too (proposal: no)?
 3. **Projection:** quote the selected forecast (proposal) or the more conservative higher-consumption scenario?
-4. **Carry-over sentence:** keep "plan credits don't carry over", based on the pricing FAQ alone, or leave it out until the billing docs say so too?
-5. **Dashboard line:** wanted, or notice only?
+4. **Dashboard line:** wanted, or notice only?
