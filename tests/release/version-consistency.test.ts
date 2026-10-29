@@ -26,6 +26,8 @@ test('CHANGELOG has a nonempty section for the version, as the release workflow 
 
 test('version history mentions the version and the README shows the automatic release badges', () => {
   assert.ok(read('docs/version-history.md').includes(`**${version}**`));
+  // release:prepare leaves a TODO for the human summary; it must be replaced before the release PR merges.
+  assert.ok(!read('docs/version-history.md').includes('TODO summary'));
   // The README badges are automatic (Open VSX version, latest GitHub release), so no hand-kept version can go stale.
   const readme = read('README.md');
   assert.ok(readme.includes('img.shields.io/open-vsx/v/StefanSuess/bobert'));
