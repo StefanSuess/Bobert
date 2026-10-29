@@ -582,13 +582,15 @@
     "package:vsix": "pnpm build:extension && vsce package --no-dependencies --out dist/",
     "test:release": "node --disable-warning=ExperimentalWarning --test tests/release/*.test.ts",
     "release:build": "node --disable-warning=ExperimentalWarning scripts/release/build-vsix.ts",
-    "release:verify": "node --disable-warning=ExperimentalWarning scripts/release/verify-vsix.ts"
+    "release:verify": "node --disable-warning=ExperimentalWarning scripts/release/verify-vsix.ts",
+    "release:prepare": "node --disable-warning=ExperimentalWarning scripts/release/prepare-release.ts",
+    "acceptance:candidate": "node --disable-warning=ExperimentalWarning scripts/release/candidate-acceptance.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
     "@types/vscode": "1.90.0",
     "@vscode/test-electron": "3.1.0",
-    "@vscode/vsce": "^4.0.0",
+    "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
     "typescript": "^5.9.0"
   }

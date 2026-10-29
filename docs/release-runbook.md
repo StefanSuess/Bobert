@@ -7,37 +7,37 @@ Maintainer and agent runbook for `.github/workflows/release.yml`. It complements
 Follow this every time. `X.Y.Z` is the version being released. **[agent]** steps may be done by an AI agent; **[maintainer]** steps are the maintainer's alone. The agent never triggers the live release run, never approves the `release` environment and never changes secrets or repository settings.
 
 **A. Decide the version**
-1. [maintainer] Pick `X.Y.Z` using [Versioning](release-process.md#versioning): the minor number decides the channel (odd = pre-release, even = stable; the pipeline derives it from the version), a stable release still needs native acceptance on every platform it names, and the version must be higher than every published one. Versions do not track milestone numbers.
+1. [maintainer] Pick `X.Y.Z` using [Versioning](release-process.md#versioning): the minor number decides the channel (odd = pre-release, even = stable; the pipeline derives it from the version), the native acceptance depends on the release type (app or system, see [gate 3](release-process.md#2-gates-before-publishing-all-mandatory)), and the version must be higher than every published one. An app release may go straight to an even-minor stable with new features. Versions do not track milestone numbers.
 
 **B. Merge feature PRs to `main`**
 1. [maintainer] Merge in dependency order; every branch must be up to date with `main` and all required checks green.
 2. [maintainer] Squash merges only. After a base PR merges, update any stacked PR onto `main` and let its checks rerun before merging it.
 
 **C. Release-preparation PR**
-1. [agent] Set `version` to `X.Y.Z` in `package.json` (nothing else in that file).
-2. [agent] Add a nonempty `CHANGELOG.md` section `## X.Y.Z (...)`, with an upgrade note whenever defaults, storage or settings change. Never edit a released section.
+1. [agent] Run `pnpm release:prepare X.Y.Z`. It sets `version` (and `preview`) in `package.json`, turns `## Unreleased` into `## X.Y.Z (<channel>, <platforms>)`, adds the version to `docs/version-history.md` and prints the release type, the system files changed and the acceptance required. It never commits, pushes or tags. Put the printed type and acceptance in the release PR.
+2. [agent] Edit the new `CHANGELOG.md` section and the version history line (replace `TODO summary`), with an upgrade note whenever defaults, storage or settings change, and for an app release the inherited-platform line from [gate 3](release-process.md#2-gates-before-publishing-all-mandatory). Never edit a released section.
 3. [agent] Update the README platform table (the version badges are automatic), `docs/usage.md`, `docs/version-history.md`, and `ROADMAP.md` if the scope changes.
 4. [agent] Keep the security checkpoint wording (SC1, SC5) consistent with [release-process.md](release-process.md); file follow-up work as GitHub issues rather than leaving it implicit.
 5. [agent] Check that `verifiedOn` in `src/cost/catalog.ts` is within 30 days of the planned release; otherwise review the pricing catalog against Kiro's published prices first (the Cost Advisor shows `catalog_review_due` after 30 days).
 6. [agent] Run `pnpm typecheck`, `pnpm test`, `pnpm test:release` (includes an automated version-consistency check of `package.json`, `CHANGELOG.md`, `docs/version-history.md` and the automatic README release badges), `python3 tests/fixtures/kiro/validate.py` and `git diff --check`.
 
 **D. Independent review**
-1. [agent] An independent, read-only review of the release PR is mandatory (high-risk change): version, changelog accuracy, evidence claims per platform, no overclaiming. Fix findings before merging.
+1. [agent] An independent, read-only review of the release PR is mandatory (high-risk change): version, release type, changelog accuracy, evidence claims per platform, no overclaiming. Fix findings before merging.
 
 **E. Merge the release PR**
 1. [agent, with explicit maintainer approval to merge] Squash-merge the release PR.
 2. [agent] Wait for green CI on that exact `main` commit (all required checks, including the candidate and attestation jobs). A green run for an earlier commit is insufficient. Do not merge anything else until the release is done.
 
 **F. Native acceptance of the exact CI candidate**
-1. [maintainer] Download the `release-candidate` artifact of that CI run and compare the SHA-256 of `bobert-v<version>-<sha12>-candidate.vsix` (`<sha12>` = first 12 characters of the CI run's commit) with the CI summary.
-2. [maintainer] Run macOS acceptance ([macos-acceptance.md](macos-acceptance.md)) at the depth the channel requires ([release-process.md](release-process.md#2-gates-before-publishing-all-mandatory), gate 3):
-   - **Pre-release:** steps 0–1, section A and step F, plus a check of each user-visible change.
-   - **Stable:** sections A, B, D and E. For an `X.Y.0` release, only after the odd-minor line it stabilizes was published as a pre-release with no open bug issue that this candidate does not fix.
-3. [maintainer] When the release names Windows or Ubuntu, smoke-test the same VSIX in native Kiro on each; this is required before a release that names Windows or Ubuntu (until itemised checklists exist, issue #61). Record Kiro and OS versions.
+1. [maintainer] Run `pnpm acceptance:candidate`. It downloads the `release-candidate` artifact of the newest green CI run for `main`, checks the SHA-256 of `bobert-v<version>-<sha12>-candidate.vsix` and its attestation, and opens it in the synthetic demo. Sign in there yourself.
+2. [maintainer] Run macOS acceptance ([macos-acceptance.md](macos-acceptance.md)) at the depth the release type requires ([release-process.md](release-process.md#2-gates-before-publishing-all-mandatory), gate 3). An agent may drive the checks in the demo window:
+   - **App release:** steps 0–1, section A and step F, plus a check of each user-visible change; section E only when cost-related files changed.
+   - **System release** (or **review** without an app ruling in the release PR): sections A, B, D and E.
+   - An even-minor `X.Y.0` that stabilizes a published odd line also needs no open bug issue against that line that this candidate does not fix.
+3. [maintainer] For a **system release** that names Windows or Ubuntu, smoke-test the same VSIX in native Kiro on each (until itemised checklists exist, issue #61). Record Kiro and OS versions. An app release names the platforms of the last system release and states that evidence instead.
 
-**G. Dry run, then live run**
-1. [maintainer] Run the release workflow with `dry_run = true` (see Dry run below) and record commit, artifact ID and SHA-256.
-2. [maintainer] Dispatch `dry_run = false`, re-read the preflight summary and release notes, then approve the `release` deployment.
+**G. Live run**
+1. [maintainer] Dispatch `dry_run = false`. Its preflight makes the dry run's checks and stops before any write; re-read its summary (commit, artifact ID, SHA-256 matching step F) and the release notes, then approve the `release` deployment. A separate dry run beforehand is optional.
 
 **H. After publishing**
 1. [maintainer/agent] Verify the Open VSX listing and version, tag `vX.Y.Z`, and the GitHub release (pre-release for an odd minor, stable for an even minor) with its two assets (`bobert-vX.Y.Z.vsix`, `SHA256SUMS.txt`).
@@ -50,7 +50,7 @@ Follow this every time. `X.Y.Z` is the version being released. **[agent]** steps
 ## Reference
 
 - The `release` environment, Open VSX secret and Trusted Publisher registration cannot be verified from repository code.
-- A fresh dry run is required before any live release.
+- A separate dry run is optional; the live run's preflight summary is reviewed before approval.
 
 ## What the workflow does
 
@@ -81,12 +81,12 @@ The PAT worked for the earlier manual publish. You may reuse that token or creat
 3. Dispatch with `auth_mode = pat`. Revoke or rotate the token afterwards if you do not need it.
 
 ### 4b. Trusted Publishing (OIDC), optional
-Only after the namespace is verified and Open VSX offers Trusted Publisher registration for it: register repository `StefanSuess/Bobert`, workflow path `.github/workflows/release.yml`, environment `release`. Registration steps and server support are controlled by Open VSX and were **not verified** here; the pinned `ovsx@1.2.0` CLI does expose `--trusted-publishing`. Until registered, use PAT mode; an unregistered OIDC run fails at publish time (nothing is published).
+Only after the namespace is verified and Open VSX offers Trusted Publisher registration for it: register repository `StefanSuess/Bobert`, workflow path `.github/workflows/release.yml`, environment `release`. Registration steps and server support are controlled by Open VSX and were **not verified** here; the pinned `ovsx@1.3.0` CLI does expose `--trusted-publishing`. Until registered, use PAT mode; an unregistered OIDC run fails at publish time (nothing is published).
 
-### 5. Verify readiness before each dry run
+### 5. Verify readiness before each release run
 1. `package.json` is `X.Y.Z` and the `## X.Y.Z (...)` section in `CHANGELOG.md` is nonempty (the release-preparation PR is merged). Review those notes against the exact final candidate.
-2. Check all required CI jobs, including `attest release candidate`, on the **current** `main` commit; a green run for an earlier commit is insufficient. After the attestation gate first merges, use a fresh `main` CI run and dry run. Older unattested candidates fail the new gate.
-3. If `main` changes again, use the new candidate artifact and repeat the dry run and relevant native acceptance checks. The README must not direct users to a release before it is published.
+2. Check all required CI jobs, including `attest release candidate`, on the **current** `main` commit; a green run for an earlier commit is insufficient. Older unattested candidates fail the attestation gate.
+3. If `main` changes again, use the new candidate artifact and repeat the relevant native acceptance checks. The README must not direct users to a release before it is published.
 
 ## Dry run (safe; no writes, no environment, no secrets)
 1. Actions → release → Run workflow, branch `main`, `version = X.Y.Z`, `dry_run = true`, either auth mode.
@@ -98,11 +98,11 @@ Only after the namespace is verified and Open VSX offers Trusted Publisher regis
 ## Live release checklist (only with your explicit go)
 1. [ ] Environment `release` verified (step 2) and `OPENVSX_PAT` present if using PAT mode.
 2. [ ] The release PR for `X.Y.Z` merged; CI on that `main` commit green; no newer `main` commit expected during approval.
-3. [ ] Dry run for `X.Y.Z` passed; you recorded commit, artifact ID and SHA-256.
-4. [ ] Download that exact artifact from the linked CI run; verify its SHA-256.
-5. [ ] Native macOS acceptance of that VSIX ([macos-acceptance.md](macos-acceptance.md)): steps 0–1, section A, step F and the changed features for a pre-release; sections A, B, D, E for a stable release, and for `X.Y.0` a published pre-release of the odd-minor line without open bug issues. Smoke test on Windows and Ubuntu when the release names them.
+3. [ ] `pnpm acceptance:candidate` passed (SHA-256 and attestation of that exact artifact); you recorded run, commit and SHA-256.
+4. [ ] The release type from `pnpm release:prepare` is in the release PR.
+5. [ ] Native macOS acceptance of that VSIX ([macos-acceptance.md](macos-acceptance.md)) at the depth of the release type (gate 3). For a system release, a smoke test on Windows and Ubuntu when the release names them.
 6. [ ] Dispatch `dry_run = false` with the chosen auth mode.
-7. [ ] In the run, re-read the preflight summary (same commit and SHA-256 as the dry run) and the release notes, then approve the `release` deployment.
+7. [ ] In the run, re-read the preflight summary (same commit and SHA-256 as step 3) and the release notes, then approve the `release` deployment.
 8. [ ] After success: check Open VSX listing/version, tag `vX.Y.Z`, the GitHub release (pre-release or stable per channel) and its two assets (`bobert-vX.Y.Z.vsix`, `SHA256SUMS.txt`); install from Open VSX in Kiro and run acceptance section C.
 9. [ ] Revoke or rotate the PAT if it is no longer needed.
 
