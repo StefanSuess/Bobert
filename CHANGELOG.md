@@ -4,7 +4,11 @@ All notable changes to Bobert: Kiro Credit Tracker. Bobert is an unofficial proj
 
 Bobert is the new name of Cyclegauge; this is its first release under the new name. Settings and history from Cyclegauge are not carried over. If you had turned off session hints (`bobert.sessionHints`), budget warnings (`bobert.budgetWarnings`) or support prompts (`bobert.supportPrompts`) in Cyclegauge, they are on again in Bobert; turn them off again in your user settings. Cyclegauge's stored history stays where it was until you delete it; see [data left by Cyclegauge](docs/privacy-and-storage.md#data-left-by-cyclegauge).
 
-## Unreleased
+## 1.4.0 (stable, macOS, Windows, Ubuntu)
+
+See what you used today against a daily allowance that stays fixed for the day, spread over only the days you work, and set Bobert up in three quick questions. Upgrade note: the new setting `bobert.budgetDays` defaults to every day, so nothing changes until you choose your days; the daily figure now stays fixed during the day instead of shrinking with each update. No stored history, data format or other defaults change; Bobert only adds a flag that remembers the one-time notice.
+
+Platforms: this release's new features were checked natively on macOS. Windows and Ubuntu: smoke-tested in native Kiro (arm64 VMs) with 1.2.0, covering the status bar and credit view; no data-access change since; this release passed the automated extension-host tests on all three platforms.
 
 ### Added
 
@@ -17,6 +21,7 @@ Bobert is the new name of Cyclegauge; this is its first release under the new na
 
 - The daily figure now stays fixed during the day. Before, it shrank with each update; now it is set from your first update of the local day (without a comparable update today, from the latest update). Today's pace in the credit view also uses your local day instead of the UTC day.
 - The 24-hour figure from the last update is labelled `24-hour allocation from the last update (CLI)` in the technical details. The command-line tool and its `availablePerDay` are unchanged.
+- The release tooling's Open VSX publisher `ovsx` was updated to 1.3.0, which no longer sends the access token on a redirect to another host. It is used only to publish and is not part of the extension.
 
 ## 1.2.0 (stable, macOS, Windows, Ubuntu)
 
