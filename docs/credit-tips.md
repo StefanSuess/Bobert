@@ -28,6 +28,19 @@ A long session carries more context into each request. Start a **new session** f
 - **Hooks:** a hook that starts the agent on every file save can use credits all day. Run such hooks manually or narrow their pattern. The audit flags broad and agent-starting hooks too.
 - **Files:** secrets, database dumps, archives and build output don't belong in Kiro's context. **Exclude from Kiro…** prepares `.kiroignore` lines. Kiro uses `.kiroignore` only when it is listed in **Agent Ignore Files** (`kiroAgent.agentIgnoreFiles`).
 
+## Credits left before the reset
+
+Kiro's plan credits lapse at the reset and don't carry over to the next month (Kiro pricing FAQ, checked 2026-10-29). Add-on credits you bought are different: they last 12 months. If you have time before the reset, a few kinds of work suit spare credits well:
+
+- **Tests** for code that has none, or for the bug you fixed last week.
+- **Docs:** a README, a setup guide or comments for the module only you understand.
+- **A refactor you keep postponing,** planned once with the Plan or Spec agent and built in small steps.
+- **A review** of a larger change with a stronger model, checked against its plan.
+- **A spike:** try the library or approach you've been curious about on a branch.
+- **Clean up what Kiro reads:** run **Workspace Audit** and tidy Steering and hooks so next month starts lean.
+
+There's no need to use credits just because they're there. If this happens every month, **Bobert: Open Cost Advisor** shows whether a smaller plan would fit.
+
 ## Watch the budget, not every request
 
 - The status bar shows your daily budget and whether you are on track. A notice warns before the reported limit is reached.

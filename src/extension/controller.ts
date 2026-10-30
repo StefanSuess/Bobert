@@ -50,6 +50,8 @@ export interface ExtensionOptions { source: string; storage: string; profileStor
  // The days the budget is spread over, read on every render (default: every day), and the zone that defines the calendar day (default: UTC).
  budgetDays?: () => readonly BudgetDay[];
  dayZone?: string;
+ // The share of the reported credits likely left at the reset that the unused-credits reminder uses, read on every render (0: reminder off).
+ unusedPercent?: () => number;
  onAdvisorUsed?: () => void }
 
 export async function startExtension(ui: ExtensionUi, options: ExtensionOptions) {
@@ -100,7 +102,7 @@ export async function startExtension(ui: ExtensionUi, options: ExtensionOptions)
   shownRecap=recap;
   let budgetDays:readonly BudgetDay[];
   try{budgetDays=options.budgetDays?.()??ALL_DAYS;}catch{budgetDays=ALL_DAYS;}
-  const presentation=present(observation,codes,'',advisorHtml,audit,now(),options.notKiro===true,insights,inlineAdvisorForm(advisor.value,advisor.epoch),results,recap,addOnsApply,{days:budgetDays,zone:options.dayZone??'UTC'});
+  const presentation=present(observation,codes,'',advisorHtml,audit,now(),options.notKiro===true,insights,inlineAdvisorForm(advisor.value,advisor.epoch),results,recap,addOnsApply,{days:budgetDays,zone:options.dayZone??'UTC',unusedPercent:(()=>{try{return options.unusedPercent?.()??0;}catch{return 0;}})()});
   detail=presentation.html;
   if(presentation.forecast)try{options.onForecast?.();}catch{/* the support prompt never affects the gauge */}
   if(presentation.absent)try{options.onAbsent?.();}catch{/* nor the not-Kiro note */}

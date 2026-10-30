@@ -753,3 +753,19 @@ test('data quality note describes the day-anchored allowance and points to the e
  assert.match(html, /<h3>Data quality \/ notes<\/h3><p>The daily budget summary is truncated to one decimal; the exact allowance is in the technical details\. Today's allowance is fixed from your first Kiro update of the local day and spread over your budget days until the reset; the exact 24-hour allocation \(CLI\) is in the technical details\./);
  assert.ok(!html.includes('across the time left until reset, using 24-hour days'));
 });
+
+test('the credit view says how many plan credits are likely left only in the last days before the reset, also while the reminder is off',()=>{
+ // 28 daily updates at 10 credits a day, 1000 reported, reset 1 Jul: about 700 credits are left at the reset.
+ const now='2030-06-29T00:00:00Z',v=view(series(10,'1000',28),now),line='Likely left at the reset: about 700 credits. Unused plan credits lapse at the reset.';
+ for(const unusedPercent of [30,0,undefined]){
+  const html=present(v,[],'','',undefined,now,false,undefined,'',undefined,undefined,false,{days:ALL_DAYS,zone:'UTC',unusedPercent}).html;
+  assert.ok(html.includes(line),String(unusedPercent));
+  assert.match(html,/<a href="https:\/\/github\.com\/StefanSuess\/Bobert\/blob\/main\/docs\/credit-tips\.md">See tips<\/a>/);
+ }
+ // Too early (more than three days), too little left, or no regular forecast: no line.
+ const early='2030-06-26T00:00:00Z';
+ assert.ok(!present(view(series(10,'1000',25),early),[],'','',undefined,early).html.includes('Likely left at the reset'));
+ assert.ok(!present(view(series(30,'1000',28),now),[],'','',undefined,now).html.includes('Likely left at the reset'));
+ assert.ok(!present(view(series(10,'1000',5),'2030-06-05T00:00:00Z'),[],'','',undefined,'2030-06-05T00:00:00Z').html.includes('Likely left at the reset'));
+ assert.ok(!render(10).html.includes('Likely left at the reset'));
+});

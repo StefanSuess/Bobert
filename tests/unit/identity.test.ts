@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { isPreReleaseVersion } from '../../scripts/release/channel.ts';
-import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, registerCommand } from '../../src/extension/identity.ts';
+import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, readUnusedCreditsPercent, registerCommand } from '../../src/extension/identity.ts';
 
 const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 const stub = (log: string[]) => (id: string) => { log.push(id); return { dispose() {} }; };
@@ -63,7 +63,7 @@ test('only current settings are declared under the Bobert prefix', () => {
  assert.ok(!/\bstar\b/i.test(prompts.description));
  // User-facing settings come first; the testing and storage overrides come last. Raw values and the legacy true are not in the visible text.
  const order = Object.entries(props).sort((a: any, b: any) => a[1].order - b[1].order).map(([k]) => k.replace('bobert.', ''));
- assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'budgetDays', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone']);
+ assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'unusedCreditsPercent', 'budgetDays', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone']);
  assert.equal(new Set(Object.values(props).map((p: any) => p.order)).size, Object.keys(props).length);
  for (const k of ['auditAutomatically', 'configReviewAutomatically']) {
   assert.deepEqual(props[`bobert.${k}`].enumItemLabels, ['Off', 'On open', 'On open and on changes'], k);
@@ -154,6 +154,10 @@ test('budget warning settings are read strictly: on unless explicitly false, who
  assert.equal(readBudgetWarningPercent(get({})), 80);
  for (const [value, expected] of [[0, 0], [1, 1], [50, 50], [79.9, 79], [100, 100], [-5, 0], [250, 100]] as const) assert.equal(readBudgetWarningPercent(get({ 'bobert.budgetWarningPercent': value })), expected, String(value));
  for (const bad of ['50', null, Number.NaN, Number.POSITIVE_INFINITY, {}, true, undefined]) assert.equal(readBudgetWarningPercent(get({ 'bobert.budgetWarningPercent': bad })), 80, String(bad));
+ // The unused-credits reminder has its own share: default 30, 0 turns only that reminder off.
+ assert.equal(readUnusedCreditsPercent(get({})), 30);
+ for (const [value, expected] of [[0, 0], [1, 1], [30, 30], [49.9, 49], [100, 100], [-5, 0], [250, 100]] as const) assert.equal(readUnusedCreditsPercent(get({ 'bobert.unusedCreditsPercent': value })), expected, String(value));
+ for (const bad of ['30', null, Number.NaN, Number.POSITIVE_INFINITY, {}, true, undefined]) assert.equal(readUnusedCreditsPercent(get({ 'bobert.unusedCreditsPercent': bad })), 30, String(bad));
 });
 
 test('session hints are on unless the user\'s own value is explicitly false; workspace and folder values are never consulted', () => {

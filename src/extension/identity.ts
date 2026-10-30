@@ -10,8 +10,10 @@ export const CONFIG_REVIEW_SETTING_KEYS = ['configReviewAutomatically'] as const
 // The community prompts' user setting (application scope, boolean, default on).
 export const SUPPORT_SETTING_KEYS = ['supportPrompts'] as const;
 // The budget warning's user settings (application scope): an on/off switch and the usage share (percent of the reported limit) that triggers the early notice.
-export const BUDGET_SETTING_KEYS = ['budgetWarnings', 'budgetWarningPercent', 'budgetDays'] as const;
+export const BUDGET_SETTING_KEYS = ['budgetWarnings', 'budgetWarningPercent', 'unusedCreditsPercent', 'budgetDays'] as const;
 export const BUDGET_PERCENT_DEFAULT = 80;
+// Share of the reported credits likely left at the reset that triggers the unused-credits reminder (0 turns only that reminder off).
+export const UNUSED_PERCENT_DEFAULT = 30;
 // The session hints' user setting (application scope, boolean, default on): the context reminder and the model hint read from the newest IDE session.
 export const SESSION_HINT_SETTING_KEYS = ['sessionHints'] as const;
 // Fixed constants: the only external addresses the extension ever opens, and only when the user clicks. No data, no query strings.
@@ -69,6 +71,11 @@ export function readBudgetDays(inspect: { globalValue?: unknown; defaultValue?: 
 export function readBudgetWarningPercent(get: Getter): number {
  const value = get(ID_PREFIX, 'budgetWarningPercent');
  return typeof value === 'number' && Number.isFinite(value) ? Math.min(100, Math.max(0, Math.floor(value))) : BUDGET_PERCENT_DEFAULT;
+}
+/** Whole percent of the reported limit likely left at the reset, 0..100; anything that is not a finite number uses the default. 0 turns the reminder off. */
+export function readUnusedCreditsPercent(get: Getter): number {
+ const value = get(ID_PREFIX, 'unusedCreditsPercent');
+ return typeof value === 'number' && Number.isFinite(value) ? Math.min(100, Math.max(0, Math.floor(value))) : UNUSED_PERCENT_DEFAULT;
 }
 /** Kiro IDE by product name or URL scheme; any other editor (or unreadable metadata) is not Kiro. */
 export function isKiroEditor(appName: unknown, uriScheme: unknown): boolean {

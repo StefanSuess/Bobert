@@ -1,6 +1,6 @@
 # Reminder before the reset when many credits look likely to stay unused — design proposal
 
-Status: **proposal, not approved.** It is outside the approved 1.0 scope, so it needs a dated ROADMAP decision (scope) and approval of this design before any implementation. It adds one notice kind to the existing budget notices, one setting, one optional dashboard line and a section in [credit-tips.md](credit-tips.md). The notice rests on the forecast, which is high-risk presentation, so the implementation needs independent review.
+Status: **approved and implemented (2026-10-30).** The maintainer asked for the implementation on 2026-10-30; the defaults below stand (3 days, 30 %, the selected forecast, the dashboard line wanted), and ROADMAP.md records the decision. Differences from this text: the notice's **Show tips** button and the credit-view link open the tips page without a section anchor (the fixed-links test forbids a `#` in an address), and the optional "per budget day" figure in the copy was left out. The notice rests on the forecast, which is high-risk presentation, so the implementation needs independent review.
 
 ## Problem
 
@@ -176,8 +176,4 @@ With the implementation: [SPEC.md](../SPEC.md) (budget notices), [credit-tips.md
 
 Resolved on 2026-10-29: plan credits lapse at the reset (maintainer statement, matching the pricing FAQ), so the copy may say so.
 
-
-1. **Scope:** approve adding this to the roadmap (it is outside the 1.0 scope line)?
-2. **Threshold and timing:** 30 % and 3 days as defaults, or different values? Should the days be a setting too (proposal: no)?
-3. **Projection:** quote the selected forecast (proposal) or the more conservative higher-consumption scenario?
-4. **Dashboard line:** wanted, or notice only?
+Resolved on 2026-10-30 by asking for the implementation, with the proposal's defaults: scope approved and recorded in ROADMAP.md; 30 % and 3 days (the days are not a setting); the selected forecast is quoted; the credit-view line is wanted.

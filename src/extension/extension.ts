@@ -15,8 +15,8 @@ import { readConfigReviewMode } from './config-schedule.ts';
 import { IGNORE_USE_NOTE, MAX_DISMISSED, OPEN_SETTING, auditTree, auditSizeTotal, dismissHash, excludeAnnotation, findingKey, findingsToast, ignoreNotEffective, isHash, countFindings, kiroignoreAppend, revealTarget, sizePhrase, visibleFindings, type AuditNode, type AuditParts, type AuditSummary } from './audit-model.ts';
 import { startExtension, type ExtensionUi } from './controller.ts';
 import { buildDiagnostics, formatDiagnostics, runtimeFacts, type DiagnosticsInput } from '../diagnostics.ts';
-import { ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
-import { ALL_DAYS, type BudgetDay } from './daily-budget.ts';
+import { ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
+import { ALL_DAYS, dayBudget, type BudgetDay } from './daily-budget.ts';
 import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
 import { decideBudgetNotice } from './budget-warning.ts';
 import type { view } from '../view.ts';
@@ -705,6 +705,7 @@ function registerWalkthrough(context: vscode.ExtensionContext): void {
 // state (one global-state key); it is written before the notice is shown, and a failed write means no notice. Every failure is swallowed.
 const BUDGET_KEY = 'bobert.budgetWarning.v1';
 const TURN_OFF_BUDGET = 'Turn off budget notices'; // turns off every kind of budget notice, the right-sizing tip included
+const SHOW_TIPS = 'Show tips', DONT_REMIND = "Don't remind me"; // the unused-credits reminder's own buttons; the second sets only its percent to 0
 interface BudgetLink { evaluate(observation: ReturnType<typeof view>, eligible: boolean, now: string, insights: PlanInsights): void; shown(): boolean }
 function registerBudget(context: vscode.ExtensionContext, beforeShow: () => void, claim: PromptClaim): BudgetLink {
  let disposed = false, busy = false, budgetShown = false;
@@ -722,7 +723,9 @@ function registerBudget(context: vscode.ExtensionContext, beforeShow: () => void
      if (!inKiro() || testing()) return;
      let stored: unknown;
      try { stored = context.globalState.get<unknown>(BUDGET_KEY); } catch { stored = undefined; }
-     const due = decideBudgetNotice({ view: observation, eligible, now, insights, state: stored, enabled: readBudgetWarnings(get), percent: readBudgetWarningPercent(get) });
+     let budgetDay = false;
+     try { budgetDay = dayBudget(observation, now, Intl.DateTimeFormat().resolvedOptions().timeZone, readBudgetDays(vscode.workspace.getConfiguration(ID_PREFIX).inspect('budgetDays'))).status === 'available'; } catch { /* no budget day: no reminder */ }
+     const due = decideBudgetNotice({ view: observation, eligible, now, insights, state: stored, enabled: readBudgetWarnings(get), percent: readBudgetWarningPercent(get), unusedPercent: readUnusedCreditsPercent(get), budgetDay });
      if (!due) return;
      if (!claim.claim('budget')) return; // the budget days notice is open: defer without using up this notice's state; a later render shows it
      try { await context.globalState.update(BUDGET_KEY, due.state); } catch { return; }
@@ -730,6 +733,12 @@ function registerBudget(context: vscode.ExtensionContext, beforeShow: () => void
      kept = true; // this window has shown its one notice
      budgetShown = true;
      try { beforeShow(); } catch { /* nothing else depends on it */ }
+     if (due.kind === 'unused') {
+      const reminder = await vscode.window.showInformationMessage(due.text, SHOW_TIPS, DONT_REMIND);
+      if (reminder === SHOW_TIPS) await vscode.env.openExternal(vscode.Uri.parse(LINKS.tips));
+      else if (reminder === DONT_REMIND) await vscode.workspace.getConfiguration(ID_PREFIX).update('unusedCreditsPercent', 0, vscode.ConfigurationTarget.Global);
+      return;
+     }
      const choice = await vscode.window.showInformationMessage(due.text, 'Show details', TURN_OFF_BUDGET);
      if (choice === 'Show details') await vscode.commands.executeCommand(commandId('showUsage'));
      else if (choice === TURN_OFF_BUDGET) await vscode.workspace.getConfiguration(ID_PREFIX).update('budgetWarnings', false, vscode.ConfigurationTarget.Global);
@@ -937,7 +946,7 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
  };
  gaugeState.config = { storage: chosenStorage ? 'chosen' : 'default', source: setting('sourceRoot') ? 'chosen' : 'default', timezone: setting('sourceTimezone') ? 'chosen' : 'device' };
  try {
-  const controller = await startExtension(ui, { source, storage, profileStorage: !chosenStorage, timezone, auditSummary: audit?.summary, resultsSummary: results?.summary, recapState: recap?.state, recapLink: () => readSupportPrompts((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key)), recapShown: cycle => recap?.shown(cycle), recapDismiss: cycle => recap?.dismiss(cycle) ?? Promise.resolve(false), notKiro: !inKiro() && !setting('sourceRoot'), onAdvisorUsed: () => support?.advisorUsed(), onForecast: () => support?.valueSeen(), onAbsent: () => support?.absent(), onBudget: (o, eligible, now, insights) => budget?.evaluate(o, eligible, now, insights), onAllowance, budgetDays: () => readBudgetDays(vscode.workspace.getConfiguration(ID_PREFIX).inspect('budgetDays')), dayZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  const controller = await startExtension(ui, { source, storage, profileStorage: !chosenStorage, timezone, auditSummary: audit?.summary, resultsSummary: results?.summary, recapState: recap?.state, recapLink: () => readSupportPrompts((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key)), recapShown: cycle => recap?.shown(cycle), recapDismiss: cycle => recap?.dismiss(cycle) ?? Promise.resolve(false), notKiro: !inKiro() && !setting('sourceRoot'), onAdvisorUsed: () => support?.advisorUsed(), onForecast: () => support?.valueSeen(), onAbsent: () => support?.absent(), onBudget: (o, eligible, now, insights) => budget?.evaluate(o, eligible, now, insights), onAllowance, budgetDays: () => readBudgetDays(vscode.workspace.getConfiguration(ID_PREFIX).inspect('budgetDays')), dayZone: Intl.DateTimeFormat().resolvedOptions().timeZone, unusedPercent: () => readUnusedCreditsPercent((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key)) });
   controllerRef = controller;
   try { context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('bobert.budgetDays')) controllerRef?.rerender(); })); } catch { /* the gauge then updates at its next refresh */ }
   audit?.onChange(controller.rerender);

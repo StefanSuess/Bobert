@@ -4,6 +4,17 @@ All notable changes to Bobert: Kiro Credit Tracker. Bobert is an unofficial proj
 
 Bobert is the new name of Cyclegauge; this is its first release under the new name. Settings and history from Cyclegauge are not carried over. If you had turned off session hints (`bobert.sessionHints`), budget warnings (`bobert.budgetWarnings`) or support prompts (`bobert.supportPrompts`) in Cyclegauge, they are on again in Bobert; turn them off again in your user settings. Cyclegauge's stored history stays where it was until you delete it; see [data left by Cyclegauge](docs/privacy-and-storage.md#data-left-by-cyclegauge).
 
+## Unreleased
+
+### Added
+
+- A one-time reminder up to 3 days before the reset when at least 30 % of your reported Kiro credits are likely to be left (new setting `bobert.unusedCreditsPercent`, default 30, 0 turns only this reminder off). It says that unused plan credits lapse at the reset, names no add-on credits, shows no money figure and links to a short list of generic ideas in the credit tips. It appears only on a budget day, with a fresh regular forecast, and never in a cycle that already had a run-out or smaller-plan notice. Its **Don't remind me** button sets the new setting to 0.
+- In the same last days, the credit view says how many credits are likely left at the reset ("Likely left at the reset: about 700 credits"), also when the reminder is off.
+
+### Changed
+
+- The bundled Kiro price list was checked again on 2026-10-30 against the public pricing and add-on pages: plans, credits, $0.04 per credit and the pack rules are unchanged; only the review date moved.
+
 ## 1.4.0 (stable, macOS, Windows, Ubuntu)
 
 See what you used today against a daily allowance that stays fixed for the day, spread over only the days you work, and set Bobert up in three quick questions. Upgrade note: the new setting `bobert.budgetDays` defaults to every day, so nothing changes until you choose your days; the daily figure now stays fixed during the day instead of shrinking with each update. No stored history, data format or other defaults change; Bobert only adds a flag that remembers the one-time notice.

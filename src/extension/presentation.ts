@@ -4,10 +4,10 @@ import { compare, compareRatios } from '../decimal.ts';
 import { readable, updated, date } from './labels.ts';
 import { presentChartParts, CHART_CSS } from './chart.ts';
 import { countsText, relativeTime, sizePhrase, type AuditSummary } from './audit-model.ts';
-import { LINKS, NOT_KIRO_TEXT } from './identity.ts';
+import { LINKS, NOT_KIRO_TEXT, UNUSED_PERCENT_DEFAULT } from './identity.ts';
 import { overageOver, type Overage } from '../cost/overage.ts';
 import { decimalToRational, formatRational, multiplyRational } from '../cost/money.ts';
-import { rightSizeText } from './budget-warning.ts';
+import { rightSizeText, unusedAtReset } from './budget-warning.ts';
 import { ESTIMATE_MARKER } from './advisor-presentation.ts';
 import { reviewedCatalog } from '../cost/catalog.ts';
 import { NO_INSIGHTS, type PlanInsights } from '../cost/plan-hints.ts';
@@ -148,7 +148,7 @@ function recapCard(recap: Recap | undefined): string {
 }
 
 /** Presentation only: billing eligibility and exact projections remain in the core. */
-export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], costHtml = '', advisorHtml = '', audit?: AuditSummary, now = new Date().toISOString(), notKiro = false, insights: PlanInsights = NO_INSIGHTS, advisorForm = '', results?: StoredResults, recap?: Recap, addOnsApply = false, daily: { days: readonly BudgetDay[]; zone: string } = { days: ALL_DAYS, zone: 'UTC' }) {
+export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], costHtml = '', advisorHtml = '', audit?: AuditSummary, now = new Date().toISOString(), notKiro = false, insights: PlanInsights = NO_INSIGHTS, advisorForm = '', results?: StoredResults, recap?: Recap, addOnsApply = false, daily: { days: readonly BudgetDay[]; zone: string; unusedPercent?: number } = { days: ALL_DAYS, zone: 'UTC' }) {
  const h=o.history,f=o.forecast;
  const selected=f.estimates.find(e=>e.method===f.selectedMethod && e.status==='qualified');
  const stale=o.status==='stale' || f.reasons.includes('stale');
@@ -200,6 +200,8 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  // Plan hints (controller) are already empty unless every condition holds. The top card says what to do about a projected overage
  // (add-on credits until the reset) instead of comparing plans; the Cost Advisor below holds the plan recommendation.
  const attempt=(text:()=>string)=>{try{return text();}catch{return '';}}; // a hint can never take the view down
+ // Credits likely left at the reset, in the last days only. Shown while the reminder is off (percent 0) too, at the default share; it is never a warning.
+ const unusedLeft=attempt(()=>unusedAtReset(o,eligible,now,(daily.unusedPercent ?? 0)>0 ? daily.unusedPercent! : UNUSED_PERCENT_DEFAULT) ?? '');
  const advisorHasEstimate=advisorHtml.includes(ESTIMATE_MARKER);
  const neutralOver=(o:Overage)=>{const c=creditsText(o.credits);return `At this pace by the reset: ${c==='under 0.1' ? c : `about ${c}`} credits over${moneyText(o)}.`;};
  const noteLines=[projectedOver ? (addOnsApply ? addOnNeedText(projectedOver,resetDate) : neutralOver(projectedOver)) : '',
@@ -281,7 +283,7 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  ${CHART_CSS}
  </style></head><body><main><h1>Your credit budget</h1>
  <section class="hero ${tone}" aria-labelledby="status-heading"><h2 id="status-heading"><span class="status-icon" aria-hidden="true">${icon}</span>${safe(heading)}${eligible ? `<span class="tag">${safe(tag)}</span>` : ''}</h2>
- ${overFigure ? `<p class="lead overage-now"><strong>${safe(overFigure)}</strong> over the limit so far${safe(moneyText(observedOver!))}.</p>` : ''}${explanation ? `<p class="lead">${safe(explanation)}</p>` : ''}${limitations ? `<p class="small">${safe(limitations)}</p>` : ''}${noteLines.map(l=>`<p class="small overage">${safe(l)}</p>`).join('')}
+ ${overFigure ? `<p class="lead overage-now"><strong>${safe(overFigure)}</strong> over the limit so far${safe(moneyText(observedOver!))}.</p>` : ''}${explanation ? `<p class="lead">${safe(explanation)}</p>` : ''}${limitations ? `<p class="small">${safe(limitations)}</p>` : ''}${noteLines.map(l=>`<p class="small overage">${safe(l)}</p>`).join('')}${unusedLeft ? `<p class="small">${safe(`Likely left at the reset: about ${unusedLeft} credits. Unused plan credits lapse at the reset.`)} <a href="${LINKS.tips}">See tips</a></p>` : ''}
  ${usedPct===null ? '' : `<svg class="bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect width="${usedPct}" height="10"/></svg><p class="bar-label muted small">${usedPct}% of the reported credit limit used</p>`}
  ${hasFigures ? `<dl class="stats">${stat('Credits used',o.usage ?? 'Not available',o.baseLimit===null ? '' : `of ${o.baseLimit} reported credits`,true)}${above ? '' : stat('Credits left',o.remainingBaseCredits ?? 'Not available',creditsLeftNote)}${stat('Next reset',o.resetAt ? date(o.resetAt,true) : 'Not available',[resetIn,'UTC'].filter(Boolean).join(' · '))}</dl>` : ''}
  ${o.observedAt ? `<div class="meta muted small"><p>Last account update: ${safe(`${updated(o.observedAt)} · ${freshness}`)}</p><details class="about"><summary><span aria-hidden="true">ⓘ</span> About these numbers</summary><p>${safe(ABOUT)}</p>${priceNote ? `<p>${safe(priceNote)}</p>` : ''}</details></div>` : ''}</section>

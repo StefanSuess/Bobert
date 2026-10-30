@@ -1,7 +1,7 @@
 // Vscode-free decision logic for the budget warning. Notices come only from a fresh account update, each kind at most once per billing
 // cycle (the cycle is the observed reset instant), and only the most severe due notice is shown. Anything invalid counts as absent.
 import type { view } from '../view.ts';
-import { compare } from '../decimal.ts';
+import { compare, subtract } from '../decimal.ts';
 import { overageOver, type Overage } from '../cost/overage.ts';
 import { formatUsd } from '../cost/estimate.ts';
 import type { PlanComparison, PlanInsights, RightSizing } from '../cost/plan-hints.ts';
@@ -11,7 +11,7 @@ import { daysBetween, isDate } from './audit-schedule.ts';
 import { date } from './labels.ts';
 
 /** Most severe first. */
-export const NOTICE_KINDS = ['limit', 'forecast', 'percent', 'rightsize'] as const;
+export const NOTICE_KINDS = ['limit', 'forecast', 'percent', 'rightsize', 'unused'] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
 /** The only persisted value: the billing cycle (observed reset instant) and the kinds already handled in it. */
 export interface BudgetState { cycle: string; done: NoticeKind[] }
@@ -27,6 +27,10 @@ export interface BudgetInput {
  enabled: boolean;
  /** 0 turns the percent notice off. */
  percent: number;
+ /** Share of the reported credits (0..100) likely left at the reset that triggers the reminder; 0 or absent turns it off. */
+ unusedPercent?: number;
+ /** Today is a budget day and at least one budget day is left before the reset (the daily budget's own verdict). */
+ budgetDay?: boolean;
 }
 
 const whole = (s: string): string => { const v = Number(s); return Number.isFinite(v) ? String(Math.round(v)) : s; };
@@ -65,6 +69,31 @@ export function rightSizeText(r: RightSizing): string {
 }
 /** The right-sizing notice is only due in the last week before the reset. */
 export const RIGHTSIZE_DAYS = 7;
+/** The unused-credits reminder is only due in the last days before the reset. */
+export const UNUSED_DAYS = 3;
+
+/**
+ * Projected plan credits left at the reset, rounded down to whole credits (never more than forecast), when every data condition for the unused-credits
+ * reminder holds: a fresh, qualified, regular forecast, no extra credits, a future reset within UNUSED_DAYS, and at least `percent` of the reported
+ * limit both projected and left now. Otherwise null: stale, conflicting or unknown data is unknown, not "nothing will be used".
+ */
+export function unusedAtReset(o: ReturnType<typeof view>, eligible: boolean, now: string, percent: number): string | null {
+ try {
+  if (!eligible || o.status !== 'observed' || o.flags.includes('unsupported_extra_credits') || o.usage === null || o.baseLimit === null || o.resetAt === null) return null;
+  const resetMs = Date.parse(o.resetAt), nowMs = Date.parse(now);
+  if (!Number.isFinite(resetMs) || !Number.isFinite(nowMs) || resetMs <= nowMs || compare(o.baseLimit, '0') <= 0) return null;
+  if (!Number.isInteger(percent) || percent < 1 || percent > 100 || Math.ceil((resetMs - nowMs) / 86_400_000) > UNUSED_DAYS) return null;
+  const f = o.forecast, selected = f.estimates.find(e => e.method === f.selectedMethod && e.status === 'qualified');
+  const left = selected?.projectedRemainingBaseAtReset;
+  if (!selected || f.tier !== 'regular' || !left || compare(left, '0') <= 0) return null;
+  if (!compareShare(left, o.baseLimit, percent) || !compareShare(subtract(o.baseLimit, o.usage), o.baseLimit, percent)) return null;
+  return formatRational(decimalToRational(left), 0, 'floor');
+ } catch { return null; }
+}
+export function unusedText(left: string, limit: string, resetAt: string, now: string): string {
+ const when = resetIn(resetAt, now);
+ return `You'll likely have about ${left} of your ${whole(limit)} Kiro credits left when they reset${when ? ` ${when}` : ''}. Unused plan credits lapse at the reset, so it's a good moment for the tests, docs or refactor you've been putting off.`;
+}
 
 /** Days until the reset in plain words; empty when it cannot be established. */
 function resetIn(resetAt: string, now: string): string {
@@ -104,11 +133,19 @@ export function decideBudgetNotice(i: BudgetInput): BudgetNotice | null {
   if (percent > 0 && compareShare(o.usage, o.baseLimit, percent)) due.add('percent');
   // Gated like the other forecast-based kinds: only while the presentation itself shows a fresh, qualified forecast.
   if (i.insights?.rightsize && i.eligible && Math.ceil((resetMs - nowMs) / 86_400_000) <= RIGHTSIZE_DAYS) due.add('rightsize');
+  // A run-out warning and a "many credits left" reminder contradict each other; the reminder also needs a budget day with budget left.
+  const unusedLeft = i.budgetDay === true && !due.has('limit') && !due.has('forecast') ? unusedAtReset(o, i.eligible, i.now, i.unusedPercent ?? 0) : null;
+  if (unusedLeft !== null) due.add('unused');
   if (due.size === 0) return null;
   const state = readBudgetState(i.state, o.resetAt);
-  const shown = NOTICE_KINDS.find(k => due.has(k) && !state.done.includes(k) && !state.done.some(d => NOTICE_KINDS.indexOf(d) < NOTICE_KINDS.indexOf(k)));
+  // The unused reminder is blocked by the run-out and plan-size kinds, not by the percent notice (which can come early in the cycle).
+  const blocked = (k: NoticeKind): boolean => k === 'unused' ? state.done.some(d => d === 'limit' || d === 'forecast' || d === 'rightsize') : state.done.some(d => NOTICE_KINDS.indexOf(d) < NOTICE_KINDS.indexOf(k));
+  const shown = NOTICE_KINDS.find(k => due.has(k) && !state.done.includes(k) && !blocked(k));
   if (!shown) return null;
-  const next: BudgetState = { cycle: o.resetAt, done: NOTICE_KINDS.filter(k => state.done.includes(k) || due.has(k)) };
+  // Showing the reminder also settles the plan hint, so one cycle never says both "use your spare credits" and "consider a smaller plan".
+  // When the percent notice goes first, the reminder stays open for a later update.
+  const settled = (k: NoticeKind): boolean => state.done.includes(k) || (due.has(k) && !(k === 'unused' && shown === 'percent')) || (k === 'rightsize' && shown === 'unused');
+  const next: BudgetState = { cycle: o.resetAt, done: NOTICE_KINDS.filter(settled) };
   const used = whole(o.usage), limit = whole(o.baseLimit), when = resetIn(o.resetAt, i.now);
   const resetPart = when ? `; the reset is ${when}` : '';
   // Projected overage, only with a validated price: appended to the notices that say the limit is reached.
@@ -118,7 +155,9 @@ export function decideBudgetNotice(i: BudgetInput): BudgetNotice | null {
   const cost = over?.money ? ` (${overPhrase(over)} over the limit, modelled)` : '', comparison = over?.money ? larger : '';
   const limitCost = over?.money ? ` (at this pace ${overPhrase(over)} over the limit by the reset, modelled)` : '';
   let text: string;
-  if (shown === 'rightsize') {
+  if (shown === 'unused') {
+   text = unusedText(unusedLeft!, o.baseLimit, o.resetAt, i.now);
+  } else if (shown === 'rightsize') {
    text = rightSizeText(i.insights!.rightsize!);
   } else if (shown === 'forecast') {
     text = `At this pace your Kiro credits run out on ${date(day!)}, ${daysBefore === 0 ? 'on the day of the reset' : `${plural(daysBefore!, 'day')} before the reset`}${cost}.${comparison}`;
