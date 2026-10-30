@@ -19,8 +19,8 @@ test('catalog rejects invalid rules without returning rejected data', () => {
  }
 });
 test('reviewed catalog retains all tiers; purchase step and rounding are documented, slot release is still unknown', () => {
- const r=validateCatalog(reviewedCatalog,'2026-10-22T12:00:00Z');
- assert.equal(r.catalog!.version,'2026-10-22');assert.equal(r.catalog!.verifiedOn,'2026-10-22T00:00:00Z');
+ const r=validateCatalog(reviewedCatalog,'2026-10-30T12:00:00Z');
+ assert.equal(r.catalog!.version,'2026-10-30');assert.equal(r.catalog!.verifiedOn,'2026-10-30T00:00:00Z');
  assert.equal(validateCatalog(reviewedCatalog,'2026-10-21T23:59:59Z').status,'unavailable');
  assert.equal(r.status,'available'); assert.equal(r.catalog!.plans.length,5);
  assert.equal(r.catalog!.enterprise.allowedPlans.length,4);

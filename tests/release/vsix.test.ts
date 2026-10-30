@@ -141,8 +141,8 @@ test('the verifier rejects extra entries, missing entries, leaked paths and work
  assert.ok(edited(p => { p[prompts].maximum = 1; }).problems.includes('MANIFEST_SETTING_TYPE'));
  assert.ok(edited(p => { delete p[prompts]; }).problems.includes('MANIFEST_SETTING_PROPERTIES'));
  // The budget warning settings are held to the same standard, including the percent range.
- const warnings = 'bobert.budgetWarnings', percent = 'bobert.budgetWarningPercent';
- for (const key of [warnings, percent]) {
+ const warnings = 'bobert.budgetWarnings', percent = 'bobert.budgetWarningPercent', unused = 'bobert.unusedCreditsPercent';
+ for (const key of [warnings, percent, unused]) {
   assert.ok(edited(p => { p[key].scope = 'machine'; }).problems.includes('MANIFEST_SETTING_SCOPE'), key);
   assert.ok(edited(p => { p[key].scope = 'resource'; }).problems.includes('MANIFEST_SETTING_SCOPE'), key);
   assert.ok(edited(p => { delete p[key].scope; }).problems.includes('MANIFEST_SETTING_SCOPE'), key);
@@ -163,6 +163,10 @@ test('the verifier rejects extra entries, missing entries, leaked paths and work
  assert.ok(edited(p => { p[percent].default = 90; }).problems.includes('MANIFEST_SETTING_TYPE'));
  assert.ok(edited(p => { p[percent].minimum = 1; }).problems.includes('MANIFEST_SETTING_TYPE'));
  assert.ok(edited(p => { p[percent].maximum = 1000; }).problems.includes('MANIFEST_SETTING_TYPE'));
+ // The unused-credits reminder's own percent is pinned the same way: number, default 30, range 0..100.
+ assert.ok(edited(p => { p[unused].type = 'string'; }).problems.includes('MANIFEST_SETTING_TYPE'));
+ assert.ok(edited(p => { p[unused].default = 80; }).problems.includes('MANIFEST_SETTING_TYPE'));
+ assert.ok(edited(p => { p[unused].maximum = 1000; }).problems.includes('MANIFEST_SETTING_TYPE'));
  // The budget days setting is pinned too: application scope, an array of the seven weekdays, default every day.
  const budgetDays = 'bobert.budgetDays';
  assert.ok(edited(p => { p[budgetDays].scope = 'machine'; }).problems.includes('MANIFEST_SETTING_SCOPE'));

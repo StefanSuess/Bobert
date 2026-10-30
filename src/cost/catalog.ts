@@ -17,7 +17,7 @@ const billing='https://kiro.dev/docs/billing/';
 // Add-on credits are bought by entering a whole number of credits, so the purchase step is 1 and integer credits at $0.04 are exact cents.
 // Whether a depleted pack frees its slot is not documented, so depletedSlotRelease stays null (unknown).
 const urls=[`${billing}add-on-credits/`,`${billing}add-on-credits/`,billing,`${billing}related-questions/`,`${billing}downgrading/`,`${billing}cancelling/`,'https://kiro.dev/docs/enterprise/billing/','https://kiro.dev/pricing/','https://kiro.dev/docs/enterprise/subscription-management/'];
-const catalogData:PricingCatalog={schemaVersion:1,id:'kiro-commercial',version:'2026-10-22',verifiedOn:'2026-10-22T00:00:00Z',currency:'USD',market:'commercial',evidence:'reviewed',schedule:'utc_calendar_month',
+const catalogData:PricingCatalog={schemaVersion:1,id:'kiro-commercial',version:'2026-10-30',verifiedOn:'2026-10-30T00:00:00Z',currency:'USD',market:'commercial',evidence:'reviewed',schedule:'utc_calendar_month',
  plans:PLAN_IDS.map((id,i)=>({id,fee:['0','20','40','100','200'][i],credits:['50','1000','2000','5000','10000'][i],source:source('https://kiro.dev/pricing/','Tier pricing')})),
  rules:urls.map((url,i)=>({id:`B${i+1}`,url,section:`Billing rule B${i+1}`,status:'verified',effectiveFrom:null,effectiveTo:null})),
  consumer:{billingSystem:'consumer_prepaid',pricePerCredit:'0.04',minimumCredits:'125',maximumCredits:'2500',maximumPacks:5,expiryMonths:12,purchaseStepCredits:'1',moneyRounding:'exact',depletedSlotRelease:null},

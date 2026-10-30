@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { view } from '../../src/view.ts';
-import { decideBudgetNotice, largerPlanText, overPhrase, readBudgetState, rightSizeText, type BudgetInput } from '../../src/extension/budget-warning.ts';
+import { decideBudgetNotice, largerPlanText, overPhrase, readBudgetState, rightSizeText, unusedAtReset, unusedText, type BudgetInput } from '../../src/extension/budget-warning.ts';
 import { syntheticSnapshot as snapshot } from './synthetic.ts';
 
 const RESET = '2030-07-01T00:00:00.000Z';
@@ -222,4 +222,84 @@ test('a modelled overage under one cent reads "under $0.01", never "about under"
  assert.equal(overPhrase({ money: '4.80' }), 'about $4.80');
  const n = decide(rate(10, '100'))!;
  assert.ok(n.text.includes('(about $8.00 over the limit, modelled)'));
+});
+
+// ---- Unused-credits reminder: 28 daily updates (1..28 Jun 2030) at 10 credits a day, 1000 reported; the reset is 1 Jul. ----
+const NOW_LATE = '2030-06-29T00:00:00Z';
+const month = (rateByDay: (i: number) => string, limit = '1000', now = NOW_LATE) => view(Array.from({ length: 28 }, (_, i) => snapshot(`2030-06-${String(i + 1).padStart(2, '0')}T00:00:00Z`, rateByDay(i), { limit })), now);
+const quiet = () => month(i => String(i * 10));
+const remind = (v: ReturnType<typeof view>, extra: Partial<BudgetInput> = {}) => decide(v, { now: NOW_LATE, unusedPercent: 30, budgetDay: true, percent: 0, ...extra });
+
+test('unused: a quiet month near the reset gets one reminder that says plan credits lapse', () => {
+ const v = quiet();
+ assert.equal(v.forecast.tier, 'regular');
+ const n = remind(v)!;
+ assert.equal(n.kind, 'unused');
+ assert.equal(n.text, "You'll likely have about 700 of your 1000 Kiro credits left when they reset in 2 days. Unused plan credits lapse at the reset, so it's a good moment for the tests, docs or refactor you've been putting off.");
+ assert.ok(!/\$|wasted/i.test(n.text));
+ assert.deepEqual(n.state, { cycle: RESET, done: ['rightsize', 'unused'] }); // showing it settles the plan hint too
+ assert.equal(remind(v, { state: n.state }), null); // once per cycle
+ assert.equal(unusedText('700', '1000', RESET, '2030-06-30T12:00:00Z'), "You'll likely have about 700 of your 1000 Kiro credits left when they reset in 1 day. Unused plan credits lapse at the reset, so it's a good moment for the tests, docs or refactor you've been putting off.");
+});
+
+test('unused: the share, the window, the setting and the budget day must all fit', () => {
+ const v = quiet(); // 700 of 1000 projected left, 730 left now
+ assert.equal(remind(v, { unusedPercent: 70 })!.kind, 'unused'); // exactly at the share
+ assert.equal(remind(v, { unusedPercent: 71 }), null);
+ assert.equal(remind(v, { unusedPercent: 0 }), null);
+ assert.equal(remind(v, { unusedPercent: undefined }), null);
+ for (const bad of [Number.NaN, 30.5, -1, 101]) assert.equal(remind(v, { unusedPercent: bad }), null, String(bad));
+ assert.equal(remind(v, { budgetDay: false }), null); // a day off or no budget day left
+ assert.equal(remind(v, { budgetDay: undefined }), null);
+ assert.equal(remind(v, { enabled: false }), null);
+ assert.equal(remind(v, { eligible: false }), null); // stale, unqualified or unknown is unknown, not zero
+ // Four days before the reset is too early; exactly three is the first day.
+ const four = month(i => String(i * 10), '1000', '2030-06-27T12:00:00Z');
+ assert.equal(remind(four, { now: '2030-06-27T12:00:00Z' }), null);
+ const three = month(i => String(i * 10), '1000', '2030-06-28T12:00:00Z');
+ assert.equal(remind(three, { now: '2030-06-28T12:00:00Z' })!.kind, 'unused');
+ assert.equal(remind(v, { now: '2030-07-01T00:00:00Z' }), null); // the reset has passed
+});
+
+test('unused: a provisional forecast, a busy month and extra credits give no reminder', () => {
+ const provisional = view(series(i => String(i * 10), '1000').slice(0, 5), '2030-06-05T00:00:00Z');
+ assert.equal(unusedAtReset(provisional, true, '2030-06-29T00:00:00Z', 30), null);
+ const busy = month(i => String(i * 30)); // 810 used of 1000, far less than 30 percent left
+ assert.equal(remind(busy), null);
+ const flagged = { ...quiet(), flags: ['unsupported_extra_credits'] } as ReturnType<typeof view>;
+ assert.equal(remind(flagged), null);
+});
+
+test('unused: never after a run-out or plan-size notice, never together with one; the percent notice does not block it', () => {
+ const v = quiet();
+ for (const done of [['limit'], ['forecast'], ['rightsize'], ['limit', 'percent']] as const) assert.equal(remind(v, { state: { cycle: RESET, done: [...done] } }), null, done.join());
+ const afterPercent = remind(v, { state: { cycle: RESET, done: ['percent'] } })!;
+ assert.equal(afterPercent.kind, 'unused');
+ assert.deepEqual(afterPercent.state.done, ['percent', 'rightsize', 'unused']);
+ // A due plan hint wins, and the reminder is settled for the cycle.
+ const hint = { rightsize: { plan: 'pro', current: 'pro_plus', hint: false, unusedCredits: '700', saving: '20' } } as unknown as BudgetInput['insights'];
+ const both = remind(v, { insights: hint })!;
+ assert.equal(both.kind, 'rightsize');
+ assert.deepEqual(both.state.done, ['rightsize', 'unused']);
+ // When the percent notice goes first, the reminder stays open for a later update.
+ const percentFirst = remind(v, { percent: 20 })!;
+ assert.equal(percentFirst.kind, 'percent');
+ assert.deepEqual(percentFirst.state.done, ['percent']);
+ assert.equal(remind(v, { percent: 20, state: percentFirst.state })!.kind, 'unused');
+});
+
+test('unused: the figure is rounded down and compared exactly', () => {
+ const v = month(i => (i * 10.07).toFixed(2));
+ const left = unusedAtReset(v, true, NOW_LATE, 30)!;
+ assert.match(left, /^\d+$/);
+ const sel = v.forecast.estimates.find(e => e.method === v.forecast.selectedMethod)!;
+ assert.ok(Number(left) <= Number(sel.projectedRemainingBaseAtReset));
+ assert.ok(Number(left) > Number(sel.projectedRemainingBaseAtReset) - 1);
+ assert.equal(unusedAtReset(v, true, NOW_LATE, 0), null);
+});
+
+test('unused: the stored state of an older version reads correctly and the notice carries no identifiers', () => {
+ assert.deepEqual(readBudgetState({ cycle: RESET, done: ['percent', 'unused', 'bogus'] }, RESET), { cycle: RESET, done: ['percent', 'unused'] });
+ const n = remind(quiet())!;
+ assert.ok(!JSON.stringify([n.state, n.text]).includes('synthetic'));
 });
