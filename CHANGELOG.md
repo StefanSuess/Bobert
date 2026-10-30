@@ -4,20 +4,9 @@ All notable changes to Bobert: Kiro Credit Tracker. Bobert is an unofficial proj
 
 Bobert is the new name of Cyclegauge; this is its first release under the new name. Settings and history from Cyclegauge are not carried over. If you had turned off session hints (`bobert.sessionHints`), budget warnings (`bobert.budgetWarnings`) or support prompts (`bobert.supportPrompts`) in Cyclegauge, they are on again in Bobert; turn them off again in your user settings. Cyclegauge's stored history stays where it was until you delete it; see [data left by Cyclegauge](docs/privacy-and-storage.md#data-left-by-cyclegauge).
 
-## Unreleased
-
-### Added
-
-- A one-time reminder up to 3 days before the reset when at least 30 % of your reported Kiro credits are likely to be left (new setting `bobert.unusedCreditsPercent`, default 30, 0 turns only this reminder off). It says that unused plan credits lapse at the reset, names no add-on credits, shows no money figure and links to a short list of generic ideas in the credit tips. It appears only on a budget day, with a fresh regular forecast, and never in a cycle that already had a run-out or smaller-plan notice. Its **Don't remind me** button sets the new setting to 0.
-- In the same last days, the credit view says how many credits are likely left at the reset ("Likely left at the reset: about 700 credits"), also when the reminder is off.
-
-### Changed
-
-- The bundled Kiro price list was checked again on 2026-10-30 against the public pricing and add-on pages: plans, credits, $0.04 per credit and the pack rules are unchanged; only the review date moved.
-
 ## 1.4.0 (stable, macOS, Windows, Ubuntu)
 
-See what you used today against a daily allowance that stays fixed for the day, spread over only the days you work, and set Bobert up in three quick questions. Upgrade note: the new setting `bobert.budgetDays` defaults to every day, so nothing changes until you choose your days; the daily figure now stays fixed during the day instead of shrinking with each update. No stored history, data format or other defaults change; Bobert only adds a flag that remembers the one-time notice.
+See what you used today against a daily allowance that stays fixed for the day, spread over only the days you work, set Bobert up in three quick questions, and get one reminder shortly before the reset when many plan credits are likely to lapse unused. Upgrade note: the new setting `bobert.budgetDays` defaults to every day, so nothing changes until you choose your days; the daily figure now stays fixed during the day instead of shrinking with each update. The new setting `bobert.unusedCreditsPercent` defaults to 30, so you may see one reminder in the last 3 days of a cycle (0 turns it off). No stored history, data format or other defaults change; Bobert only adds a flag that remembers the one-time notice.
 
 Platforms: this release's new features were checked natively on macOS. Windows and Ubuntu: smoke-tested in native Kiro (arm64 VMs) with 1.2.0, covering the status bar and credit view; no data-access change since; this release passed the automated extension-host tests on all three platforms.
 
@@ -27,11 +16,14 @@ Platforms: this release's new features were checked natively on macOS. Windows a
 - Spread your daily budget over only the days you work with the new setting `bobert.budgetDays` (default: every day). A day off shows `day off` instead of an allowance.
 - **Bobert: Set Up** (`bobert.setup`) asks up to three quick questions (budget days, budget notices, session hints) and is the first step of the walkthrough.
 - A one-time notice offers existing users to choose their budget days. It shows once, only in Kiro.
+- A one-time reminder up to 3 days before the reset when at least 30 % of your reported Kiro credits are likely to be left (new setting `bobert.unusedCreditsPercent`, default 30, 0 turns only this reminder off). It says that unused plan credits lapse at the reset, names no add-on credits, shows no money figure and links to a short list of generic ideas in the credit tips. It appears only on a budget day, with a fresh regular forecast, and never in a cycle that already had a run-out or smaller-plan notice. Its **Don't remind me** button sets the new setting to 0.
+- In the same last days, the credit view says how many credits are likely left at the reset ("Likely left at the reset: about 700 credits"), also when the reminder is off.
 
 ### Changed
 
 - The daily figure now stays fixed during the day. Before, it shrank with each update; now it is set from your first update of the local day (without a comparable update today, from the latest update). Today's pace in the credit view also uses your local day instead of the UTC day.
 - The 24-hour figure from the last update is labelled `24-hour allocation from the last update (CLI)` in the technical details. The command-line tool and its `availablePerDay` are unchanged.
+- The bundled Kiro price list was checked again on 2026-10-30 against the public pricing and add-on pages: plans, credits, $0.04 per credit and the pack rules are unchanged; only the review date moved.
 - The release tooling's Open VSX publisher `ovsx` was updated to 1.3.0, which no longer sends the access token on a redirect to another host. It is used only to publish and is not part of the extension.
 
 ## 1.2.0 (stable, macOS, Windows, Ubuntu)

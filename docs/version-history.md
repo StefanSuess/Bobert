@@ -4,7 +4,7 @@ Bobert was formerly called Cyclegauge. Earlier history lives in the archived Cyc
 
 ## Release summary
 
-- **1.4.0** Stable (macOS, Windows, Ubuntu): today's usage against a daily allowance that stays fixed for the day, budget days (`bobert.budgetDays`) and **Bobert: Set Up**.
+- **1.4.0** Stable (macOS, Windows, Ubuntu): today's usage against a daily allowance that stays fixed for the day, budget days (`bobert.budgetDays`) and **Bobert: Set Up**, plus a reminder before the reset when many plan credits are likely to stay unused (`bobert.unusedCreditsPercent`).
 - **1.2.0** Stable (macOS, Windows, Ubuntu): the stable form of the 1.1.0 beta, with no new features.
 - **1.1.0** Beta (pre-release, macOS); published on 26 October 2026.
   - While no forecast is ready, the status bar and credit view show the credits left and the daily allowance instead of a bare "Collecting data", plus an at-least average since the cycle start (a lower bound, assuming a cycle lasts at most 31 days).
