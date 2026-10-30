@@ -40,12 +40,13 @@ printed `node ".../open-demo.mjs"` command.
 | # | Check | Expected |
 |---|---|---|
 | A1 | Extensions: Install from VSIX, pick `bobert-v<version>-<short-sha>-candidate.vsix` | Installs as **Bobert: Kiro Credit Tracker**, ID `StefanSuess.bobert`, flagged pre-release for an odd minor and not flagged for an even minor; icon shows |
-| A2 | Reload window | Status bar item `Kiro: …` appears; no error toast |
+| A2 | Reload window | Status bar item `Kiro credits: …` appears; no error toast |
 | A3 | Click it | A tab "Your credit budget" opens; hero, metrics, usage bar, chart with accessible text; tooltip is short and contains no path |
 | A4 | Command Palette, type "Bobert" | Entries start with "Bobert:"; no duplicates |
 | A5 | Cost Advisor via Command Palette, lightbulb title action and panel-visible status item | All open the native questions; Clear my answers resets; cancelling changes nothing. No old Optimizer commands |
-| A6 | Settings UI, search "bobert" (`@ext:StefanSuess.bobert`) | Ten settings (see [usage](usage.md#settings-and-defaults)), each shown as a user-level setting |
+| A6 | Settings UI, search "bobert" (`@ext:StefanSuess.bobert`) | Twelve settings (see [usage](usage.md#settings-and-defaults)), each shown as a user-level setting |
 | A7 | Cmd+Q, relaunch | Extension activates again; history from the first run is still reflected |
+| A8 | Unused-credits reminder: demo in the last 3 days before the reset, `bobert.unusedCreditsPercent` at its default | Either the plan-size note (**rightsize**) or the unused-credits reminder appears, never both in one cycle. The plan-size note comes first and settles the reminder for that cycle, so the reminder shows only when no plan-size note applies (for example the previous cycle did not fit a smaller plan, or the plan is unknown). Record which one appeared; if neither, record the forecast tier, the days to the reset and the budget day. The decision itself is covered by `tests/unit/budget-warning.test.ts`; only its native notice and buttons are manual |
 
 ## B. Settings hardening (new in 0.5.2)
 
@@ -79,10 +80,10 @@ Use the current-date [synthetic setup](synthetic-demo.md) with `--vsix` pointing
 |---|---|---|
 | E1 | Advisor before answering, then explicit plan/billing/no-add-ons answers | Hint stays labelled unconfirmed until selected; explicit plan wins, even after a reported limit change |
 | E2 | Low-usage synthetic paid plan with qualified forecast | Modelled pre-tax USD figure, UTC period and caveats; no supported/guaranteed savings claim; expandable 1/3/6-cycle and 75/100/125% details |
-| E3 | Unknown plan, not-sure add-ons, entered add-ons, Enterprise, changed limit, stale/no forecast | Assumptions are explicit; unsupported inputs withhold figures, never become zero; no purchases or online calls |
+| E3 | Unknown plan, not-sure add-ons, entered add-ons, Enterprise, changed limit, stale/no forecast | Assumptions are explicit (with "Not sure" for add-ons the card may still show a saving, labelled as assuming no add-ons); unsupported inputs withhold figures, never become zero; no purchases or online calls |
 | E4 | Cancel each question, clear answers, reload, account change/ambiguity | Cancellation preserves prior answers; clear/reload/account changes remove them; no answer file or values in diagnostics |
 | E5 | Hide/reveal/dispose budget panel | Advisor status item appears only while visible; budget item remains; no duplicate commands/items after reload |
-| E6 | Keyboard, narrow panel, light/dark/High Contrast | Advisor figures, uncertainty and details are readable and reachable; webview stays script-free and its command links are limited to five Bobert commands (Cost Advisor, check workspace, show workspace audit, share, report a problem), none with arguments, plus three fixed web links in the footer that open only on click |
+| E6 | Keyboard, narrow panel, light/dark/High Contrast | Advisor figures, uncertainty and details are readable and reachable; the webview runs only its one bundled, nonce-protected script (no network, no other script) and its command links are limited to five Bobert commands (Cost Advisor, check workspace, show workspace audit, share, report a problem), none with arguments, plus three fixed web links in the footer that open only on click |
 
 ## F. Shut down and record
 
