@@ -60,7 +60,7 @@ export async function reviewAdvisor(ui:NativeCostInput,hint:PlanHint,current:Adv
  let addOns:AdvisorAnswers['addOns']=null,addOnCredits:string|null=null;
  if(billing!=='enterprise_postpaid'){
   const answer=await ui.pick('Cost Advisor — do you have purchased add-on credits?',[
-   {id:'unsure',label:'Not sure',description:'A hypothetical "no add-ons" comparison is shown, never a saving'},
+   {id:'unsure',label:'Not sure',description:'Assumes no add-ons; any saving shown stays conditional on that assumption'},
    {id:'none',label:'No purchased add-on credits'},
    {id:'some',label:'Yes, I have add-on credits',description:'You can enter the remaining credits next'},
   ]);if(!answer)return null;
