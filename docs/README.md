@@ -21,6 +21,7 @@ Start with the [project README](../README.md). Everything below is the detail be
 | [development.md](development.md) | Build, test, package, naming and identifiers |
 | [synthetic-demo.md](synthetic-demo.md) | Simple isolated plugin test with invented usage on Windows, macOS and Linux |
 | [version-history.md](version-history.md) | Release summary |
+| [backlog-2026-10.md](backlog-2026-10.md) | Ranked improvement proposals awaiting maintainer approval |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | How to report bugs and propose changes |
 | [../SECURITY.md](../SECURITY.md) | Reporting a vulnerability |
 | [../SPEC.md](../SPEC.md), [../ARCHITECTURE.md](../ARCHITECTURE.md), [../ROADMAP.md](../ROADMAP.md) | Specification, architecture and roadmap |
