@@ -4,7 +4,7 @@ import type { StoredSnapshot } from '../store.ts';
 import { compare, compareRatios } from '../decimal.ts';
 import { readable, updated, date } from './labels.ts';
 import { presentChartParts, CHART_CSS } from './chart.ts';
-import { countsText, relativeTime, sizePhrase, type AuditSummary } from './audit-model.ts';
+import { countsText, relativeTime, sizePhrase, workspaceScore, type AuditSummary } from './audit-model.ts';
 import { LINKS, NOT_KIRO_TEXT, UNUSED_PERCENT_DEFAULT, commandId } from './identity.ts';
 import { overageOver, type Overage } from '../cost/overage.ts';
 import { decimalToRational, formatRational, multiplyRational } from '../cost/money.ts';
@@ -89,7 +89,7 @@ function buildAuditCard(a: AuditSummary | undefined, now: string): string {
  const text = a.state === 'checked' ? `${countsText(items, unclear, size)}${checked}`
   : a.state === 'unavailable' ? "This folder can't be checked. Run the audit to see why."
   : `Run the workspace audit to find files Kiro can read but probably doesn't need.${a.lastDate && DAY.test(a.lastDate) ? ` Last checked ${a.lastDate} (UTC).` : ''}`;
- return `<section class="audit-card" aria-labelledby="audit-heading"><h2 id="audit-heading">Workspace audit</h2><p>${safe(text)}</p><p class="audit-actions"><a class="button primary" href="${AUDIT_LINK.check}">Run audit</a>${a.state === 'checked' ? ` <a class="button secondary" href="${AUDIT_LINK.show}">Show results</a>` : ''}</p></section>`;
+ return `<section class="audit-card" aria-labelledby="audit-heading"><h2 id="audit-heading">Workspace audit</h2><p>${safe(text)}</p>${a.state === 'checked' ? `<p><strong>Workspace score: ${workspaceScore(items, unclear)} of 100.</strong> <span class="muted small">A rough rating from the items Kiro may read (unclear ones count half), not a security verdict. Exclude items and run the audit again to watch it rise.</span></p>` : ''}<p class="audit-actions"><a class="button primary" href="${AUDIT_LINK.check}">Run audit</a>${a.state === 'checked' ? ` <a class="button secondary" href="${AUDIT_LINK.show}">Show results</a>` : ''}</p></section>`;
 }
 
 // The advisor section itself has no command links. With the inline form present, the one command link is only a fallback:
