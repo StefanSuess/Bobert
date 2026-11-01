@@ -9,7 +9,7 @@ import { planHint, type AdvisorContext } from '../../src/cost/advisor.ts';
 import { reviewedCatalog } from '../../src/cost/catalog.ts';
 import { view } from '../../src/view.ts';
 import { syntheticSnapshot as snapshot } from './synthetic.ts';
-import { BRAND, CARD_HEIGHT, CARD_WIDTH } from '../../src/extension/recap-card.ts';
+import { BRAND, CARD_FOOTER, CARD_HEIGHT, CARD_WIDTH, RECAP_LINK_TEXT } from '../../src/extension/recap-card.ts';
 import { decodeCardPng } from '../../src/extension/recap-png.ts';
 import { ACTION_TEXT } from '../../src/extension/recap-actions.ts';
 import type { Recap } from '../../src/extension/recap.ts';
@@ -358,6 +358,20 @@ test('script reveals the card tools, draws the card text in brand colours and ke
  assert.equal(canvas.getAttribute('aria-labelledby'), 'recap-title'); assert.equal(canvas.getAttribute('aria-describedby'), 'recap-lines');
  assert.match(app.main.textContent, /Credits used: 900 of 1000 reported credits\./, 'the text alternative is in the page');
  assert.deepEqual(JSON.parse(JSON.stringify(app.sent.at(-1))), { type: 'ack', version: 1 });
+});
+
+test('the share line becomes a branded footer on the image, and without it the card carries no branding', async () => {
+ for (const link of [true, false]) {
+  const app = await start(recapPage(RECAP));
+  const canvas = find(app.main, n => n.getAttribute('id') === 'recap-canvas')!; const calls = canvasContext(canvas);
+  app.send(buildDomModel(recapPage({ ...RECAP, lines: link ? [...RECAP.lines, RECAP_LINK_TEXT] : RECAP.lines })));
+  const footer = [CARD_FOOTER.brand, CARD_FOOTER.tagline, CARD_FOOTER.hint];
+  assert.equal(calls.texts.includes(RECAP_LINK_TEXT), false, 'the share line is never drawn as a body line');
+  assert.deepEqual(footer.map(t => calls.texts.includes(t)), footer.map(() => link), String(link));
+  const allowed = new Set<string>(Object.values(BRAND));
+  assert.ok(calls.styles.every(c => allowed.has(c)), 'only brand colours are used');
+  if (link) assert.match(app.main.textContent, /Made with Bobert, the free credit tracker for Kiro/, 'the text alternative keeps the share line');
+ }
 });
 
 test('without a card the export button is still revealed and a new canvas without a context never breaks the update', async () => {
