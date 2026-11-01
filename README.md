@@ -33,7 +33,7 @@ Will your Kiro credits last until the reset? Kiro tells you how many credits you
 Free and open source, with no account, no sign-in and no telemetry. Everything stays on your machine, and Kiro's files are only ever read. Want to look around first? **Bobert: Preview with Example Data** shows the credit view with invented numbers.
 
 <details>
-<summary><b>More screenshots:</b> budget notice, Cost Advisor, workspace audit, Steering and Hooks review, session hint, the animated Bobert story</summary>
+<summary><b>More screenshots:</b> budget notice, Cost Advisor, workspace audit, lessons, Steering and Hooks review, session hint, the animated Bobert story</summary>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/budget-notice.png" alt="Budget notice and status bar with invented data: at this pace the Kiro credits run out on 27 Oct, 5 days before the reset (about $37.98 over the limit, modelled), with Show details and Turn off budget notices buttons, above the warning status bar item Kiro credits: Likely to exceed, runs out 27 Oct." width="900">
@@ -45,6 +45,11 @@ Free and open source, with no account, no sign-in and no telemetry. Everything s
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/workspace-audit.png" alt="Workspace Audit view with invented files: 4 suggestions, Kiro may read about 190.7 MiB, a database dump and an archive to exclude with their rules prepared but unsaved, a large always-included Steering file to load only when needed and a hook that runs on every file change, beside the prepared .kiroignore lines that stay unsaved until you save them." width="900">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/lessons.png" alt="The Learn to spend fewer credits walkthrough on Kiro's Welcome page: four lessons (See what the numbers mean, Keep Steering files small, Tell Kiro what to skip, Check that your plan fits). The first is open, with buttons for the example preview and a plain-language guide to credits and costs; beside it the Bobert icon, a teal robot head whose mouth is a gauge." width="900">
+  <br><sub><i>Four short lessons. Bobert promises not to quiz you.</i></sub>
 </p>
 
 <p align="center">
