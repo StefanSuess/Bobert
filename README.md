@@ -15,8 +15,8 @@ Bobert looks like he has seen a ghost. He has: your credit forecast.
 Will your Kiro credits last until the reset? Kiro tells you how many credits you have used; Bobert tells you whether they are likely to last, what you can spend today and what additional credits could cost. It also highlights files and automatic hooks worth reviewing. Start with your credit budget in the status bar.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/credit-view.png" alt="Bobert credit view in Kiro with invented data: Likely to exceed, 4210 of 5000 reported credits used, the credits run out on 27 Oct before the 1 Nov reset, about 950 add-on credits (about $37.98, modelled) needed to avoid running out, and the usage chart with forecast lines, with the status bar warning below. No real account information is shown." width="900">
-  <br><sub><i>Bobert has seen your forecast. Now you have too. (Example data.)</i></sub>
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/credit-view.png" alt="Bobert's credit view in Kiro with invented data and a worried Bobert face next to the verdict Likely to exceed: the credits run out on 10 Nov 2026, before the reset on 15 Nov. A tip suggests about 25.2 credits a day instead of 38.6, and about 177 add-on credits (about $7.09, modelled) would avoid running out. Below: 666.9 of 1000 credits used, 333.1 left, 3.9 of 24 used today, and the usage chart with the forecast crossing the limit." width="900">
+  <br><sub><i>Bobert has seen your forecast. Now you have too. (Invented data.)</i></sub>
 </p>
 
 ## Why you'll want it
@@ -33,7 +33,12 @@ Will your Kiro credits last until the reset? Kiro tells you how many credits you
 Free and open source, with no account, no sign-in and no telemetry. Everything stays on your machine, and Kiro's files are only ever read. Want to look around first? **Bobert: Preview with Example Data** shows the credit view with invented numbers.
 
 <details>
-<summary><b>More screenshots:</b> budget notice, Cost Advisor, workspace audit, lessons, Steering and Hooks review, session hint, the animated Bobert story</summary>
+<summary><b>More screenshots:</b> a short tour, budget notice, Cost Advisor, daily calendar, workspace audit, lessons, Steering and Hooks review, session hint, the animated Bobert story</summary>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/tour.gif" alt="Short animated tour of Bobert in Kiro with invented data: the credit view says Likely to exceed with a saving tip and the modelled add-on cost, then the usage chart, the daily usage calendar, week over week and a cycle recap card, then the Workspace Audit with 12 suggestions and a workspace score of 63 of 100, ending on the Learn to spend fewer credits lessons." width="900">
+  <br><sub><i>A 30-second tour. Bobert talks fast when he's nervous.</i></sub>
+</p>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/budget-notice.png" alt="Budget notice and status bar with invented data: at this pace the Kiro credits run out on 27 Oct, 5 days before the reset (about $37.98 over the limit, modelled), with Show details and Turn off budget notices buttons, above the warning status bar item Kiro credits: Likely to exceed, runs out 27 Oct." width="900">
@@ -44,7 +49,13 @@ Free and open source, with no account, no sign-in and no telemetry. Everything s
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/workspace-audit.png" alt="Workspace Audit view with invented files: 4 suggestions, Kiro may read about 190.7 MiB, a database dump and an archive to exclude with their rules prepared but unsaved, a large always-included Steering file to load only when needed and a hook that runs on every file change, beside the prepared .kiroignore lines that stay unsaved until you save them." width="900">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/calendar-week.png" alt="Bobert's daily usage calendar in Kiro with invented data: 3 to 72 credits per day since mid-October, dashes for days without data. Below, observed usage: 666.9 credits this cycle against 712.4 at the same point last cycle, 3.9 credits today against an allowance of 24, and week over week 298.9 credits against 258.4, higher by 40.5." width="900">
+  <br><sub><i>Every day of your cycle. Yes, including that Tuesday.</i></sub>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/workspace-audit.png" alt="Bobert's Workspace Audit in Kiro with invented files. On the left, 12 suggestions in groups: Exclude from Kiro (6), Load only when needed (1), Run only manually (2) and Worth a look (3), such as a large always-included Steering file and hooks that run on every file change. On the right, the credit view with the Cost Advisor and an audit card: 6 items Kiro may read (about 66.0 MiB) and Workspace score: 63 of 100." width="900">
+  <br><sub><i>Finds the files that eat your context for breakfast.</i></sub>
 </p>
 
 <p align="center">
