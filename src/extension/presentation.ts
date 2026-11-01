@@ -4,7 +4,7 @@ import { compare, compareRatios } from '../decimal.ts';
 import { readable, updated, date } from './labels.ts';
 import { presentChartParts, CHART_CSS } from './chart.ts';
 import { countsText, relativeTime, sizePhrase, type AuditSummary } from './audit-model.ts';
-import { LINKS, NOT_KIRO_TEXT, UNUSED_PERCENT_DEFAULT } from './identity.ts';
+import { LINKS, NOT_KIRO_TEXT, UNUSED_PERCENT_DEFAULT, commandId } from './identity.ts';
 import { overageOver, type Overage } from '../cost/overage.ts';
 import { decimalToRational, formatRational, multiplyRational } from '../cost/money.ts';
 import { rightSizeText, unusedAtReset } from './budget-warning.ts';
@@ -148,6 +148,17 @@ function recapCard(recap: Recap | undefined): string {
 }
 
 /** Presentation only: billing eligibility and exact projections remain in the core. */
+/** What the status bar item offers when clicked: label, one-line help and the command it runs. The first entry is what a click used to open. */
+export interface StatusMenuEntry { label: string; description: string; command: string; args?: readonly unknown[] }
+export const STATUS_MENU: readonly StatusMenuEntry[] = [
+ { label: '$(graph) Show credit budget', description: 'Forecast, today and the reset', command: commandId('showUsage') },
+ { label: '$(lightbulb) Cost Advisor', description: 'Compare plans and add-on credits', command: commandId('costAdvisor') },
+ { label: '$(search) Check Kiro workspace', description: 'Find files Kiro may read needlessly', command: commandId('auditWorkspace') },
+ { label: '$(checklist) Review Steering and Hooks', description: 'Find settings that cost extra credits', command: commandId('reviewKiroConfig') },
+ { label: '$(settings-gear) Set up Bobert', description: 'Budget days, notices and session hints', command: commandId('setup') },
+ { label: '$(gear) Settings', description: 'All Bobert settings', command: 'workbench.action.openSettings', args: [`@ext:stefansuess.bobert`] },
+];
+
 export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], costHtml = '', advisorHtml = '', audit?: AuditSummary, now = new Date().toISOString(), notKiro = false, insights: PlanInsights = NO_INSIGHTS, advisorForm = '', results?: StoredResults, recap?: Recap, addOnsApply = false, daily: { days: readonly BudgetDay[]; zone: string; unusedPercent?: number } = { days: ALL_DAYS, zone: 'UTC' }) {
  const h=o.history,f=o.forecast;
  const selected=f.estimates.find(e=>e.method===f.selectedMethod && e.status==='qualified');
@@ -227,7 +238,7 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const todayLine=day.status==='available' ? `${day.used!==null && day.since!==null ? `Today: ${compact(day.used)} of ${compact(day.allowance)} credits used (since your first Kiro update at ${localTime(day.since,daily.zone)}, your time)` : `Today: up to ${compact(day.allowance)} credits`}${budgetDays}`
   : day.status==='day_off' ? `Today is not a budget day${day.used!==null && day.since!==null ? `: ${compact(day.used)} credits used (since ${localTime(day.since,daily.zone)}, your time)` : ''}${budgetDays}`
   : `Daily credit budget until reset: ${budget===null ? 'Not available' : `${budget} credits per day`}`;
- const tooltip=[eligible ? `${outlook} · ${tier}` : outlook,todayLine,resetIn && resetIn!=='passed' ? `Next reset ${resetIn}${resetDate ? ` (${resetDate})` : ''}` : '',eligible ? `Observed rate: ${selected.ratePerDay} credits per day` : '',`Last account update: ${o.observedAt ? updated(o.observedAt) : 'Not available'}. Click to open your budget.`].filter(Boolean).join('\n');
+ const tooltip=[eligible ? `${outlook} · ${tier}` : outlook,todayLine,resetIn && resetIn!=='passed' ? `Next reset ${resetIn}${resetDate ? ` (${resetDate})` : ''}` : '',eligible ? `Observed rate: ${selected.ratePerDay} credits per day` : '',`Last account update: ${o.observedAt ? updated(o.observedAt) : 'Not available'}. Click for the Bobert menu.`].filter(Boolean).join('\n');
  const coverage=`${h.coverage.snapshotCount} distinct snapshots; ${h.coverage.completeUtcDays} complete, ${h.coverage.partialUtcDays} partial, ${h.coverage.unknownUtcDays} unknown UTC days; ${h.coverage.gaps.length} gaps or quality barriers`;
  const forecastRows=row('Observed spending rate',eligible ? `${selected.ratePerDay} credits per day` : null)
   +row('Projected credit usage at reset',eligible ? selected.projectedUsageAtReset : null)
