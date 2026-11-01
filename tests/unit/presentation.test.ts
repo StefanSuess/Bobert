@@ -190,13 +190,17 @@ test('workspace audit card: never checked offers only Run audit', () => {
  assert.match(card({ state: 'never', lastDate: '2030-03-01' }), /Last checked 2030-03-01 \(UTC\)\./);
  assert.ok(!card({ state: 'never', lastDate: '<b>synthetic</b>' }).includes('Last checked'));
 });
-test('the audit card points to the recipes only when something was found, in plain text without a new link',()=>{
- const text=(a:AuditSummary)=>/copy-paste recipes for keeping Kiro's context small \(docs\/recipes\.md/.test(card(a).replace(/&#39;/g,"'"));
- assert.equal(text({state:'checked',items:3,checkedAt:'2030-06-15T11:00:00Z'}),true);
- assert.equal(text({state:'checked',items:0,unclear:2,checkedAt:'2030-06-15T11:00:00Z'}),true);
- assert.equal(text({state:'checked',items:0,unclear:0,checkedAt:'2030-06-15T11:00:00Z'}),false);
- assert.equal(text({state:'never'}),false);
- assert.deepEqual(cardHrefs(card({state:'checked',items:3,checkedAt:'2030-06-15T11:00:00Z'})).sort(),['command:bobert.audit.show','command:bobert.auditWorkspace']);
+test('the audit card names the recipe lines for the kinds found, a generic pointer otherwise, and nothing at zero findings',()=>{
+ const text=(a:AuditSummary)=>card(a).replace(/&#39;/g,"'");
+ const found=text({state:'checked',items:3,kinds:['build','secret','large','bogus'],checkedAt:'2030-06-15T11:00:00Z'});
+ assert.match(found,/starter \.kiroignore recipe \(docs\/recipes\.md in the Bobert repository\) has lines for what was found\. Keep only the ones that fit your project: secrets and credentials: \.env, \.env\.\*, \*\.pem; build output: dist\/, build\/\./);
+ assert.ok(!/bogus|Other large files/.test(found));
+ assert.match(text({state:'checked',items:1,kinds:['large'],checkedAt:'2030-06-15T11:00:00Z'}),/Not sure what to do with them\? The Bobert docs have copy-paste recipes/);
+ assert.match(text({state:'checked',items:0,unclear:2,checkedAt:'2030-06-15T11:00:00Z'}),/Not sure what to do with them\?/);
+ assert.ok(!/recipes\.md/.test(text({state:'checked',items:0,unclear:0,kinds:[],checkedAt:'2030-06-15T11:00:00Z'})));
+ assert.ok(!/recipes\.md/.test(text({state:'never'})));
+ assert.deepEqual(cardHrefs(card({state:'checked',items:3,kinds:['build'],checkedAt:'2030-06-15T11:00:00Z'})).sort(),['command:bobert.audit.show','command:bobert.auditWorkspace']);
+ assert.doesNotThrow(()=>buildDomModel(card({state:'checked',items:3,kinds:['build','secret'],checkedAt:'2030-06-15T11:00:00Z'})));
 });
 test('workspace audit card: checked states show the count and a relative time, plus Show', () => {
  const now = new Date(2030, 5, 15, 12, 0, 0), ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
