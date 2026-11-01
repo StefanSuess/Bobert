@@ -35,6 +35,7 @@ export const MODELS: readonly ModelRow[] = [
  // end of life since 2026-10-14: Kiro does not switch a removed selected model, so a session may still carry the id, but the model can no longer be
  // chosen and a "costs more than Auto" hint would not help; kept in the table so the id is known, silent on purpose.
  { id: 'claude-sonnet-4.0', name: 'Claude Sonnet 4.0', multiplier: '1.3', basis: 'pattern', flag: 'silent' },
+ { id: 'claude-haiku-5.5', name: 'Claude Haiku 5.5', multiplier: '0.06', basis: 'pattern', flag: 'tiered' }, // 0.3x above 100K tokens, still below 1.0, so silent; the base factor is the listed one
  { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', multiplier: '0.4', basis: 'pattern' },
  { id: 'kimi-k3', name: 'Kimi K3', multiplier: '2.4', basis: 'pattern' }, // US only, experimental
  { id: 'deepseek-3.2', name: 'DeepSeek 3.2', multiplier: '0.25', basis: 'pattern' }, // experimental
