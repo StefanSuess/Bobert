@@ -18,7 +18,8 @@ export const ALLOWLIST = [
  'extension.vsixmanifest',
  'extension/changelog.md',
  'extension/LICENSE.txt',
- 'extension/assets/branding/bobert-icon-256.png',
+  'extension/assets/branding/bobert-icon-256.png',
+ 'extension/assets/branding/bobert-walkthrough.svg',
  'extension/dist/extension.cjs',
  'extension/package.json',
  'extension/readme.md',
@@ -39,6 +40,7 @@ const USER_SETTINGS: Record<string, { type: string; default: unknown; minimum?: 
  budgetWarningPercent: { type: 'number', default: 80, minimum: 0, maximum: 100 },
  unusedCreditsPercent: { type: 'number', default: 30, minimum: 0, maximum: 100 },
  sessionHints: { type: 'boolean', default: true },
+ priceUpdates: { type: 'string', default: 'off', enum: ['off', 'ask', 'auto'] },
  budgetDays: { type: 'array', default: WEEKDAYS, itemsEnum: WEEKDAYS },
 };
 

@@ -1,17 +1,18 @@
 import type { AdvisorAnswers } from '../cost/advisor.ts';
-import type { view } from '../view.ts';
+import { view } from '../view.ts';
+import type { StoredSnapshot } from '../store.ts';
 import { compare, compareRatios } from '../decimal.ts';
 import { readable, updated, date } from './labels.ts';
-import { presentChartParts, CHART_CSS } from './chart.ts';
-import { countsText, relativeTime, sizePhrase, type AuditSummary } from './audit-model.ts';
-import { LINKS, NOT_KIRO_TEXT, UNUSED_PERCENT_DEFAULT } from './identity.ts';
+import { presentChartParts, heatmap, CHART_CSS, HEATMAP_CSS } from './chart.ts';
+import { countsText, recipeHint, relativeTime, sizePhrase, workspaceScore, type AuditSummary } from './audit-model.ts';
+import { LINKS, NOT_KIRO_TEXT, UNUSED_PERCENT_DEFAULT, commandId } from './identity.ts';
 import { overageOver, type Overage } from '../cost/overage.ts';
 import { decimalToRational, formatRational, multiplyRational } from '../cost/money.ts';
 import { rightSizeText, unusedAtReset } from './budget-warning.ts';
 import { ESTIMATE_MARKER } from './advisor-presentation.ts';
-import { reviewedCatalog } from '../cost/catalog.ts';
+import { activeCatalog } from '../cost/catalog.ts';
 import { NO_INSIGHTS, type PlanInsights } from '../cost/plan-hints.ts';
-import { cycleComparison } from './dashboard-insights.ts';
+import { cycleComparison, weekComparison } from './dashboard-insights.ts';
 import { ALL_DAYS, dayBudget, daysLabel, localTime, restricted, type BudgetDay, type DayBudget } from './daily-budget.ts';
 import { resultsText, type StoredResults } from './results-summary.ts';
 import type { Recap } from './recap.ts';
@@ -54,7 +55,7 @@ const withSeparators=(n:string)=>/^\d{4,}$/.test(n) ? n.replace(/\B(?=(\d{3})+(?
 // What a projected overage means in add-on credits, from the price list's purchase rules (125 credits at the least, five packs of 2,500 at once).
 // Only for a paid consumer plan; for Free, an unknown plan or Enterprise the neutral "credits over" wording is used instead.
 function addOnNeedText(o: Overage, resetDate: string | null): string {
- const rules = reviewedCatalog.consumer, until = `before the reset${resetDate ? ` on ${resetDate}` : ''}`;
+ const rules = activeCatalog().consumer, until = `before the reset${resetDate ? ` on ${resetDate}` : ''}`;
  const dollars = (amount: string) => { const [whole, fraction = ''] = amount.split('.'); return `$${whole}${fraction ? `.${fraction.padEnd(2, '0')}` : ''}`; };
  if (compare(o.credits, rules.minimumCredits) < 0) {
   const smallest = o.pricePerCredit === null ? null : formatRational(multiplyRational(decimalToRational(rules.minimumCredits), decimalToRational(o.pricePerCredit)), 2, 'half_up');
@@ -75,6 +76,18 @@ const SHARE_LINK = 'command:bobert.share';
 const REPORT_LINK = 'command:bobert.reportProblem';
 const FOOTER = `<footer class="community muted small"><a href="${REPORT_LINK}">Report a problem</a> · <a href="${SHARE_LINK}">Copy share link</a> · <a href="${LINKS.rate}"><span aria-hidden="true">★</span> Rate on Open VSX</a> · <a href="${LINKS.star}">Star on GitHub</a> · <a href="${LINKS.support}"><span aria-hidden="true">☕</span> Support</a></footer>`;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const GAUGE_ARC = '<path class="face-line" d="M44 86 A16 16 0 0 1 76 86"/>';
+const FACE_MOUTH = {
+ ok: '<path class="face-line" d="M45 74 A17 17 0 0 0 75 74"/>',
+ neutral: '<line class="face-line" x1="46" y1="80" x2="74" y2="80"/>',
+ warn: `${GAUGE_ARC}<line class="face-needle" x1="60" y1="86" x2="68" y2="74"/>`,
+ bad: `${GAUGE_ARC}<line class="face-needle" x1="60" y1="86" x2="73" y2="80"/>`,
+} as const;
+/** Bobert's head from the official icon, drawn with the chart's allowlisted SVG grammar: colors come from classes. Wide eyes only when over. */
+function bobertFace(tone: keyof typeof FACE_MOUTH): string {
+ const eye = tone === 'bad' ? 6 : 4;
+ return `<svg viewBox="14 16 92 88"><line class="face-line" x1="60" y1="40" x2="60" y2="26"/><circle class="face-dot" cx="60" cy="23" r="5"/><line class="face-ear" x1="19" y1="63" x2="19" y2="77"/><line class="face-ear" x1="101" y1="63" x2="101" y2="77"/><path class="face-head" d="M38 40 H82 A16 16 0 0 1 98 56 V86 A16 16 0 0 1 82 102 H38 A16 16 0 0 1 22 86 V56 A16 16 0 0 1 38 40 Z"/><path class="face-screen" d="M40 48 H80 A10 10 0 0 1 90 58 V84 A10 10 0 0 1 80 94 H40 A10 10 0 0 1 30 84 V58 A10 10 0 0 1 40 48 Z"/><circle class="face-eye" cx="46" cy="60" r="${eye}"/><circle class="face-eye" cx="74" cy="60" r="${eye}"/>${FACE_MOUTH[tone]}</svg>`;
+}
 function auditCard(a: AuditSummary | undefined, now: string): string {
  try { return buildAuditCard(a, now); } catch { return ''; } // the card can never take the gauge down
 }
@@ -88,7 +101,7 @@ function buildAuditCard(a: AuditSummary | undefined, now: string): string {
  const text = a.state === 'checked' ? `${countsText(items, unclear, size)}${checked}`
   : a.state === 'unavailable' ? "This folder can't be checked. Run the audit to see why."
   : `Run the workspace audit to find files Kiro can read but probably doesn't need.${a.lastDate && DAY.test(a.lastDate) ? ` Last checked ${a.lastDate} (UTC).` : ''}`;
- return `<section class="audit-card" aria-labelledby="audit-heading"><h2 id="audit-heading">Workspace audit</h2><p>${safe(text)}</p><p class="audit-actions"><a class="button primary" href="${AUDIT_LINK.check}">Run audit</a>${a.state === 'checked' ? ` <a class="button secondary" href="${AUDIT_LINK.show}">Show results</a>` : ''}</p></section>`;
+ return `<section class="audit-card" aria-labelledby="audit-heading"><h2 id="audit-heading">Workspace audit</h2><p>${safe(text)}</p>${a.state === 'checked' ? `<p><strong>Workspace score: ${workspaceScore(items, unclear)} of 100.</strong> <span class="muted small">A rough rating from the items Kiro may read (unclear ones count half), not a security verdict. Exclude items and run the audit again to watch it rise.</span></p>${items+unclear>0 ? `<p class="small muted">${safe(recipeHint(a.kinds) ? `The starter .kiroignore recipe (docs/recipes.md in the Bobert repository) has lines for what was found. Keep only the ones that fit your project: ${recipeHint(a.kinds)}.` : "Not sure what to do with them? The Bobert docs have copy-paste recipes for keeping Kiro's context small (docs/recipes.md in the Bobert repository).")}</p>` : ''}` : ''}<p class="audit-actions"><a class="button primary" href="${AUDIT_LINK.check}">Run audit</a>${a.state === 'checked' ? ` <a class="button secondary" href="${AUDIT_LINK.show}">Show results</a>` : ''}</p></section>`;
 }
 
 // The advisor section itself has no command links. With the inline form present, the one command link is only a fallback:
@@ -112,7 +125,7 @@ export function inlineAdvisorForm(a:AdvisorAnswers,epoch:number):string {
  <div class="form-actions"><button type="submit">Update estimate</button><button id="advisor-review-again" type="button" hidden>Reload my answers</button></div></fieldset></form></details><p id="advisor-status" class="small" role="status" aria-live="polite"></p>`;
 }
 
-function observedContext(h: ReturnType<typeof view>['history'], day: DayBudget, zone: string): string {
+function observedContext(h: ReturnType<typeof view>['history'], day: DayBudget, zone: string, now: string): string {
  const comparison = cycleComparison(h);
  const usedToday = day.status === 'unavailable' ? null : day.used;
  if (comparison.status === 'not_observed' && usedToday === null) return ''; // nothing to show yet: no card at all
@@ -124,12 +137,14 @@ function observedContext(h: ReturnType<typeof view>['history'], day: DayBudget, 
  let today = "Today's usage isn't available yet.";
  if (day.status !== 'unavailable' && day.used !== null && day.since !== null)
   today = `Since ${localTime(day.since, zone)} (your time): ${day.used} credits used, as of ${updated(day.asOf)}.${day.status === 'available' ? ` Today's allowance: ${compact(day.allowance)} credits.` : ''}`;
- return `<section id="usage-context" aria-labelledby="usage-context-heading"><h2 id="usage-context-heading">Observed usage</h2><h3>This cycle vs last cycle</h3><p>${safe(cycle)}</p><h3>Today</h3><p>${safe(today)}</p></section>`;
+ const w = weekComparison(h, now);
+ const week = w.status === 'observed' ? `<h3>Week over week</h3><p>${safe(`The last 7 full UTC days used ${w.last} credits; the 7 days before used ${w.before}${w.direction === 'unchanged' ? ', unchanged' : `, so the last week was ${w.direction} by ${w.difference} credits`}. This is an observation only; the cause is open.`)}</p>` : '';
+ return `<section id="usage-context" aria-labelledby="usage-context-heading"><h2 id="usage-context-heading">Observed usage</h2><h3>This cycle vs last cycle</h3><p>${safe(cycle)}</p><h3>Today</h3><p>${safe(today)}</p>${week}</section>`;
 }
 
 // The observed-usage card can never take the gauge down.
-function contextCard(h: ReturnType<typeof view>['history'], day: DayBudget, zone: string): string {
- try { return observedContext(h, day, zone); } catch { return ''; }
+function contextCard(h: ReturnType<typeof view>['history'], day: DayBudget, zone: string, now: string): string {
+ try { return observedContext(h, day, zone, now); } catch { return ''; }
 }
 
 // Static, script-free summary of saved exclusions and the observed use trend; every string is escaped here and a failure only omits the section.
@@ -148,6 +163,32 @@ function recapCard(recap: Recap | undefined): string {
 }
 
 /** Presentation only: billing eligibility and exact projections remain in the core. */
+/** Invented usage for "Preview with Example Data": 45 updates, four a day, ending now at about 18 credits a day on a 1000-credit plan, a reset 18 days ahead. Nothing here is read from Kiro or stored. */
+export function exampleSnapshots(now: string): StoredSnapshot[] {
+ const end = Date.parse(now), day = 86400000, reset = new Date(end + 18 * day).toISOString();
+ return Array.from({ length: 45 }, (_, i) => {
+  const at = new Date(end - (44 - i) * (day / 4)).toISOString();
+  return { partition: 'synthetic-example', associated: true, observedAt: at, observedText: at, sourceTimezone: null, usage: String(i * 4.5), limit: '1000', resetAt: reset, resetText: reset, flags: [], overages: null, overageCap: null, ingestedAt: at };
+ });
+}
+/** The credit view built from invented numbers, with a note on top that says so. Script-free like the real view's fallback. */
+export function examplePreview(now = new Date().toISOString()): string {
+ const html = present(view(exampleSnapshots(now), now), [], '', '', undefined, now).html;
+ const banner = '<div role="note" style="margin:0 0 12px;padding:10px 14px;border:2px solid var(--vscode-editorWarning-foreground,#cca700);border-radius:6px;font-weight:600">Example data: invented numbers to show what Bobert does. This is not your Kiro usage.</div>';
+ return html.includes('<body>') ? html.replace('<body>', `<body>${banner}`) : html;
+}
+
+/** What the status bar item offers when clicked: label, one-line help and the command it runs. The first entry is what a click used to open. */
+export interface StatusMenuEntry { label: string; description: string; command: string; args?: readonly unknown[] }
+export const STATUS_MENU: readonly StatusMenuEntry[] = [
+ { label: '$(graph) Show credit budget', description: 'Forecast, today and the reset', command: commandId('showUsage') },
+ { label: '$(lightbulb) Cost Advisor', description: 'Compare plans and add-on credits', command: commandId('costAdvisor') },
+ { label: '$(search) Check Kiro workspace', description: 'Find files Kiro may read needlessly', command: commandId('auditWorkspace') },
+ { label: '$(checklist) Review Steering and Hooks', description: 'Find settings that cost extra credits', command: commandId('reviewKiroConfig') },
+ { label: '$(settings-gear) Set up Bobert', description: 'Budget days, notices and session hints', command: commandId('setup') },
+ { label: '$(gear) Settings', description: 'All Bobert settings', command: 'workbench.action.openSettings', args: [`@ext:stefansuess.bobert`] },
+];
+
 export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], costHtml = '', advisorHtml = '', audit?: AuditSummary, now = new Date().toISOString(), notKiro = false, insights: PlanInsights = NO_INSIGHTS, advisorForm = '', results?: StoredResults, recap?: Recap, addOnsApply = false, daily: { days: readonly BudgetDay[]; zone: string; unusedPercent?: number } = { days: ALL_DAYS, zone: 'UTC' }) {
  const h=o.history,f=o.forecast;
  const selected=f.estimates.find(e=>e.method===f.selectedMethod && e.status==='qualified');
@@ -217,16 +258,21 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const explanation=absent ? NOT_KIRO_TEXT : eligible ? exhausted ? above ? (observedOver ? '' : 'Usage was above the reported credit limit at the last account update.') : 'You had reached the reported credit limit at the last account update.' : exhaustion ? `At the observed pace your credits run out on ${date(exhaustion,true)} (UTC), before the reset${resetDate ? ` on ${resetDate}` : ''}.` : selected.exhaustionStatus==='zero_observed_rate' ? 'Your counter has not moved recently, so no run-out date is projected. New usage can change this.' : `${lastsLine ? lastsLine.replace(/\.$/,' — enough to last until then.') : 'Your credits are not projected to run out before the reset.'}${tight ? ' The margin is small: your pace is within 10% of the daily budget.' : ''}` : [allowanceShown && daysLeft!==null && daysLeft>0 ? collectingSentence : '',floor ? `So far this cycle you have used at least ${compact(floor.ratePerDay)} credits per day on average${floor.basis==='maximum_cycle_length' ? ` (assuming the cycle started no earlier than ${date(floor.from)}; if it started later, your average was higher)` : ''}.${floorOver ? restrictedDays ? ` Even this minimum is above the ${compact(budget!)} credits per calendar day that would last until the reset.` : ' Even this minimum is above your daily allowance.' : ''}` : '',explanations[stale ? 'stale' : reason] ?? 'The available account updates do not support a safe forecast.'].filter(Boolean).join(' ');
  // A provisional estimate is never styled or headlined as reassuringly as a regular forecast.
  const early=eligible && f.tier==='provisional' && outlook==='On track';
+ // One concrete number to aim for, from the daily amount that would last until the reset and the observed pace; only while a run-out is still ahead.
+ const savingTip=eligible && over && !exhausted && budget!==null && compare(budget,'0')>0 && selected.ratePerDay!==null ? `To last until the reset, aim for about ${compact(budget)} credits a day instead of the ${compact(selected.ratePerDay)} you are using now.` : '';
  const heading=absent ? 'Kiro not detected' : allowanceShown && !eligible ? day.status==='available' ? `Up to ${compact(day.allowance)} credits${restrictedDays ? ' per budget day' : '/day'} until the reset` : `Up to ${compact(budget!)} credits/day until the reset` : early ? 'Looks on track so far' : outlook;
  const tone=absent ? 'neutral' : stale || (!eligible && !collecting) || floorOver ? 'warn' : !eligible || early ? 'neutral' : exhausted || over ? 'bad' : tight ? 'warn' : 'ok';
- const icon={ok:'✓',warn:'!',bad:'✕',neutral:'…'}[tone];
+ // Bobert's face follows the tone (a smile when on track, flat while unknown, worried when tight or stale, alarmed when over). Decorative: the heading says the same in words.
+ const icon=bobertFace(tone);
  const usedPct=o.usage!==null && o.baseLimit!==null && compare(o.baseLimit,'0')>0 ? Math.max(0,Math.min(100,Math.round(Number(o.usage)/Number(o.baseLimit)*100))) : null;
  const limitations=eligible && f.tier==='provisional' ? 'This limited window may not represent future usage.' : '';
  const budgetDays=restrictedDays ? ` · Budget days: ${daysLabel(daily.days)}` : '';
  const todayLine=day.status==='available' ? `${day.used!==null && day.since!==null ? `Today: ${compact(day.used)} of ${compact(day.allowance)} credits used (since your first Kiro update at ${localTime(day.since,daily.zone)}, your time)` : `Today: up to ${compact(day.allowance)} credits`}${budgetDays}`
   : day.status==='day_off' ? `Today is not a budget day${day.used!==null && day.since!==null ? `: ${compact(day.used)} credits used (since ${localTime(day.since,daily.zone)}, your time)` : ''}${budgetDays}`
   : `Daily credit budget until reset: ${budget===null ? 'Not available' : `${budget} credits per day`}`;
- const tooltip=[eligible ? `${outlook} · ${tier}` : outlook,todayLine,eligible ? `Observed rate: ${selected.ratePerDay} credits per day` : '',`Last account update: ${o.observedAt ? updated(o.observedAt) : 'Not available'}. Click to open your budget.`].filter(Boolean).join('\n');
+ const runOutDays=exhaustion && !exhausted ? Math.round((Date.parse(`${exhaustion}T00:00:00Z`)-Date.parse(`${now.slice(0,10)}T00:00:00Z`))/86400000) : NaN;
+ const runOutLine=Number.isFinite(runOutDays) && runOutDays>=0 ? `At the observed pace your credits run out on ${date(exhaustion!)} (${runOutDays===0 ? 'today' : runOutDays===1 ? 'tomorrow' : `in ${runOutDays} days`}, UTC)` : '';
+ const tooltip=[eligible ? `${outlook} · ${tier}` : outlook,todayLine,runOutLine,resetIn && resetIn!=='passed' ? `Next reset ${resetIn}${resetDate ? ` (${resetDate})` : ''}` : '',eligible ? `Observed rate: ${selected.ratePerDay} credits per day` : '',`Last account update: ${o.observedAt ? updated(o.observedAt) : 'Not available'}. Click for the Bobert menu.`].filter(Boolean).join('\n');
  const coverage=`${h.coverage.snapshotCount} distinct snapshots; ${h.coverage.completeUtcDays} complete, ${h.coverage.partialUtcDays} partial, ${h.coverage.unknownUtcDays} unknown UTC days; ${h.coverage.gaps.length} gaps or quality barriers`;
  const forecastRows=row('Observed spending rate',eligible ? `${selected.ratePerDay} credits per day` : null)
   +row('Projected credit usage at reset',eligible ? selected.projectedUsageAtReset : null)
@@ -258,7 +304,7 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  *{box-sizing:border-box}body{font:var(--vscode-font-size,14px)/1.5 var(--vscode-font-family,sans-serif);color:var(--vscode-foreground);background:var(--vscode-editor-background);padding:24px;margin:0}main{max-width:820px;margin:auto}a{color:var(--vscode-textLink-foreground,#3794ff)}a:focus-visible,summary:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}h1{font-size:1.1rem;font-weight:600;margin:0 0 12px;color:var(--vscode-descriptionForeground)}h2{font-size:1.1rem;margin:0 0 10px}h3{font-size:1rem}h4{margin:8px 0}p{margin:8px 0}.muted,.label{color:var(--vscode-descriptionForeground)}.small{font-size:.9rem}
  section{border:1px solid var(--vscode-panel-border);border-radius:10px;padding:18px;margin-top:16px;background:var(--vscode-editorWidget-background,transparent)}
  .hero{margin-top:0;border-left:5px solid var(--tone)}.hero.ok{--tone:var(--ok)}.hero.warn{--tone:var(--warn)}.hero.bad{--tone:var(--bad)}.hero.neutral{--tone:var(--neutral)}
- .hero h2{font-size:1.8rem;line-height:1.2;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:10px}.status-icon{display:inline-flex;align-items:center;justify-content:center;width:1.4em;height:1.4em;border-radius:50%;border:2px solid var(--tone);color:var(--tone);font-size:.7em;font-weight:700}.tag{font-size:.8rem;font-weight:400;border:1px solid var(--vscode-panel-border);border-radius:12px;padding:1px 9px;color:var(--vscode-descriptionForeground)}
+ .hero h2{font-size:1.8rem;line-height:1.2;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:10px}.status-icon{display:inline-block;flex:none;width:1.5em;height:1.5em}.status-icon svg{display:block;width:100%;height:100%;margin:0}.face-ear{stroke:#2dd4bf;stroke-width:6;stroke-linecap:round}.face-head{fill:#2dd4bf}.face-screen{fill:#0f1b2d}.face-eye{fill:#2dd4bf}.face-dot{fill:#f59e0b}.face-line{fill:none;stroke:#2dd4bf;stroke-width:4;stroke-linecap:round}.face-needle{stroke:#f59e0b;stroke-width:4;stroke-linecap:round}.tag{font-size:.8rem;font-weight:400;border:1px solid var(--vscode-panel-border);border-radius:12px;padding:1px 9px;color:var(--vscode-descriptionForeground)}
  .lead{font-size:1.05rem;margin:10px 0 14px}.bar{display:block;width:100%;height:10px;border-radius:5px;background:var(--vscode-panel-border);overflow:hidden;margin:6px 0 16px}.bar>rect{height:10px;fill:var(--tone)}.bar-label{margin:-10px 0 16px}
  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:0}.stat dt{color:var(--vscode-descriptionForeground);font-size:.9rem}.stat dd{margin:0;font-size:1.35rem;font-weight:600;overflow-wrap:anywhere}.stat dd.small{font-size:.9rem;font-weight:400}
  .audit-card h2{margin:0 0 4px}.audit-card p{margin:4px 0}.audit-actions,.advisor-actions{display:flex;flex-wrap:wrap;gap:8px}a.button{display:inline-block;padding:4px 12px;border:1px solid var(--vscode-button-border,transparent);border-radius:4px;text-decoration:none;font-weight:500;cursor:pointer}a.button.primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}a.button.primary:hover{background:var(--vscode-button-hoverBackground)}a.button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}a.button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}
@@ -280,15 +326,16 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  #advisor-form select,#advisor-form input{display:block;width:100%;min-height:28px;padding:4px 8px;font:inherit;border-radius:4px}#advisor-form select{color:var(--vscode-dropdown-foreground);background:var(--vscode-dropdown-background);border:1px solid var(--vscode-dropdown-border,var(--vscode-panel-border))}#advisor-form input{color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-panel-border))}#advisor-form input::placeholder{color:var(--vscode-input-placeholderForeground)}
  #advisor-form select:focus,#advisor-form input:focus{outline:2px solid var(--vscode-focusBorder);outline-offset:-1px}#advisor-form select[aria-invalid="true"],#advisor-form input[aria-invalid="true"]{outline:2px solid var(--vscode-errorForeground);outline-offset:-1px}#advisor-form .field-error{color:var(--vscode-errorForeground);margin:4px 0 0}#advisor-form .field-error:empty{display:none}#advisor-form .input-unit{display:flex;align-items:center;gap:8px}#advisor-form .input-unit input{flex:1 1 auto;width:auto;min-width:0}#advisor-form .unit{color:var(--vscode-descriptionForeground)}
  #advisor-form .form-actions{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}#advisor-form button{padding:4px 14px;min-height:28px;border:1px solid var(--vscode-button-border,transparent);border-radius:4px;font:inherit;font-weight:500;cursor:pointer}#advisor-form button[type="submit"]{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}#advisor-form button[type="submit"]:hover{background:var(--vscode-button-hoverBackground)}#advisor-form #advisor-review-again{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}#advisor-form #advisor-review-again:hover{background:var(--vscode-button-secondaryHoverBackground)}#advisor-form button:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}
- ${CHART_CSS}
+ ${CHART_CSS}${HEATMAP_CSS}
  </style></head><body><main><h1>Your credit budget</h1>
  <section class="hero ${tone}" aria-labelledby="status-heading"><h2 id="status-heading"><span class="status-icon" aria-hidden="true">${icon}</span>${safe(heading)}${eligible ? `<span class="tag">${safe(tag)}</span>` : ''}</h2>
- ${overFigure ? `<p class="lead overage-now"><strong>${safe(overFigure)}</strong> over the limit so far${safe(moneyText(observedOver!))}.</p>` : ''}${explanation ? `<p class="lead">${safe(explanation)}</p>` : ''}${limitations ? `<p class="small">${safe(limitations)}</p>` : ''}${noteLines.map(l=>`<p class="small overage">${safe(l)}</p>`).join('')}${unusedLeft ? `<p class="small">${safe(`Likely left at the reset: about ${unusedLeft} credits. Unused plan credits lapse at the reset.`)} <a href="${LINKS.tips}">See tips</a></p>` : ''}
+ ${overFigure ? `<p class="lead overage-now"><strong>${safe(overFigure)}</strong> over the limit so far${safe(moneyText(observedOver!))}.</p>` : ''}${explanation ? `<p class="lead">${safe(explanation)}</p>` : ''}${limitations ? `<p class="small">${safe(limitations)}</p>` : ''}${savingTip ? `<p class="small saving-tip"><strong>Tip:</strong> ${safe(savingTip)}</p>` : ''}${noteLines.map(l=>`<p class="small overage">${safe(l)}</p>`).join('')}${unusedLeft ? `<p class="small">${safe(`Likely left at the reset: about ${unusedLeft} credits. Unused plan credits lapse at the reset.`)} <a href="${LINKS.tips}">See tips</a></p>` : ''}
  ${usedPct===null ? '' : `<svg class="bar" viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden="true"><rect width="${usedPct}" height="10"/></svg><p class="bar-label muted small">${usedPct}% of the reported credit limit used</p>`}
  ${hasFigures ? `<dl class="stats">${stat('Credits used',o.usage ?? 'Not available',o.baseLimit===null ? '' : `of ${o.baseLimit} reported credits`,true)}${above ? '' : stat('Credits left',o.remainingBaseCredits ?? 'Not available',creditsLeftNote)}${stat('Next reset',o.resetAt ? date(o.resetAt,true) : 'Not available',[resetIn,'UTC'].filter(Boolean).join(' · '))}</dl>` : ''}
  ${o.observedAt ? `<div class="meta muted small"><p>Last account update: ${safe(`${updated(o.observedAt)} · ${freshness}`)}</p><details class="about"><summary><span aria-hidden="true">ⓘ</span> About these numbers</summary><p>${safe(ABOUT)}</p>${priceNote ? `<p>${safe(priceNote)}</p>` : ''}</details></div>` : ''}</section>
  ${chart.main}
- ${contextCard(h, day, daily.zone)}
+ ${heatmap(h.days,now)}
+ ${contextCard(h, day, daily.zone, now)}
  ${recapCard(recap)}
  ${withAdvisorButton(advisorHtml,advisorForm)}
  ${auditCard(audit, now)}

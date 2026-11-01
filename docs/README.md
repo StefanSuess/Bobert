@@ -8,6 +8,8 @@ Start with the [project README](../README.md). Everything below is the detail be
 | --- | --- |
 | [usage.md](usage.md) | Install a VSIX, settings, command-line tool, default file locations |
 | [how-values-are-calculated.md](how-values-are-calculated.md) | What "used", "remaining" and "available per day" mean, and what stays unknown |
+| [guide.md](guide.md) | A plain-language tour: used, left, forecast, daily budget, going over, saving credits |
+| [recipes.md](recipes.md) | Copy-and-paste Steering, `.kiroignore`, hook and prompt snippets for smaller context |
 | [forecasting.md](forecasting.md) | History, provisional and regular forecasts, status-bar wording |
 | [usage-chart.md](usage-chart.md) | The usage trajectory chart and its accessibility text |
 | [cost-optimizer.md](cost-optimizer.md) | The session-only Cost Advisor and its cost engine |

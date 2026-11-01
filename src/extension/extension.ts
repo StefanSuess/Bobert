@@ -3,6 +3,7 @@ import { WATCH_GLOB, runAudit, snippet, type AuditResult, type Finding } from '.
 import { PRUNE } from '../audit/walk.ts';
 import { validIgnoreNames } from '../audit/read-ignore.ts';
 import { lstatSync, realpathSync } from 'node:fs';
+import { lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
@@ -14,10 +15,13 @@ import { APPLY_TEXT, createPreparedFiles, preparedText } from './config-apply.ts
 import { readConfigReviewMode } from './config-schedule.ts';
 import { IGNORE_USE_NOTE, MAX_DISMISSED, OPEN_SETTING, auditTree, auditSizeTotal, dismissHash, excludeAnnotation, findingKey, findingsToast, ignoreNotEffective, isHash, countFindings, kiroignoreAppend, revealTarget, sizePhrase, visibleFindings, type AuditNode, type AuditParts, type AuditSummary } from './audit-model.ts';
 import { startExtension, type ExtensionUi } from './controller.ts';
+import { PRICE_STATE_KEY, readPriceState, readPriceUpdates, runPriceUpdates, type PriceDeps } from './price-updates.ts';
+import { MAX_PRICE_FILE_BYTES, PRICE_FILE_URL } from '../session/price-data.ts';
 import { buildDiagnostics, formatDiagnostics, runtimeFacts, type DiagnosticsInput } from '../diagnostics.ts';
-import { ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
+import { STATUS_MENU, examplePreview } from './presentation.ts';
+import { FEEDBACK_URL, ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, SUPPORT_PROMPT_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
 import { ALL_DAYS, dayBudget, type BudgetDay } from './daily-budget.ts';
-import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
+import { WHATS_NEW_KEY, WHATS_NEW_URL, releaseLine, whatsNewAction, whatsNewText, BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
 import { decideBudgetNotice } from './budget-warning.ts';
 import type { view } from '../view.ts';
 import type { PlanInsights } from '../cost/plan-hints.ts';
@@ -178,7 +182,7 @@ function registerAudit(context: vscode.ExtensionContext, onFinding: () => void, 
  const summary = (): AuditSummary => {
   const last = stored(LAST_KEY), lastDate = typeof last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(last) ? last : undefined;
   if (refused || result?.status === 'unavailable') return { state: 'unavailable', lastDate };
-  return result ? { state: 'checked', ...counts(result), ...auditSizeTotal(visible(), result.omitted), checkedAt, lastDate } : { state: 'never', lastDate };
+  return result ? { state: 'checked', ...counts(result), kinds: [...new Set(visible().map(f => f.category))], ...auditSizeTotal(visible(), result.omitted), checkedAt, lastDate } : { state: 'never', lastDate };
  };
  const audit = async (): Promise<void> => {
   if (running) { await vscode.window.showInformationMessage(reminderAbort ? 'An automatic workspace audit is running; try again shortly.' : 'A workspace audit is already running.'); return; }
@@ -502,7 +506,7 @@ function registerAudit(context: vscode.ExtensionContext, onFinding: () => void, 
   viewReady = true;
  } catch { /* Without the list, a finished audit falls back to a notification with a Copy suggestions button. */ }
  // The credit view is re-rendered only when what it shows (state, counts, time of the check) actually changed.
- const keyOf = (a: AuditSummary): string => [a.state, a.items, a.unclear, a.bytes, a.lowerBound, a.checkedAt].join('|');
+ const keyOf = (a: AuditSummary): string => [a.state, a.items, a.unclear, a.kinds?.join(','), a.bytes, a.lowerBound, a.checkedAt].join('|');
  let shown = '';
  return { summary, onChange(fn) {
   try { shown = keyOf(summary()); } catch { /* the first change renders */ }
@@ -611,11 +615,11 @@ function registerSupport(context: vscode.ExtensionContext): SupportLink {
     if (!(await store(SUPPORT_NEXT_KEY, addDays(today, SNOOZE_DAYS)))) return; // a prompt left open or closed with the window is not repeated for a while
     if (disposed) return;
     shown = true;
-    try { choice = await vscode.window.showInformationMessage('Finding Bobert useful? Rate it or support development. You can turn these off in Settings › Bobert › Support Prompts.', 'Rate', 'Support', 'Later') as SupportChoice | undefined; }
+    try { choice = await vscode.window.showInformationMessage(SUPPORT_PROMPT_TEXT, 'Rate', 'Feedback', 'Support', 'Later') as SupportChoice | undefined; }
     finally { lastPromptAt = Date.now(); }
    } finally { promptOpen = false; }
    if (disposed) return;
-   if (choice === 'Rate') open(LINKS.rate); else if (choice === 'Support') open(LINKS.support);
+   if (choice === 'Rate') open(LINKS.rate); else if (choice === 'Feedback') open(FEEDBACK_URL); else if (choice === 'Support') open(LINKS.support);
    const after = afterChoice(choice, today);
    if (after.next) await store(SUPPORT_NEXT_KEY, after.next);
   } catch { /* fixed and silent */ } finally { checking = false; }
@@ -840,9 +844,96 @@ function registerBudgetDaysNotice(context: vscode.ExtensionContext, deps: { choo
   })();
  };
 }
+// One-time "what's new" notice after an update to a new release line (major.minor), for an existing user: Kiro only, never in the extension tests, never for a patch update.
+// A new user, or one who turned the suggestions off (bobert.supportPrompts), only gets the line recorded. It shares the window's prompt slot, so it never appears with another
+// Bobert notice. The line is written before the notice is shown, and a failed write means no notice.
+function registerWhatsNew(context: vscode.ExtensionContext, deps: { pause(): void; claim: PromptClaim; supportBusy(): boolean }): () => void {
+ let disposed = false, decided = false;
+ context.subscriptions.push({ dispose() { disposed = true; } });
+ return () => {
+  if (disposed || decided) return;
+  let claimed = false, line: string | null = null;
+  try {
+   const testing = vscode.ExtensionMode !== undefined && context.extensionMode === vscode.ExtensionMode.Test;
+   const version = context.extension?.packageJSON?.version;
+   line = releaseLine(version);
+   let stored: unknown;
+   try { stored = context.globalState.get<unknown>(WHATS_NEW_KEY); } catch { stored = undefined; }
+   const suggestions = readSupportPrompts((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key));
+   const action = whatsNewAction({ kiro: inKiro(), testing, stored, version, newUser: newUserNow, suggestions });
+   if (action === 'none' || line === null) { decided = true; return; }
+   if (action === 'record') {
+    decided = true;
+    void Promise.resolve(context.globalState.update(WHATS_NEW_KEY, line)).catch(() => { /* recorded again next window */ });
+    return;
+   }
+   let busy = false;
+   try { busy = deps.supportBusy(); } catch { busy = true; }
+   if (!deps.claim.claim('news', busy)) return;
+   claimed = true;
+   decided = true;
+   try { deps.pause(); } catch { /* nothing else depends on it */ }
+  } catch { decided = true; return; }
+  const shownLine = line!;
+  void (async () => {
+   try {
+    try { await context.globalState.update(WHATS_NEW_KEY, shownLine); } catch { return; }
+    if (disposed) return;
+    if (await vscode.window.showInformationMessage(whatsNewText(shownLine), "What's new", 'Dismiss') === "What's new") await vscode.env.openExternal(vscode.Uri.parse(WHATS_NEW_URL));
+   } catch { /* fixed and silent */ } finally { if (claimed) deps.claim.release('news'); }
+  })();
+ };
+}
 async function runBobert(context: vscode.ExtensionContext): Promise<void> {
  gaugeState.gauge = 'starting'; gaugeState.diagnostics = undefined; gaugeState.config = undefined; walkthroughOpenedNow = false; newUserNow = false;
  try { await startGauge(context); } catch (e) { gaugeState.gauge = 'failed_to_start'; throw e; }
+}
+// Optional price refresh (bobert.priceUpdates, off by default). The only network access Bobert has: one plain GET of PRICE_FILE_URL, at most weekly, see price-updates.ts.
+function registerPriceUpdates(context: vscode.ExtensionContext, claim: PromptClaim): void {
+ const file = join(context.globalStorageUri.fsPath, 'prices.json');
+ const mode = () => { try { return readPriceUpdates(vscode.workspace.getConfiguration(ID_PREFIX).inspect<unknown>('priceUpdates')); } catch { return 'off' as const; } };
+ const deps: PriceDeps = {
+  now: () => Date.now(),
+  async readStored() { try { const info = await lstat(file); if (!info.isFile() || info.size > MAX_PRICE_FILE_BYTES) return undefined; return await readFile(file, 'utf8'); } catch { return undefined; } },
+  async writeStored(text) {
+   const temp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
+   try { await mkdir(context.globalStorageUri.fsPath, { recursive: true }); await writeFile(temp, text, { encoding: 'utf8', flag: 'wx' }); await rename(temp, file); return true; } catch { try { await unlink(temp); } catch { /* nothing left to remove */ } return false; }
+  },
+  async fetchText(url) {
+   if (url !== PRICE_FILE_URL) return undefined;
+   try {
+    const res = await fetch(url, { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(15_000), headers: { accept: 'application/json' } });
+    if (!res.ok || !res.body || Number(res.headers.get('content-length') ?? 0) > MAX_PRICE_FILE_BYTES) return undefined;
+    // Read at most the cap plus one byte, whatever the server says about its length.
+    const reader = res.body.getReader(), chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+     const { done, value } = await reader.read();
+     if (done) break;
+     total += value.byteLength;
+     if (total > MAX_PRICE_FILE_BYTES) { await reader.cancel(); return undefined; }
+     chunks.push(value);
+    }
+    return Buffer.concat(chunks).toString('utf8');
+   } catch { return undefined; }
+  },
+  state: () => { try { return readPriceState(context.globalState.get<unknown>(PRICE_STATE_KEY)); } catch { return {}; } },
+  async saveState(next) { try { await context.globalState.update(PRICE_STATE_KEY, next); return true; } catch { return false; } },
+  async ask() {
+   if (!claim.claim('prices')) return 'busy';
+   try {
+    const answer = await vscode.window.showInformationMessage('Bobert can check once a week whether Kiro\'s prices or model credit rates changed, by downloading one public file from github.com. Nothing about you, your usage or your files is sent. Check now?', 'Check now', 'Not now', 'Turn off');
+    return answer === 'Check now' ? 'check' : answer === 'Turn off' ? 'off' : answer === 'Not now' ? 'later' : undefined;
+   } finally { claim.release('prices'); }
+  },
+  async turnOff() { try { await vscode.workspace.getConfiguration(ID_PREFIX).update('priceUpdates', 'off', vscode.ConfigurationTarget.Global); } catch { /* the setting stays as it was */ } },
+ };
+ let running = false; // one pass at a time: a setting change during a download waits for the next start rather than starting a second request
+ const run = (): void => { if (running) return; running = true; void runPriceUpdates(mode(), deps).finally(() => { running = false; }); };
+ run();
+ if (vscode.workspace.onDidChangeConfiguration) context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+  try { if (event.affectsConfiguration(`${ID_PREFIX}.priceUpdates`)) run(); } catch { /* unchanged */ }
+ }));
 }
 async function startGauge(context: vscode.ExtensionContext): Promise<void> {
  let audit: AuditLink | undefined, support: SupportLink | undefined, budget: BudgetLink | undefined, results: ResultsLink | undefined, recap: RecapLink | undefined;
@@ -851,9 +942,15 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
  try { support = registerSupport(context); } catch { /* Nor must the community prompts. */ }
  const claim = new PromptClaim(); // the window's one prompt slot: budget notice, then support prompt, then the budget days notice
  try { budget = registerBudget(context, () => support?.pause(), claim); } catch { /* Nor the budget warning. */ }
+ try { registerPriceUpdates(context, claim); } catch { /* Nor the optional price refresh: the built-in prices stay in use. */ }
  let setup: SetupLink | undefined, onAllowance: (() => void) | undefined;
  try { setup = registerSetup(context); } catch { /* Nor the setup command. */ }
  try { onAllowance = registerBudgetDaysNotice(context, { choose: () => setup?.run('days') ?? Promise.resolve(), pause: () => support?.pause(), claim, supportBusy: () => support?.prompted() ?? false }); } catch { /* Nor the budget days notice. */ }
+ try {
+  const whatsNew = registerWhatsNew(context, { pause: () => support?.pause(), claim, supportBusy: () => support?.prompted() ?? false });
+  const days = onAllowance;
+  onAllowance = () => { try { days?.(); } catch { /* independent notices */ } try { whatsNew(); } catch { /* the notice never affects the gauge */ } };
+ } catch { /* Nor the what's new notice. */ }
  try { results = registerResults(context, () => controllerRef?.cycle() ?? null, () => controllerRef?.rerender()); } catch { /* Nor the results summary. */ }
  try { recap = registerRecap(context); } catch { /* Nor the cycle recap. */ }
  sessionHints = undefined;
@@ -905,10 +1002,28 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
   async dismissRecap() { return controllerRef && await controllerRef.dismissRecap() ? 'dismissed' : 'failed'; },
  };
  const register = (suffix: string, fn: () => unknown) => disposables.push(registerCommand((id, f) => vscode.commands.registerCommand(id, f), suffix, fn));
+ // A look at Bobert with invented numbers, for a user who has no Kiro usage yet and for screenshots. It reads nothing from Kiro and stores nothing; its own script-free panel is separate from the credit view.
+ try {
+  let examplePanel: vscode.WebviewPanel | undefined;
+  register('previewExample', () => {
+   if (examplePanel) { examplePanel.reveal(); return; }
+   examplePanel = vscode.window.createWebviewPanel('bobert.examplePreview', 'Bobert: example data', vscode.ViewColumn.One, { enableScripts: false });
+   examplePanel.webview.html = examplePreview();
+   examplePanel.onDidDispose(() => { examplePanel = undefined; });
+  });
+ } catch { /* The example preview is optional. */ }
+ // A click opens a short menu instead of going straight to the credit view; each entry runs an existing command. If the menu cannot be registered, the click keeps opening the credit view.
+ try {
+  register('statusMenu', async () => {
+   const picked = await vscode.window.showQuickPick(STATUS_MENU.map(entry => ({ label: entry.label, description: entry.description, entry })), { title: 'Bobert', placeHolder: 'What would you like to do?' });
+   if (picked) await vscode.commands.executeCommand(picked.entry.command, ...(picked.entry.args ?? []));
+  });
+  item.command = commandId('statusMenu');
+ } catch { /* The status bar item must not depend on the menu. */ }
  const ui: ExtensionUi = {
   setStatus(text, html, meta) {
    item.text = text;
-   item.tooltip = meta?.tooltip ?? 'Open your credit budget and forecast';
+   item.tooltip = meta?.tooltip ?? 'Click for the Bobert menu';
    budgetTight = budgetTightFrom(meta?.severity);
    item.backgroundColor = meta?.severity === 'error' ? new vscode.ThemeColor('statusBarItem.errorBackground') : meta?.warning ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
    detail = html;

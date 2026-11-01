@@ -30,7 +30,25 @@ export function budgetDaysNoticeDue(i: { kiro: boolean; testing: boolean; stored
  return i.kiro && !i.testing && i.stored === undefined && !i.newUser && !i.daysSet && !i.otherPromptShown && i.allowanceShown;
 }
 
-export type PromptKind = 'budget' | 'days';
+export const WHATS_NEW_KEY = 'bobert.whatsNew.v1';
+export const WHATS_NEW_URL = 'https://github.com/StefanSuess/Bobert/blob/main/CHANGELOG.md';
+/** The release line (major.minor) a version belongs to; a patch update stays in the same line. Anything else is not a version. */
+export function releaseLine(version: unknown): string | null {
+ const m = typeof version === 'string' ? /^(\d{1,4})\.(\d{1,4})\.\d{1,4}(?:[-+][0-9A-Za-z.-]{1,40})?$/.exec(version) : null;
+ return m ? `${m[1]}.${m[2]}` : null;
+}
+export const whatsNewText = (line: string): string => `Bobert ${line} is installed. See what's new?`;
+/**
+ * What to do about the "what's new" notice. 'show' needs every condition; 'record' stores the line without a notice (a new user, or the suggestions turned off);
+ * 'none' leaves the stored state alone. A patch update shows nothing. Kiro only, never in the extension tests.
+ */
+export function whatsNewAction(i: { kiro: boolean; testing: boolean; stored: unknown; version: unknown; newUser: boolean; suggestions: boolean }): 'show' | 'record' | 'none' {
+ const line = releaseLine(i.version);
+ if (!i.kiro || i.testing || line === null || i.stored === line) return 'none';
+ return i.newUser || !i.suggestions ? 'record' : 'show';
+}
+
+export type PromptKind = 'budget' | 'days' | 'news' | 'prices';
 /**
  * One Bobert notice at a time per window. Priority: budget notice, then the support prompt, then the budget days notice.
  * A notice claims synchronously, after its own due decision and before its first await. A refused claim consumes nothing: the caller just does not show this time.
@@ -41,7 +59,7 @@ export class PromptClaim {
  claim(kind: PromptKind, supportBusy = false): boolean {
   if (this.#holder === kind) return true;
   if (this.#holder !== null) return false;
-  if (kind === 'days' && supportBusy) return false;
+  if ((kind === 'days' || kind === 'news') && supportBusy) return false;
   this.#holder = kind;
   return true;
  }

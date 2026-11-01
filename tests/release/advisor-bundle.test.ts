@@ -45,7 +45,7 @@ test('packaged Advisor native commands, conditional figure, cancellation and pan
   const module={exports:{} as any};
   runInThisContext(`(function(require,module,exports,Date){${bundle}\n})`)((id:string)=>id==='vscode'?vscode:require(id),module,module.exports,SyntheticDate);
   extension=module.exports;await extension.activate({subscriptions});
-  assert.deepEqual([...commands.keys()].sort(),[...AUDIT_COMMANDS,...CONFIG_COMMANDS,'bobert.copyDiagnostics','bobert.costAdvisor','bobert.gettingStarted','bobert.reportProblem','bobert.setup','bobert.showUsage','bobert.share','bobert.support.reset'].sort());
+  assert.deepEqual([...commands.keys()].sort(),[...AUDIT_COMMANDS,...CONFIG_COMMANDS,'bobert.copyDiagnostics','bobert.costAdvisor','bobert.gettingStarted','bobert.previewExample','bobert.reportProblem','bobert.setup','bobert.showUsage','bobert.statusMenu','bobert.share','bobert.support.reset'].sort());
   assert.ok(api.state.providers.has('bobert.auditView'));
   const advisor=items.find(i=>i.command==='bobert.costAdvisor');assert.equal(advisor.visible,false);
   await commands.get('bobert.showUsage')!();assert.equal(advisor.visible,true);
@@ -419,7 +419,7 @@ test('packaged audit reminder: guards, first prompt, buttons and stored state',a
   for(const refused of [env.source,join(env.source,'logs'),join(work,'synthetic-missing')]){env.folders=[folder(refused)];await quiet('refused');}
   env.folders=[folder(env.workspace)];
   for(const days of [0,-5]){env.days=days;await quiet(`days ${days}`);}env.days=undefined;
-  // Never audited: one prompt with three buttons; the snooze is recorded when it is shown (today + reminderDays), so it is not repeated.
+  // Never audited: one prompt with four buttons; the snooze is recorded when it is shown (today + reminderDays), so it is not repeated.
   s=await start();await s.fire();
   assert.deepEqual(env.infos,[{text:"Bobert can check this workspace for files that may end up in Kiro's context.",buttons:['Run audit','Later',"Don't ask again"]}]);
   assert.equal(env.store.has('bobert.audit.last.v1'),false);assert.equal(env.progress,0);assert.deepEqual(auditRoots(s.provider()),[]);s.dispose();
@@ -729,9 +729,9 @@ test('packaged Report a Problem copies the Copy Diagnostics text and opens exact
 const SUPPORT_KEYS=['bobert.support.firstSeen.v1','bobert.support.next.v1','bobert.support.never.v1','bobert.support.valueSeen.v1','bobert.support.detailDays.v1','bobert.support.advisorUsed.v1'];
 const WALKTHROUGH_KEY='bobert.walkthrough.shown.v1';
 const COMMUNITY_KEYS=[...SUPPORT_KEYS,'bobert.notKiro.shown.v1',WALKTHROUGH_KEY];
-const SUPPORT_TEXT='Finding Bobert useful? Rate it or support development. You can turn these off in Settings › Bobert › Support Prompts.';
+const SUPPORT_TEXT='Finding Bobert useful? A review on Open VSX helps other Kiro users find it (takes a minute, needs a GitHub sign-in). Missing something? Send feedback. You can turn these off in Settings › Bobert › Support Prompts.';
 const NOT_KIRO="Bobert is built for Kiro IDE, so there is no credit view in this editor. What helps here is the workspace audit: run Bobert: Run Workspace Audit to find files Kiro may read but doesn't need.";
-const SUPPORT_BUTTONS=['Rate','Support','Later'];
+const SUPPORT_BUTTONS=['Rate','Feedback','Support','Later'];
 const communityEnv=(work:string,withLogs:boolean)=>{
  const source=join(work,'source'),workspace=join(work,'synthetic-workspace'),logs=join(source,'logs','synthetic-run','synthetic-window','exthost','kiro.kiroAgent');
  mkdirSync(logs,{recursive:true});mkdirSync(workspace,{recursive:true});mkdirSync(join(work,'synthetic-home'),{recursive:true});writeFileSync(join(workspace,'.env'),'SYNTHETIC_CONTENT_SENTINEL');
@@ -826,13 +826,13 @@ test('packaged support prompt: only when due, once per window, each button sets 
   // Less than seven days after first use: nothing, and nothing is written.
   env.written.length=0;await s.fire();assert.deepEqual(env.infos,[]);assert.equal(env.written.length,0);
   s.dispose();assert.equal(s.support()[0]!.cleared,true);env.infos.length=0;await s.support()[0]!.fn();assert.deepEqual(env.infos,[]);
-  // Seven days after first use it is due: one prompt with three buttons; the 60-day snooze is already stored while it is open, so a second check shows nothing.
+  // Seven days after first use it is due: one prompt with four buttons; the 60-day snooze is already stored while it is open, so a second check shows nothing.
   seed('2029-12-28');s=await start();env.written.length=0;await s.fire();
   assert.deepEqual(env.infos,[{text:SUPPORT_TEXT,buttons:SUPPORT_BUTTONS}]);assert.equal(env.store.get('bobert.support.next.v1'),'2030-03-05');
   env.infos.length=0;await s.support()[0]!.fn();await s.later();assert.deepEqual(env.infos,[]);s.dispose();
   seed('2029-12-29');s=await start();await s.fire();assert.equal(env.infos.length,0);s.dispose(); // six days: not yet
   // Each button.
-  for(const [choice,link,next] of [['Rate',COMMUNITY_LINKS[0],'2030-05-04'],['Support',COMMUNITY_LINKS[2],'2030-05-04'],['Later',undefined,'2030-03-05'],[undefined,undefined,'2030-03-05']] as const){
+  for(const [choice,link,next] of [['Rate',COMMUNITY_LINKS[0],'2030-05-04'],['Feedback','https://github.com/StefanSuess/Bobert/issues/new?template=feature_request.yml','2030-05-04'],['Support',COMMUNITY_LINKS[2],'2030-05-04'],['Later',undefined,'2030-03-05'],[undefined,undefined,'2030-03-05']] as const){
    seed('2029-12-01');env.choice=choice;s=await start();await s.fire();s.dispose();
    assert.deepEqual(env.opened,link?[link]:[],String(choice));assert.equal(env.store.get('bobert.support.next.v1'),next,String(choice));assert.equal(env.store.has('bobert.support.never.v1'),false,String(choice));
   }
@@ -1430,7 +1430,7 @@ test('packaged recap card appears once, is marked shown, copies its own text and
   const load=Number(/data-cg-load="(\d+)"/.exec(html)![1]);env.receive({type:'ready',load});await s.later();
   // Copy text: built by the extension from the card, never from the page.
   env.receive({type:'copyRecapText'});await waitFor(()=>env.clipboard.length>0,s);
-  assert.equal(env.clipboard.length,1);assert.match(env.clipboard[0]!,/^Your Kiro cycle\nCycle that ended 1 Jul 2030 \(UTC\)\./);assert.match(env.clipboard[0]!,/Bobert: https:\/\/open-vsx\.org\/extension\/StefanSuess\/bobert$/);
+  assert.equal(env.clipboard.length,1);assert.match(env.clipboard[0]!,/^Your Kiro cycle\nCycle that ended 1 Jul 2030 \(UTC\)\./);assert.match(env.clipboard[0]!,/\nMade with Bobert, the free credit tracker for Kiro: https:\/\/open-vsx\.org\/extension\/StefanSuess\/bobert$/);
   assert.ok(!env.clipboard[0]!.includes(work));assert.deepEqual(results(env),['copyRecapText:copied']);
   // Dismiss writes only the validated shape, and the card is gone from the next page.
   s.advance();env.receive({type:'dismissRecap'});await waitFor(()=>(env.store.get(RECAP_KEY) as any)?.state==='dismissed',s);
@@ -1456,7 +1456,7 @@ test('packaged recap leaves an unreadable stored value untouched and shows no ca
   try{
    const env2=recapEnv(root2);env2.prompts=false;s=await communitySession(env2,root2);
    await s.commands.get('bobert.showUsage')!();await s.later();
-   assert.match(env2.panels.at(-1).webview.html,/id="recap-card"/);assert.ok(!env2.panels.at(-1).webview.html.includes('Bobert: https://'));
+   assert.match(env2.panels.at(-1).webview.html,/id="recap-card"/);assert.ok(!/<ul id="recap-lines"[^]*?<\/ul>/.exec(env2.panels.at(-1).webview.html)![0].includes('Made with Bobert'),'the card lines carry no share line (the page script holds the fixed text)');
   }finally{s?.dispose();rmSync(root2,{recursive:true,force:true});}
  }finally{s?.dispose();rmSync(work,{recursive:true,force:true});}
 });

@@ -44,3 +44,28 @@ export function cycleComparison(h: AccountHistory): CycleComparison {
   return { status: 'observed', offsetMs, current: latest, previous: before, before: null, after: null };
  return { status: before && after ? 'bracketed' : 'not_observed', offsetMs, current: latest, previous: null, before, after };
 }
+
+export type WeekComparison = { status: 'observed'; last: string; before: string; direction: 'higher' | 'lower' | 'unchanged'; difference: string } | { status: 'not_observed' };
+const DAY = 86400000;
+/**
+ * The last seven full UTC days (ending yesterday) against the seven before, from evidence days only. Every one of the 14 days must be observed for all
+ * 24 hours; otherwise nothing is compared, so a gap is never counted as zero use. Observation only: the cause is open.
+ */
+export function weekComparison(h: AccountHistory, now: string): WeekComparison {
+ const today = Date.parse(`${now.slice(0, 10)}T00:00:00Z`);
+ if (!Number.isFinite(today) || h.status !== 'available') return { status: 'not_observed' };
+ const days = new Map(h.evidence.days.map(d => [d.day, d]));
+ const sum = (from: number): string | null => {
+  let total = '0';
+  for (let i = 0; i < 7; i++) {
+   const d = days.get(new Date(from + i * DAY).toISOString().slice(0, 10));
+   if (!d || d.observedMilliseconds !== DAY) return null;
+   total = add(total, d.netChange);
+  }
+  return total;
+ };
+ const last = sum(today - 7 * DAY), before = sum(today - 14 * DAY);
+ if (last === null || before === null) return { status: 'not_observed' };
+ const c = compare(last, before);
+ return { status: 'observed', last, before, direction: c === 0 ? 'unchanged' : c > 0 ? 'higher' : 'lower', difference: subtract(last, before).replace(/^-/, '') };
+}

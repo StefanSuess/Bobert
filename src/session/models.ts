@@ -35,12 +35,17 @@ export const MODELS: readonly ModelRow[] = [
  // end of life since 2026-10-14: Kiro does not switch a removed selected model, so a session may still carry the id, but the model can no longer be
  // chosen and a "costs more than Auto" hint would not help; kept in the table so the id is known, silent on purpose.
  { id: 'claude-sonnet-4.0', name: 'Claude Sonnet 4.0', multiplier: '1.3', basis: 'pattern', flag: 'silent' },
+ { id: 'claude-haiku-5.5', name: 'Claude Haiku 5.5', multiplier: '0.06', basis: 'pattern', flag: 'tiered' }, // 0.3x above 100K tokens, still below 1.0, so silent; the base factor is the listed one
  { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', multiplier: '0.4', basis: 'pattern' },
  { id: 'kimi-k3', name: 'Kimi K3', multiplier: '2.4', basis: 'pattern' }, // US only, experimental
  { id: 'deepseek-3.2', name: 'DeepSeek 3.2', multiplier: '0.25', basis: 'pattern' }, // experimental
  { id: 'glm-5', name: 'GLM-5', multiplier: '0.5', basis: 'pattern' },
  { id: 'qwen3-coder-next', name: 'Qwen3 Coder Next', multiplier: '0.05', basis: 'pattern' }, // experimental
 ];
+// The table in use: the one built into this version, or a newer validated one the user allowed (src/session/price-data.ts). Read at call time.
+let inUse: { rows: readonly ModelRow[]; date: string } = { rows: MODELS, date: TABLE_DATE };
+export function activeModels(): { rows: readonly ModelRow[]; date: string } { return inUse; }
+export function useModels(next: { rows: readonly ModelRow[]; date: string } | null): void { inUse = next ?? { rows: MODELS, date: TABLE_DATE }; }
 export interface ModelHint { name: string; multiplier: string; from: boolean; stale: boolean; date: string }
 /** "1.3" -> "1.3", "2.0" -> "2", rounded to one decimal; undefined unless a finite positive decimal. */
 export function multiplierText(decimal: string): string | undefined {
@@ -49,7 +54,7 @@ export function multiplierText(decimal: string): string | undefined {
  return String(Math.round(n * 10) / 10);
 }
 /** A hint only for a listed identifier whose table multiplier is above 1.0; silent for Auto, unknown ids, silent rows and everything at or below 1.0. */
-export function modelHint(id: string | null, now: number, table: readonly ModelRow[] = MODELS, date = TABLE_DATE): ModelHint | undefined {
+export function modelHint(id: string | null, now: number, table: readonly ModelRow[] = activeModels().rows, date = activeModels().date): ModelHint | undefined {
  if (id === null || !MODEL_ID.test(id)) return undefined;
  const row = table.find(r => r.id === id);
  if (!row || row.flag === 'silent' || !MODEL_ID.test(row.id) || !(Number(row.multiplier) > 1)) return undefined;

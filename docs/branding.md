@@ -16,7 +16,7 @@ Bobert is a small robot whose mouth is a credit gauge. He is the product's perso
 
 - **Tagline:** "Bobert worries about your Kiro credits, so you don't have to."
 - **Running joke:** Bobert looks like he has seen a ghost. He has: your credit forecast. (A nod to Kiro's ghost; in text only, never combined with Kiro's logo or artwork.)
-- **Moods (idea for after 1.0):** his face could follow the budget state, for example smiling when "On track", worried when "Likely to exceed", alarmed at the limit. Any mood must match the state the status bar already shows, never add drama to a calm forecast.
+- **Moods:** his face in the credit view follows the budget state: smiling when "On track", flat while unknown, the icon's worried gauge when tight or stale, wide-eyed with the needle pinned when over. Any mood must match the state the status bar already shows, never add drama to a calm forecast.
 - **Tone:** playful in the README, listing, icon and social posts; plain and precise in notices, the credit view and diagnostics. Jokes never replace a caveat, a number or an action.
 
 ## Where each size is used
@@ -24,6 +24,7 @@ Bobert is a small robot whose mouth is a credit gauge. He is the product's perso
 - Extension metadata: `package.json` `"icon"` points to `assets/branding/bobert-icon-256.png`. Marketplaces need a PNG of at least 128×128; 256 keeps it sharp on high-DPI screens.
 - GitHub project branding (avatar): `bobert-icon-1024.png`. Uploading it is a manual repository setting, not part of this change.
 - GitHub social preview: `bobert-github-social-preview-1280x640.png`. It is not applied automatically; a repository admin sets it manually under GitHub repo **Settings > Social preview**. It shows Bobert without the icon tile, the name, the subtitle and the tagline on the navy background; its source is `source/bobert-github-social-preview.svg` (rendered with `rsvg-convert`, font Avenir Next).
+- Walkthroughs: every step of *Get started with Bobert* and *Learn to spend fewer credits* shows `bobert-walkthrough.svg`: the robot from `source/bobert-icon.svg` without the navy tile, small and centered on a transparent canvas (the padding lives in its `viewBox`, because the editor scales walkthrough media to the pane). If the icon drawing changes, copy the change into this file.
 - README: see below.
 - First beta release materials: `bobert-icon-512.png` or `-1024.png`.
 
@@ -33,7 +34,7 @@ The README header shows `bobert-icon-128.png` through an absolute `raw.githubuse
 
 ## Packaging impact
 
-`.vscodeignore` excludes everything by default, so only the 256 px icon is allow-listed. Measured with `vsce package` on the 0.5.1 baseline:
+`.vscodeignore` excludes everything by default, so only the 256 px icon and the walkthrough SVG are allow-listed. Measured with `vsce package` on the 0.5.1 baseline:
 
 | | Files | VSIX size |
 | --- | --- | --- |
@@ -44,4 +45,4 @@ The README header shows `bobert-icon-128.png` through an absolute `raw.githubuse
 
 The icon adds about 66 KB (lossless RGBA). If size matters more later, the 128 px file is about 20 KB, and an 8-bit palette-quantized 256 px version is about 8 KB with slight dithering in the dark background. The source, larger derivatives and the social preview are never packaged.
 
-Any release check that asserts an exact VSIX file list must include `extension/assets/branding/bobert-icon-256.png`.
+The walkthrough SVG adds under 1 KB. Any release check that asserts an exact VSIX file list must include `extension/assets/branding/bobert-icon-256.png` and `extension/assets/branding/bobert-walkthrough.svg`.

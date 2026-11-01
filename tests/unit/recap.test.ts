@@ -16,7 +16,7 @@ const NO_RESULTS: StoredResults = { status: 'ok', entries: [] };
 const cycleBefore = () => [at('2030-04-20T00:00:00.000Z', '100', RQ), at('2030-05-01T06:00:00.000Z', '20', R0), at('2030-05-15T00:00:00.000Z', '200', R0), at('2030-05-31T20:00:00.000Z', '500', R0)];
 const previousCycle = () => [at('2030-06-01T06:00:00.000Z', '30', R1), at('2030-06-10T00:00:00.000Z', '300', R1), at('2030-06-10T12:00:00.000Z', '400', R1), at('2030-06-30T20:00:00.000Z', '900', R1)];
 const current = () => [at('2030-07-01T06:00:00.000Z', '10', R2)];
-const recapOf = (snaps: ReturnType<typeof snapshot>[], results = NO_RESULTS, link = true) => computeRecap(history(snaps), results, link);
+const recapOf = (snaps: ReturnType<typeof snapshot>[], results = NO_RESULTS, link = true, days?: Parameters<typeof computeRecap>[3]) => computeRecap(history(snaps), results, link, days);
 
 test('the full recap names each figure with its basis and carries the Open VSX text', () => {
  const r = recapOf([...cycleBefore(), ...previousCycle(), ...current()])!;
@@ -28,6 +28,8 @@ test('the full recap names each figure with its basis and carries the Open VSX t
   'Use compared with the cycle before: average 30.167597 credits per day over the observed part of the cycle, against 16.216216 in the cycle before, higher by 13.951381. This is an observation only; the cause is open.',
   'Exclusions you saved in that cycle: none counted.',
   'Busiest observed day (partial observation): 10 Jun 2030 (UTC), 100 credits in 12 h 0 min of observed updates.',
+  'Quietest observed day: 10 Jun 2030 (UTC), 100 credits in 12 h 0 min of observed updates.',
+  'Days at or under the even daily pace: not observed. No complete UTC day of the cycle was observed.',
   RECAP_LINK_TEXT]);
  assert.equal(recapText(r), [RECAP_TITLE, r.period, ...r.lines].join('\n'));
  assert.equal(recapOf([...cycleBefore(), ...previousCycle(), ...current()], NO_RESULTS, false)!.lines.includes(RECAP_LINK_TEXT), false, 'the link text can be switched off');
@@ -154,4 +156,24 @@ test('present() renders the card and the export section only when given, and sta
  // The export lives inside the collapsed Advanced details, without its own section or a privacy sentence.
  for (const html of [without, withCard]) { assert.ok(html.indexOf('id="advanced-details"') < html.indexOf('id="export-tools"')); assert.ok(html.indexOf('id="export-tools"') < html.indexOf('<footer')); assert.ok(!html.includes('id="export-heading"')); assert.ok(!/never writes to your workspace/.test(html)); assert.ok(!/<script|\sstyle=/.test(html)); buildDomModel(html); }
  assert.ok(withCard.indexOf('id="recap-card"') < withCard.indexOf('id="advanced-details"'));
+});
+
+test('quietest day needs 12 observed hours, and the pace line counts complete days with the longest run', () => {
+ // Midnight updates: each UTC day from 1 Jun (the cycle start, 30 credits in its first six hours) is observed for all 24 hours. Pace: 1000 credits over 30 days is about 33.33 a day.
+ const use = [20, 20, 90, 20, 20, 20]; // 2 to 7 Jun; 4 Jun (90) is over the pace and ends the first run of three
+ let total = 30; const prev = [at('2030-06-01T06:00:00.000Z', '30', R1), at('2030-06-02T00:00:00.000Z', '30', R1)];
+ use.forEach((u, i) => { total += u; prev.push(at(`2030-06-0${i + 3}T00:00:00.000Z`, String(total), R1)); });
+ prev.push(at('2030-06-30T20:00:00.000Z', '900', R1));
+ const r = recapOf([...cycleBefore(), ...prev, ...current()])!;
+ assert.match(r.lines[5]!, /^Quietest observed day: 2 Jun 2030 \(UTC\), 20 credits in 24 h 0 min/);
+ assert.match(r.lines[6]!, /^Days at or under the even daily pace \(33\.33\d+ credits, limit divided by the cycle length\): 6 of 7 complete UTC days, longest run in a row 3\.$/);
+// Only Monday to Friday count: the pace is 1000 / 20 weekdays in June 2030 = 50, the weekend days (1 and 2 Jun) are left out and 4 Jun (90) ends the first run.
+ const weekdays = recapOf([...cycleBefore(), ...prev, ...current()], NO_RESULTS, true, ['mon', 'tue', 'wed', 'thu', 'fri'])!;
+ assert.match(weekdays.lines[6]!, /^Budget days at or under the even daily pace \(50 credits, limit divided by the budget days of the cycle\): 4 of 5 complete UTC budget days, longest run in a row 3\.$/);
+ assert.match(recapOf([...cycleBefore(), ...prev, ...current()], NO_RESULTS, true, ['sun'])!.lines[6]!, /^Budget days at or under the even daily pace \([\d.]+ credits, limit divided by the budget days of the cycle\): 1 of 1 complete UTC budget days, longest run in a row 1\.$/);
+ assert.match(recapOf([...cycleBefore(), ...prev, ...current()], NO_RESULTS, true, ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])!.lines[6]!, /^Days at or under/);
+ const sparse = recapOf([...cycleBefore(), ...previousCycle(), ...current()])!;
+ assert.match(sparse.lines[5]!, /^Quietest observed day: .*100 credits in 12 h 0 min/);
+ const short = recapOf([...cycleBefore(), at('2030-06-01T06:00:00.000Z', '10', R1), at('2030-06-05T00:00:00.000Z', '100', R1), at('2030-06-05T01:30:00.000Z', '110', R1), at('2030-06-30T20:00:00.000Z', '300', R1), ...current()])!;
+ assert.equal(short.lines[5], 'Quietest observed day: not observed. No day was observed for at least 12 hours in same-day updates.');
 });

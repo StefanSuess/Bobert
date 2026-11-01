@@ -9,7 +9,7 @@ import {calculateCosts,type NativeCostInput} from './cost-inputs.ts';
 import {AdvisorInputs,reviewAdvisor,validateAdvisorAnswers,type AdvisorFormValues} from './advisor-inputs.ts';
 import {presentAdvisor} from './advisor-presentation.ts';
 import {planHint,advisorProfile,classifyAdvice} from '../cost/advisor.ts';
-import {reviewedCatalog} from '../cost/catalog.ts';
+import {activeCatalog} from '../cost/catalog.ts';
 import {estimateSavings} from '../cost/estimate.ts';
 import {planInsights,NO_INSIGHTS,type PlanInsights} from '../cost/plan-hints.ts';
 import {observedCycleKey,type StoredResults} from './results-summary.ts';
@@ -74,7 +74,7 @@ export async function startExtension(ui: ExtensionUi, options: ExtensionOptions)
   // Add-on wording in the credit view only for a paid consumer plan (confirmed or assumed); Free, an unknown plan and Enterprise stay neutral.
   let addOnsApply=false;
   try{
-   const hint=planHint(observation.baseLimit,reviewedCatalog);
+   const hint=planHint(observation.baseLimit,activeCatalog());
    const built=advisorProfile({limit:observation.baseLimit,usage:observation.usage,asOf:observation.forecast.asOf??null,resetAt:observation.forecast.resetAt??null},advisor.value,hint);
    const horizons=built.profile?calculateCosts({mode:'personalized',profile:built.profile,monthlyCredits:'0',beforeReset:undefined,demandMode:'forecast'},observation.forecast,observation.history,now()):[];
    const advice=horizons.map(h=>classifyAdvice(h.result,built.context));
@@ -92,7 +92,9 @@ export async function startExtension(ui: ExtensionUi, options: ExtensionOptions)
   // The recap card of the cycle that just ended: shown the first time its cycle is observed and until dismissed; a failure only omits it.
   let recap:Recap|undefined;
   try{
-   const candidate=computeRecap(observation.history,results??{status:'unknown',entries:[]},options.recapLink?.()??true);
+   let recapDays:readonly BudgetDay[];
+   try{recapDays=options.budgetDays?.()??ALL_DAYS;}catch{recapDays=ALL_DAYS;}
+   const candidate=computeRecap(observation.history,results??{status:'unknown',entries:[]},options.recapLink?.()??true,recapDays);
    const visibility=recapVisibility(candidate,options.recapState?.()??{status:'unknown'});
    if(candidate&&visibility!=='hidden'){
     recap=candidate;
@@ -146,7 +148,7 @@ export async function startExtension(ui: ExtensionUi, options: ExtensionOptions)
   const ticket=advisor.begin();render();
   try{
    let reset = false;
-   const value=await reviewAdvisor({ ...ui.costInput, async pick(title, items) { const choice = await ui.costInput!.pick(title, items); if (choice === 'reset') reset = true; return choice; } },planHint(observation.baseLimit,reviewedCatalog),advisor.value);
+   const value=await reviewAdvisor({ ...ui.costInput, async pick(title, items) { const choice = await ui.costInput!.pick(title, items); if (choice === 'reset') reset = true; return choice; } },planHint(observation.baseLimit,activeCatalog()),advisor.value);
    if(!value||disposed)return;
    await refresh();if(disposed)return;
    if(advisor.commit(ticket,value)){render();ui.showDetails(detail);try{if(!reset)options.onAdvisorUsed?.();}catch{/* support never affects the Advisor */}}

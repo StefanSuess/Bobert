@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { isPreReleaseVersion } from '../../scripts/release/channel.ts';
-import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, readUnusedCreditsPercent, registerCommand } from '../../src/extension/identity.ts';
+import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, FEEDBACK_URL, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, PRICE_UPDATE_SETTING_KEYS, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, readUnusedCreditsPercent, registerCommand } from '../../src/extension/identity.ts';
+import { STATUS_MENU } from '../../src/extension/presentation.ts';
 
 const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 const stub = (log: string[]) => (id: string) => { log.push(id); return { dispose() {} }; };
@@ -16,15 +17,20 @@ test('manifest identity and commands use the Bobert names', () => {
  for (const c of manifest.contributes.menus['editor/title']) { assert.ok(commands.includes(c.command)); assert.equal(c.when, `activeWebviewPanelId == ${PANEL_VIEW_TYPE}`); }
 });
 
-test('the getting-started walkthrough has actionable steps, completion events and a distinct alt text per packaged image', () => {
+test('the getting-started walkthrough has actionable steps, completion events and a distinct alt text per packaged image', async () => {
  const titles = Object.fromEntries(manifest.contributes.commands.map((c: any) => [c.command, c.title]));
  assert.equal(titles[commandId('gettingStarted')], 'Bobert: Get Started');
  const [walkthrough, ...rest] = manifest.contributes.walkthroughs;
- assert.equal(rest.length, 0); assert.equal(walkthrough.id, commandId('gettingStarted')); assert.equal(walkthrough.title, 'Get started with Bobert');
+ assert.deepEqual(rest.map((w: any) => w.id), ['bobert.lessons']); assert.equal(walkthrough.id, commandId('gettingStarted')); assert.equal(walkthrough.title, 'Get started with Bobert');
  const steps: any[] = walkthrough.steps;
+ const lessons: any[] = rest[0].steps;
+ assert.deepEqual(lessons.map(s => s.title), ['See what the numbers mean', 'Keep Steering files small', 'Tell Kiro what to skip', 'Check that your plan fits']);
  assert.deepEqual(steps.map(s => s.title), ['Set up Bobert', 'See your Kiro credits', "Find files Kiro doesn't need", 'Find ways to use fewer credits', 'Get warned before credits run out', 'Look back on each cycle', 'Nudges from your latest Kiro session']);
- // The editor requires media on every step and only the icon is packaged; each step names what it is about instead of repeating "Bobert icon".
- for (const step of steps) { assert.ok(step.id && step.description); assert.deepEqual(step.media, { image: manifest.icon, altText: step.media.altText }); assert.equal(step.media.image, 'assets/branding/bobert-icon-256.png'); assert.ok(step.media.altText); }
+ // The editor requires media on every step; every step shows the small, tile-less walkthrough drawing; each step names what it is about instead of repeating "Bobert icon".
+ for (const step of [...steps, ...lessons]) { assert.ok(step.id && step.description); assert.deepEqual(step.media, { svg: 'assets/branding/bobert-walkthrough.svg', altText: step.media.altText }); assert.ok(step.media.altText); }
+ // A transparent drawing, not the tiled icon: no full-size background rect, and the robot fills only a small part of the canvas.
+ const art = await readFile(new URL('../../assets/branding/bobert-walkthrough.svg', import.meta.url), 'utf8');
+ assert.match(art, /viewBox="-100 -106 320 320"/); assert.ok(!/<rect[^>]*width="120"/.test(art)); assert.ok(!/<(script|image|foreignObject)\b|href=/i.test(art));
  assert.equal(new Set(steps.map(s => s.media.altText)).size, steps.length); assert.ok(!steps.some(s => /Bobert icon/i.test(s.media.altText)));
  assert.equal(steps[0].id, 'bobert.gettingStarted.setup'); assert.match(steps[0].description, /\[Set up Bobert\]\(command:bobert\.setup\)/); assert.deepEqual(steps[0].completionEvents, ['onCommand:bobert.setup']);
  assert.match(steps[1].description, /\(command:bobert\.showUsage\)/); assert.deepEqual(steps[1].completionEvents, ['onCommand:bobert.showUsage']);
@@ -39,18 +45,18 @@ test('the getting-started walkthrough has actionable steps, completion events an
  assert.match(steps[5].description, /\(command:bobert\.showUsage\)/);
  assert.match(steps[6].description, /\(command:workbench\.action\.openSettings\?%5B%22bobert\.sessionHints%22%5D\)/);
  // Only Bobert commands, the editor's settings opener and the one fixed privacy document are linked.
- for (const step of steps) for (const [, target] of step.description.matchAll(/\]\(([^)]*)\)/g)) assert.match(target, /^(command:(bobert\.[A-Za-z.]+|workbench\.action\.openSettings\?%5B%22bobert\.(budgetWarnings|sessionHints)%22%5D)|https:\/\/github\.com\/StefanSuess\/Bobert\/blob\/HEAD\/docs\/privacy-and-storage\.md)$/);
- for (const step of steps) for (const id of step.completionEvents ?? []) assert.ok(id === 'onStepSelected' || id.startsWith('onCommand:bobert.'), id);
+ for (const step of [...steps, ...lessons]) for (const [, target] of step.description.matchAll(/\]\(([^)]*)\)/g)) assert.match(target, /^(command:(bobert\.[A-Za-z.]+|workbench\.action\.openSettings\?%5B%22bobert\.(budgetWarnings|sessionHints)%22%5D)|https:\/\/github\.com\/StefanSuess\/Bobert\/blob\/HEAD\/docs\/(privacy-and-storage|guide|recipes)\.md)$/);
+ for (const step of [...steps, ...lessons]) for (const id of step.completionEvents ?? []) assert.ok(id === 'onStepSelected' || id.startsWith('onCommand:bobert.'), id);
 });
 
 test('only current settings are declared under the Bobert prefix', () => {
  const props = manifest.contributes.configuration.properties;
- assert.deepEqual(Object.keys(props).sort(), [...SETTING_KEYS, ...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS].map(k => `bobert.${k}`).sort());
+ assert.deepEqual(Object.keys(props).sort(), [...SETTING_KEYS, ...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS, ...PRICE_UPDATE_SETTING_KEYS].map(k => `bobert.${k}`).sort());
  for (const k of SETTING_KEYS) {
   assert.ok(props[`bobert.${k}`] && !props[`bobert.${k}`].deprecationMessage, k);
   assert.equal(props[`bobert.${k}`].scope, 'machine');
  }
- for (const k of [...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS]) {
+ for (const k of [...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS, ...PRICE_UPDATE_SETTING_KEYS]) {
   assert.ok(props[`bobert.${k}`] && !props[`bobert.${k}`].deprecationMessage, k);
   assert.equal(props[`bobert.${k}`].scope, 'application');
  }
@@ -63,7 +69,7 @@ test('only current settings are declared under the Bobert prefix', () => {
  assert.ok(!/\bstar\b/i.test(prompts.description));
  // User-facing settings come first; the testing and storage overrides come last. Raw values and the legacy true are not in the visible text.
  const order = Object.entries(props).sort((a: any, b: any) => a[1].order - b[1].order).map(([k]) => k.replace('bobert.', ''));
- assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'unusedCreditsPercent', 'budgetDays', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone']);
+ assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'unusedCreditsPercent', 'budgetDays', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone', 'priceUpdates']);
  assert.equal(new Set(Object.values(props).map((p: any) => p.order)).size, Object.keys(props).length);
  for (const k of ['auditAutomatically', 'configReviewAutomatically']) {
   assert.deepEqual(props[`bobert.${k}`].enumItemLabels, ['Off', 'On open', 'On open and on changes'], k);
@@ -123,6 +129,12 @@ test('the report-a-problem address is one fixed https constant whose only query 
  assert.deepEqual([...new URL(REPORT_PROBLEM_URL).searchParams.entries()], [['template', 'bug_report.yml']]);
  assert.equal(new URL(REPORT_PROBLEM_URL).hash, '');
  assert.equal(REPORT_PROBLEM_ACTION, 'Report a problem');
+});
+
+test('the feedback address is one fixed https constant whose only query is the template', () => {
+ assert.equal(FEEDBACK_URL, 'https://github.com/StefanSuess/Bobert/issues/new?template=feature_request.yml');
+ assert.deepEqual([...new URL(FEEDBACK_URL).searchParams.entries()], [['template', 'feature_request.yml']]);
+ assert.equal(new URL(FEEDBACK_URL).hash, '');
 });
 
 test('the reset reminder command is declared with its palette title', () => {
@@ -202,11 +214,24 @@ test('extension entry point starts Bobert without installation gates', async () 
 
 test('VSIX allowlist ships exactly manifest, readme, license, changelog, bundle and icon', async () => {
  const ignore = (await readFile(new URL('../../.vscodeignore', import.meta.url), 'utf8')).split('\n').map(l => l.trim()).filter(Boolean);
- assert.deepEqual(ignore, ['**', '!package.json', '!README.md', '!LICENSE', '!CHANGELOG.md', '!dist/extension.cjs', '!assets/branding/bobert-icon-256.png']);
+ assert.deepEqual(ignore, ['**', '!package.json', '!README.md', '!LICENSE', '!CHANGELOG.md', '!dist/extension.cjs', '!assets/branding/bobert-icon-256.png', '!assets/branding/bobert-walkthrough.svg']);
  assert.equal(manifest.license, 'MIT');
  assert.equal(manifest.preview === true, isPreReleaseVersion(manifest.version));
- for (const key of Object.keys(manifest.contributes.configuration.properties)) assert.equal(manifest.contributes.configuration.properties[key].scope, [...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS].some(k => key === `bobert.${k}`) ? 'application' : 'machine', key);
+ for (const key of Object.keys(manifest.contributes.configuration.properties)) assert.equal(manifest.contributes.configuration.properties[key].scope, [...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS, ...PRICE_UPDATE_SETTING_KEYS].some(k => key === `bobert.${k}`) ? 'application' : 'machine', key);
  assert.equal(manifest.icon, 'assets/branding/bobert-icon-256.png');
  assert.ok((await readFile(new URL(`../../${manifest.icon}`, import.meta.url))).length > 0);
  assert.match(await readFile(new URL('../../LICENSE', import.meta.url), 'utf8'), /MIT License/);
+});
+
+test('the status bar menu offers the credit view first and only runs commands that exist', () => {
+ const contributed: string[] = manifest.contributes.commands.map((c: any) => c.command);
+ assert.ok(contributed.includes(commandId('statusMenu')));
+ assert.equal(STATUS_MENU[0]!.command, commandId('showUsage'));
+ assert.equal(new Set(STATUS_MENU.map(e => e.command)).size, STATUS_MENU.length);
+ for (const entry of STATUS_MENU) {
+  assert.ok(entry.label.length > 0 && entry.description.length > 0);
+  assert.ok(contributed.includes(entry.command) || entry.command === 'workbench.action.openSettings', entry.command);
+ }
+ const settings = STATUS_MENU.find(e => e.command === 'workbench.action.openSettings')!;
+ assert.deepEqual(settings.args, [`@ext:${manifest.publisher}.${manifest.name}`.toLowerCase()]);
 });

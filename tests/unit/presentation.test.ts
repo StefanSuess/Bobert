@@ -4,8 +4,10 @@ import { view } from '../../src/view.ts';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { present } from '../../src/extension/presentation.ts';
+import { present, examplePreview, exampleSnapshots } from '../../src/extension/presentation.ts';
+import { buildDomModel } from '../../src/extension/dashboard-shell.ts';
 import { ALL_DAYS, type BudgetDay } from '../../src/extension/daily-budget.ts';
+import { workspaceScore } from '../../src/extension/audit-model.ts';
 import { largerPlanText, rightSizeText } from '../../src/extension/budget-warning.ts';
 import { ESTIMATE_MARKER } from '../../src/extension/advisor-presentation.ts';
 import { startExtension } from '../../src/extension/controller.ts';
@@ -187,6 +189,18 @@ test('workspace audit card: never checked offers only Run audit', () => {
  assert.ok(html.indexOf('class="stats"') < html.indexOf('class="audit-card"'));
  assert.match(card({ state: 'never', lastDate: '2030-03-01' }), /Last checked 2030-03-01 \(UTC\)\./);
  assert.ok(!card({ state: 'never', lastDate: '<b>synthetic</b>' }).includes('Last checked'));
+});
+test('the audit card names the recipe lines for the kinds found, a generic pointer otherwise, and nothing at zero findings',()=>{
+ const text=(a:AuditSummary)=>card(a).replace(/&#39;/g,"'");
+ const found=text({state:'checked',items:3,kinds:['build','secret','large','bogus'],checkedAt:'2030-06-15T11:00:00Z'});
+ assert.match(found,/starter \.kiroignore recipe \(docs\/recipes\.md in the Bobert repository\) has lines for what was found\. Keep only the ones that fit your project: secrets and credentials: \.env, \.env\.\*, \*\.pem; build output: dist\/, build\/\./);
+ assert.ok(!/bogus|Other large files/.test(found));
+ assert.match(text({state:'checked',items:1,kinds:['large'],checkedAt:'2030-06-15T11:00:00Z'}),/Not sure what to do with them\? The Bobert docs have copy-paste recipes/);
+ assert.match(text({state:'checked',items:0,unclear:2,checkedAt:'2030-06-15T11:00:00Z'}),/Not sure what to do with them\?/);
+ assert.ok(!/recipes\.md/.test(text({state:'checked',items:0,unclear:0,kinds:[],checkedAt:'2030-06-15T11:00:00Z'})));
+ assert.ok(!/recipes\.md/.test(text({state:'never'})));
+ assert.deepEqual(cardHrefs(card({state:'checked',items:3,kinds:['build'],checkedAt:'2030-06-15T11:00:00Z'})).sort(),['command:bobert.audit.show','command:bobert.auditWorkspace']);
+ assert.doesNotThrow(()=>buildDomModel(card({state:'checked',items:3,kinds:['build','secret'],checkedAt:'2030-06-15T11:00:00Z'})));
 });
 test('workspace audit card: checked states show the count and a relative time, plus Show', () => {
  const now = new Date(2030, 5, 15, 12, 0, 0), ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
@@ -768,4 +782,87 @@ test('the credit view says how many plan credits are likely left only in the las
  assert.ok(!present(view(series(30,'1000',28),now),[],'','',undefined,now).html.includes('Likely left at the reset'));
  assert.ok(!present(view(series(10,'1000',5),'2030-06-05T00:00:00Z'),[],'','',undefined,'2030-06-05T00:00:00Z').html.includes('Likely left at the reset'));
  assert.ok(!render(10).html.includes('Likely left at the reset'));
+});
+
+test('the example preview shows invented numbers with a visible note, a forecast and no script',()=>{
+ const now='2031-03-10T12:00:00.000Z';
+ const html=examplePreview(now);
+ assert.match(html,/<body><div role="note"[^>]*>Example data: invented numbers/);
+ assert.ok(!/<script/i.test(html));
+ assert.match(html,/id="status-heading"/);
+ assert.match(html,/On track|Likely to exceed|Tight|Looks on track/);
+ assert.equal(html,examplePreview(now)); // deterministic for the same instant
+ const snaps=exampleSnapshots(now);
+ assert.equal(snaps.length,45);
+ assert.ok(snaps.every(s=>s.partition==='synthetic-example'&&s.limit==='1000'));
+ assert.ok(Date.parse(snaps.at(-1)!.observedAt)===Date.parse(now)&&Date.parse(snaps[0]!.resetAt!)>Date.parse(now));
+});
+
+test('the status bar tooltip says when the next reset is, and says nothing once it has passed',()=>{
+ const r=render(10);
+ assert.match(r.tooltip,/^Next reset in \d+ days? \(\d{1,2} [A-Z][a-z]{2}\)$/m);
+ assert.ok(r.tooltip.indexOf('Next reset')>r.tooltip.indexOf('Today:') && r.tooltip.indexOf('Next reset')<r.tooltip.indexOf('Last account update'));
+ assert.ok(!/Next reset/.test(render(10,'1000',8,'2030-07-05T00:00:00Z').tooltip));
+});
+
+test('the status icon is a decorative face that differs by tone',()=>{
+ const icon=(html:string)=>/class="status-icon" aria-hidden="true">(<svg[\s\S]*?<\/svg>)</.exec(hero(html))?.[1];
+ assert.ok(icon(render(10).html));
+ assert.notEqual(icon(render(10).html),icon(render(10,'1000',1).html));
+ assert.ok(!/\p{Extended_Pictographic}/u.test(hero(render(10).html)));
+ assert.doesNotThrow(()=>buildDomModel(render(10).html));
+ assert.doesNotThrow(()=>buildDomModel(render(10,'1000',1).html));
+});
+
+test('the saving tip names a daily amount that lasts until the reset, only while a run-out is ahead',()=>{
+ const tip=(html:string)=>/<p class="small saving-tip"><strong>Tip:<\/strong> ([^<]*)<\/p>/.exec(html)?.[1];
+ assert.match(tip(render(10,'100').html)!,/^To last until the reset, aim for about [\d.]+ credits a day instead of the 10 you are using now\.$/);
+ assert.equal(tip(render(10,'1000').html),undefined,'on track: no tip');
+ assert.equal(tip(render(10,'30').html),undefined,'already at the limit: no daily amount left to aim for');
+});
+
+test('week over week compares the last 7 full UTC days with the 7 before, and says nothing when a day was not fully observed',()=>{
+ const text=(html:string)=>/<h3>Week over week<\/h3><p>([^<]*)<\/p>/.exec(html)?.[1];
+ assert.equal(text(render(10,'1000',20).html),'The last 7 full UTC days used 70 credits; the 7 days before used 70, unchanged. This is an observation only; the cause is open.');
+ // 10 credits a day for 13 days, then 20 a day: the last week uses more than the week before
+ const daily=Array.from({length:20},(_,i)=>i<13?i*10:130+(i-13)*20);
+ const snaps=daily.map((u,i)=>snapshot(`2030-06-${String(i+1).padStart(2,'0')}T00:00:00Z`,String(u),{limit:'1000'}));
+ const now='2030-06-20T00:00:00Z';
+ const higher=text(present(view(snaps,now),[],'','',undefined,now).html);
+ assert.match(higher!,/^The last 7 full UTC days used \d+ credits; the 7 days before used \d+, so the last week was higher by \d+ credits\./);
+ assert.equal(text(render(10,'1000',12).html),undefined); // fewer than 14 observed days
+ const gap=snaps.filter((_,i)=>i!==9); // a missing midnight update leaves two days partly unobserved
+ assert.equal(text(present(view(gap,now),[],'','',undefined,now).html),undefined);
+ assert.doesNotThrow(()=>buildDomModel(render(10,'1000',20).html));
+});
+
+test('the status bar tooltip says on which day the credits run out and how far away that is, only when a run-out is projected',()=>{
+ const r=render(10,'100'); // run-out on 11 Jun 2030, counted from the evaluation day 8 Jun
+ assert.match(r.tooltip,/^At the observed pace your credits run out on 11 Jun \(in 3 days, UTC\)$/m);
+ assert.ok(r.tooltip.indexOf('run out')>r.tooltip.indexOf('Today:'));
+ assert.ok(!/run out/.test(render(10,'1000').tooltip)); // on track: nothing projected before the reset
+});
+
+test('the workspace score is 100 with nothing found, falls as items pile up, and appears only after an audit', () => {
+ assert.deepEqual([0, 1, 10, 40].map(n => workspaceScore(n, 0)), [100, 91, 50, 20]);
+ assert.equal(workspaceScore(0, 2), 91, 'unclear items count half');
+ assert.equal(workspaceScore(-1, 0), 100);
+ const score = (a: AuditSummary) => /Workspace score: (\d+) of 100\./.exec(card(a))?.[1];
+ assert.equal(score({ state: 'checked', items: 0, unclear: 0, checkedAt: '2030-06-15T11:00:00Z' }), '100');
+ assert.equal(score({ state: 'checked', items: 10, unclear: 0, bytes: 5, checkedAt: '2030-06-15T11:00:00Z' }), '50');
+ assert.equal(score({ state: 'never' }), undefined);
+ assert.equal(score({ state: 'unavailable' }), undefined);
+ assert.doesNotThrow(()=>buildDomModel(card({ state: 'checked', items: 3, unclear: 1, checkedAt: '2030-06-15T11:00:00Z' })));
+});
+
+test('the daily usage calendar shows observed days with numbers, marks unknown days and stays inside the DOM allowlist',()=>{
+ const r=render(10,'1000',12);
+ const cal=/<section id="usage-calendar"[\s\S]*?<\/section>/.exec(r.html)?.[0]??'';
+ assert.match(cal,/Daily usage calendar/);
+ assert.match(cal,/<td class="l[0-4]"[^>]*>\d+\+?<\/td>/); // numbers, not shade alone
+ assert.match(cal,/<td class="unk"[^>]*>–<\/td>/); // days before the first update are unknown, not zero
+ assert.ok(!/>0<\/td>/.test(cal.replace(/<td class="l0"[^>]*>0<\/td>/g,'')));
+ assert.equal((cal.match(/<tr>/g)??[]).length,8); // header and seven weekdays
+ assert.doesNotThrow(()=>buildDomModel(r.html));
+ assert.ok(!/usage-calendar/.test(render(10,'1000',1).html)); // too little history: no calendar
 });

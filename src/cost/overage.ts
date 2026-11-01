@@ -1,7 +1,7 @@
 // Vscode-free modelled overage: credits above the reported limit and, only with a validated reviewed catalog, their list-price value.
 // Credits and money are separate exact decimals; money is rounded half-up to whole cents for display only. Never an invoice.
 import { compare, subtract } from '../decimal.ts';
-import { reviewedCatalog, validateCatalog } from './catalog.ts';
+import { activeCatalog, validateCatalog } from './catalog.ts';
 import { decimalToRational, formatRational, multiplyRational, rational } from './money.ts';
 
 export interface Overage {
@@ -16,7 +16,7 @@ export interface Overage {
 }
 
 /** Credits by which `total` exceeds `limit` (null when it does not, or on any invalid amount), valued at the catalog price when one is validated at `now`. */
-export function overageOver(total: string | null | undefined, limit: string | null | undefined, now: string, catalog: unknown = reviewedCatalog): Overage | null {
+export function overageOver(total: string | null | undefined, limit: string | null | undefined, now: string, catalog: unknown = activeCatalog()): Overage | null {
  try {
   if (typeof total !== 'string' || typeof limit !== 'string' || compare(total, limit) <= 0) return null;
   const credits = subtract(total, limit);
