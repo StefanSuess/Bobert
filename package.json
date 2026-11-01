@@ -53,6 +53,10 @@
         "title": "Bobert: Show Credit Budget"
       },
       {
+        "command": "bobert.previewExample",
+        "title": "Bobert: Preview with Example Data"
+      },
+      {
         "command": "bobert.setup",
         "title": "Bobert: Set Up"
       },
