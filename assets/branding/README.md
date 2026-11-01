@@ -9,6 +9,7 @@ Canonical Bobert icon files. See [docs/branding.md](../../docs/branding.md) for 
 | `bobert-icon-1024.png` | Largest rendering, transparent corners. For release material and avatars. |
 | `bobert-icon-512.png` | Documentation and release pages. |
 | `bobert-icon-256.png` | **Packaged extension icon** (`package.json` `icon`). |
+| `bobert-walkthrough.svg` | **Packaged** walkthrough image: Bobert without the tile, small on a transparent canvas. |
 | `bobert-icon-128.png` | README header and small listings. |
 | `bobert-icon-32.png` | Favicon-size reference. |
 | `bobert-github-social-preview-1280x640.png` | GitHub social preview (1280×640). Set manually, see docs/branding.md. |

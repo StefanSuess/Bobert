@@ -175,7 +175,7 @@ test('requires an explicit valid version and supported auth mode; dry run defaul
 });
 
 test('checks package/VSIX version, pre-release marker, full-file checksum, and unchanged CI payload', () => {
-  const payload = PAYLOAD.map((name, index) => ({ name, bytes: index + 1, sha256: hash(String.fromCharCode(97 + index)) }));
+  const payload = PAYLOAD.map((name, index) => ({ name, bytes: index + 1, sha256: hash(index.toString(16)) }));
   const candidateName = candidateFileName('0.7.0', sha('c'));
   const expected = {
     requestedVersion: '0.7.0',
