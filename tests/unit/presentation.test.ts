@@ -781,7 +781,7 @@ test('the example preview shows invented numbers with a visible note, a forecast
  assert.match(html,/On track|Likely to exceed|Tight|Looks on track/);
  assert.equal(html,examplePreview(now)); // deterministic for the same instant
  const snaps=exampleSnapshots(now);
- assert.equal(snaps.length,12);
+ assert.equal(snaps.length,45);
  assert.ok(snaps.every(s=>s.partition==='synthetic-example'&&s.limit==='1000'));
  assert.ok(Date.parse(snaps.at(-1)!.observedAt)===Date.parse(now)&&Date.parse(snaps[0]!.resetAt!)>Date.parse(now));
 });
@@ -810,4 +810,16 @@ test('the workspace score is 100 with nothing found, falls as items pile up, and
  assert.equal(score({ state: 'never' }), undefined);
  assert.equal(score({ state: 'unavailable' }), undefined);
  assert.doesNotThrow(()=>buildDomModel(card({ state: 'checked', items: 3, unclear: 1, checkedAt: '2030-06-15T11:00:00Z' })));
+});
+
+test('the daily usage calendar shows observed days with numbers, marks unknown days and stays inside the DOM allowlist',()=>{
+ const r=render(10,'1000',12);
+ const cal=/<section id="usage-calendar"[\s\S]*?<\/section>/.exec(r.html)?.[0]??'';
+ assert.match(cal,/Daily usage calendar/);
+ assert.match(cal,/<td class="l[0-4]"[^>]*>\d+\+?<\/td>/); // numbers, not shade alone
+ assert.match(cal,/<td class="unk"[^>]*>–<\/td>/); // days before the first update are unknown, not zero
+ assert.ok(!/>0<\/td>/.test(cal.replace(/<td class="l0"[^>]*>0<\/td>/g,'')));
+ assert.equal((cal.match(/<tr>/g)??[]).length,8); // header and seven weekdays
+ assert.doesNotThrow(()=>buildDomModel(r.html));
+ assert.ok(!/usage-calendar/.test(render(10,'1000',1).html)); // too little history: no calendar
 });
