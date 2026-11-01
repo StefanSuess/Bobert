@@ -1,5 +1,6 @@
 import type { AdvisorAnswers } from '../cost/advisor.ts';
-import type { view } from '../view.ts';
+import { view } from '../view.ts';
+import type { StoredSnapshot } from '../store.ts';
 import { compare, compareRatios } from '../decimal.ts';
 import { readable, updated, date } from './labels.ts';
 import { presentChartParts, CHART_CSS } from './chart.ts';
@@ -148,6 +149,21 @@ function recapCard(recap: Recap | undefined): string {
 }
 
 /** Presentation only: billing eligibility and exact projections remain in the core. */
+/** Invented usage for "Preview with Example Data": 12 daily updates ending now at about 18 credits a day on a 1000-credit plan, a reset 18 days ahead. Nothing here is read from Kiro or stored. */
+export function exampleSnapshots(now: string): StoredSnapshot[] {
+ const end = Date.parse(now), day = 86400000, reset = new Date(end + 18 * day).toISOString();
+ return Array.from({ length: 12 }, (_, i) => {
+  const at = new Date(end - (11 - i) * day).toISOString();
+  return { partition: 'synthetic-example', associated: true, observedAt: at, observedText: at, sourceTimezone: null, usage: String(i * 18), limit: '1000', resetAt: reset, resetText: reset, flags: [], overages: null, overageCap: null, ingestedAt: at };
+ });
+}
+/** The credit view built from invented numbers, with a note on top that says so. Script-free like the real view's fallback. */
+export function examplePreview(now = new Date().toISOString()): string {
+ const html = present(view(exampleSnapshots(now), now), [], '', '', undefined, now).html;
+ const banner = '<div role="note" style="margin:0 0 12px;padding:10px 14px;border:2px solid var(--vscode-editorWarning-foreground,#cca700);border-radius:6px;font-weight:600">Example data: invented numbers to show what Bobert does. This is not your Kiro usage.</div>';
+ return html.includes('<body>') ? html.replace('<body>', `<body>${banner}`) : html;
+}
+
 /** What the status bar item offers when clicked: label, one-line help and the command it runs. The first entry is what a click used to open. */
 export interface StatusMenuEntry { label: string; description: string; command: string; args?: readonly unknown[] }
 export const STATUS_MENU: readonly StatusMenuEntry[] = [
