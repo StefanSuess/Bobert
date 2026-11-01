@@ -15,7 +15,7 @@ import { readConfigReviewMode } from './config-schedule.ts';
 import { IGNORE_USE_NOTE, MAX_DISMISSED, OPEN_SETTING, auditTree, auditSizeTotal, dismissHash, excludeAnnotation, findingKey, findingsToast, ignoreNotEffective, isHash, countFindings, kiroignoreAppend, revealTarget, sizePhrase, visibleFindings, type AuditNode, type AuditParts, type AuditSummary } from './audit-model.ts';
 import { startExtension, type ExtensionUi } from './controller.ts';
 import { buildDiagnostics, formatDiagnostics, runtimeFacts, type DiagnosticsInput } from '../diagnostics.ts';
-import { STATUS_MENU } from './presentation.ts';
+import { STATUS_MENU, examplePreview } from './presentation.ts';
 import { FEEDBACK_URL, ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, SUPPORT_PROMPT_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
 import { ALL_DAYS, dayBudget, type BudgetDay } from './daily-budget.ts';
 import { WHATS_NEW_KEY, WHATS_NEW_URL, releaseLine, whatsNewAction, whatsNewText, BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
@@ -951,6 +951,16 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
   async dismissRecap() { return controllerRef && await controllerRef.dismissRecap() ? 'dismissed' : 'failed'; },
  };
  const register = (suffix: string, fn: () => unknown) => disposables.push(registerCommand((id, f) => vscode.commands.registerCommand(id, f), suffix, fn));
+ // A look at Bobert with invented numbers, for a user who has no Kiro usage yet and for screenshots. It reads nothing from Kiro and stores nothing; its own script-free panel is separate from the credit view.
+ try {
+  let examplePanel: vscode.WebviewPanel | undefined;
+  register('previewExample', () => {
+   if (examplePanel) { examplePanel.reveal(); return; }
+   examplePanel = vscode.window.createWebviewPanel('bobert.examplePreview', 'Bobert: example data', vscode.ViewColumn.One, { enableScripts: false });
+   examplePanel.webview.html = examplePreview();
+   examplePanel.onDidDispose(() => { examplePanel = undefined; });
+  });
+ } catch { /* The example preview is optional. */ }
  // A click opens a short menu instead of going straight to the credit view; each entry runs an existing command. If the menu cannot be registered, the click keeps opening the credit view.
  try {
   register('statusMenu', async () => {

@@ -4,7 +4,7 @@ import { view } from '../../src/view.ts';
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { present } from '../../src/extension/presentation.ts';
+import { present, examplePreview, exampleSnapshots } from '../../src/extension/presentation.ts';
 import { ALL_DAYS, type BudgetDay } from '../../src/extension/daily-budget.ts';
 import { largerPlanText, rightSizeText } from '../../src/extension/budget-warning.ts';
 import { ESTIMATE_MARKER } from '../../src/extension/advisor-presentation.ts';
@@ -768,6 +768,20 @@ test('the credit view says how many plan credits are likely left only in the las
  assert.ok(!present(view(series(30,'1000',28),now),[],'','',undefined,now).html.includes('Likely left at the reset'));
  assert.ok(!present(view(series(10,'1000',5),'2030-06-05T00:00:00Z'),[],'','',undefined,'2030-06-05T00:00:00Z').html.includes('Likely left at the reset'));
  assert.ok(!render(10).html.includes('Likely left at the reset'));
+});
+
+test('the example preview shows invented numbers with a visible note, a forecast and no script',()=>{
+ const now='2031-03-10T12:00:00.000Z';
+ const html=examplePreview(now);
+ assert.match(html,/<body><div role="note"[^>]*>Example data: invented numbers/);
+ assert.ok(!/<script/i.test(html));
+ assert.match(html,/id="status-heading"/);
+ assert.match(html,/On track|Likely to exceed|Tight|Looks on track/);
+ assert.equal(html,examplePreview(now)); // deterministic for the same instant
+ const snaps=exampleSnapshots(now);
+ assert.equal(snaps.length,12);
+ assert.ok(snaps.every(s=>s.partition==='synthetic-example'&&s.limit==='1000'));
+ assert.ok(Date.parse(snaps.at(-1)!.observedAt)===Date.parse(now)&&Date.parse(snaps[0]!.resetAt!)>Date.parse(now));
 });
 
 test('the status bar tooltip says when the next reset is, and says nothing once it has passed',()=>{
