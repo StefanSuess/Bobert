@@ -21,8 +21,10 @@ test('the getting-started walkthrough has actionable steps, completion events an
  const titles = Object.fromEntries(manifest.contributes.commands.map((c: any) => [c.command, c.title]));
  assert.equal(titles[commandId('gettingStarted')], 'Bobert: Get Started');
  const [walkthrough, ...rest] = manifest.contributes.walkthroughs;
- assert.equal(rest.length, 0); assert.equal(walkthrough.id, commandId('gettingStarted')); assert.equal(walkthrough.title, 'Get started with Bobert');
+ assert.deepEqual(rest.map((w: any) => w.id), ['bobert.lessons']); assert.equal(walkthrough.id, commandId('gettingStarted')); assert.equal(walkthrough.title, 'Get started with Bobert');
  const steps: any[] = walkthrough.steps;
+ const lessons: any[] = rest[0].steps;
+ assert.deepEqual(lessons.map(s => s.title), ['See what the numbers mean', 'Keep Steering files small', 'Tell Kiro what to skip', 'Check that your plan fits']);
  assert.deepEqual(steps.map(s => s.title), ['Set up Bobert', 'See your Kiro credits', "Find files Kiro doesn't need", 'Find ways to use fewer credits', 'Get warned before credits run out', 'Look back on each cycle', 'Nudges from your latest Kiro session']);
  // The editor requires media on every step and only the icon is packaged; each step names what it is about instead of repeating "Bobert icon".
  for (const step of steps) { assert.ok(step.id && step.description); assert.deepEqual(step.media, { image: manifest.icon, altText: step.media.altText }); assert.equal(step.media.image, 'assets/branding/bobert-icon-256.png'); assert.ok(step.media.altText); }
@@ -40,8 +42,8 @@ test('the getting-started walkthrough has actionable steps, completion events an
  assert.match(steps[5].description, /\(command:bobert\.showUsage\)/);
  assert.match(steps[6].description, /\(command:workbench\.action\.openSettings\?%5B%22bobert\.sessionHints%22%5D\)/);
  // Only Bobert commands, the editor's settings opener and the one fixed privacy document are linked.
- for (const step of steps) for (const [, target] of step.description.matchAll(/\]\(([^)]*)\)/g)) assert.match(target, /^(command:(bobert\.[A-Za-z.]+|workbench\.action\.openSettings\?%5B%22bobert\.(budgetWarnings|sessionHints)%22%5D)|https:\/\/github\.com\/StefanSuess\/Bobert\/blob\/HEAD\/docs\/privacy-and-storage\.md)$/);
- for (const step of steps) for (const id of step.completionEvents ?? []) assert.ok(id === 'onStepSelected' || id.startsWith('onCommand:bobert.'), id);
+ for (const step of [...steps, ...lessons]) for (const [, target] of step.description.matchAll(/\]\(([^)]*)\)/g)) assert.match(target, /^(command:(bobert\.[A-Za-z.]+|workbench\.action\.openSettings\?%5B%22bobert\.(budgetWarnings|sessionHints)%22%5D)|https:\/\/github\.com\/StefanSuess\/Bobert\/blob\/HEAD\/docs\/(privacy-and-storage|guide|recipes)\.md)$/);
+ for (const step of [...steps, ...lessons]) for (const id of step.completionEvents ?? []) assert.ok(id === 'onStepSelected' || id.startsWith('onCommand:bobert.'), id);
 });
 
 test('only current settings are declared under the Bobert prefix', () => {
