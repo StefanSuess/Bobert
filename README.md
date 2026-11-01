@@ -15,7 +15,8 @@ Bobert looks like he has seen a ghost. He has: your credit forecast.
 Will your Kiro credits last until the reset? Kiro tells you how many credits you have used; Bobert tells you whether they are likely to last, what you can spend today and what additional credits could cost. It also highlights files and automatic hooks worth reviewing. Start with your credit budget in the status bar.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/demo.gif" alt="Animated demo with invented data: Bobert, a small robot whose mouth is a credit gauge, says &quot;I worry about your Kiro credits, so you don&#39;t have to.&quot; A credit card fills to 3,100 of 5,000 credits and says Likely to exceed, runs out in 6 days, with a tip to aim for about 210 credits a day instead of 290; about 710 credits over is modelled at $28.40 at the $0.04 list price; a daily usage calendar highlights one busy Tuesday; the workspace check finds dist/, coverage/ and export.log, and the workspace score rises from 77 to 100 as they are excluded; the end card types Bobert into Kiro&#39;s Extensions search." width="900">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/credit-view.png" alt="Bobert credit view in Kiro with invented data: Likely to exceed, 4210 of 5000 reported credits used, the credits run out on 27 Oct before the 1 Nov reset, about 950 add-on credits (about $37.98, modelled) needed to avoid running out, and the usage chart with forecast lines, with the status bar warning below. No real account information is shown." width="900">
+  <br><sub><i>Bobert has seen your forecast. Now you have too. (Example data.)</i></sub>
 </p>
 
 ## Why you'll want it
@@ -30,10 +31,6 @@ Will your Kiro credits last until the reset? Kiro tells you how many credits you
 - **Learn as you go.** A workspace score rates the audit from 0 to 100 and the check names the recipe lines that fit what it found, the *Learn to spend fewer credits* walkthrough has four short hands-on lessons, and a [plain-language guide](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/guide.md) and copy-and-paste [recipes](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/recipes.md) explain credits, costs and smaller context.
 
 Free and open source, with no account, no sign-in and no telemetry. Everything stays on your machine, and Kiro's files are only ever read. Want to look around first? **Bobert: Preview with Example Data** shows the credit view with invented numbers.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/credit-view.png" alt="Bobert credit view in Kiro with invented data: Likely to exceed, 4210 of 5000 reported credits used, the credits run out on 27 Oct before the 1 Nov reset, about 950 add-on credits (about $37.98, modelled) needed to avoid running out, and the usage chart with forecast lines, with the status bar warning below. No real account information is shown." width="900">
-</p>
 
 <details>
 <summary><b>More screenshots:</b> budget notice, Cost Advisor, workspace audit, Steering and Hooks review, session hint, the animated Bobert story</summary>
@@ -59,7 +56,7 @@ Free and open source, with no account, no sign-in and no telemetry. Everything s
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/demo-story.gif" alt="Animated story with invented data: Bobert, a robot with a gauge for a mouth, watches the Kiro credit meter drain to 0% before the reset; a notice warns five days before the credits run out; the credit view shows a modelled cost of about $38 for the add-on credits that would avoid running out; a notice shows the model hint that a pricier model uses more credits than Auto; the workspace audit finds 190 MB of dumps and a hook that runs on every change; Bobert prepares the fix for review; the end card types Bobert into an extensions search box." width="900">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/demo.gif" alt="Animated story with invented data: Bobert, a robot with a gauge for a mouth, watches the Kiro credit meter drain to 0% before the reset; a notice warns five days before the credits run out; the credit view shows a modelled cost of about $38 for the add-on credits that would avoid running out; a notice shows the model hint that a pricier model uses more credits than Auto; the workspace audit finds 190 MB of dumps and a hook that runs on every change; Bobert prepares the fix for review; the end card types Bobert into an extensions search box." width="900">
 </p>
 
 </details>
