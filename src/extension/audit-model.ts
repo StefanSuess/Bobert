@@ -152,7 +152,21 @@ export function sizePhrase(total: { bytes: number; lowerBound: boolean }): strin
 }
 
 /** What the credit dashboard may know about the audit: counts, times and a size total, never a path or folder name. */
-export interface AuditSummary { state: 'never' | 'checked' | 'unavailable'; items?: number; unclear?: number; bytes?: number; lowerBound?: boolean; checkedAt?: string; lastDate?: string }
+/**
+ * The starter `.kiroignore` lines of the recipe (docs/recipes.md) that fit each kind of finding. Fixed text; the audit's own paths never reach it.
+ * "large" has no pattern: a large file is excluded by name only if Kiro does not need it.
+ */
+export const RECIPE_LINES: Record<Category, string> = {
+  secret: '.env, .env.*, *.pem', database: '*.sqlite, *.dump', archive: '*.zip, *.tar.gz', log: '*.log', data: 'data/', build: 'dist/, build/', dependency: 'node_modules/', large: '',
+};
+/** The recipe line for the kinds found, in the audit's own order; unknown kinds are ignored. '' when nothing maps. */
+export function recipeHint(kinds: readonly unknown[] | undefined): string {
+  if (!Array.isArray(kinds)) return '';
+  const found = CATEGORY_ORDER.filter(c => kinds.includes(c) && RECIPE_LINES[c] !== '');
+  return found.map(c => `${LABELS[c].toLowerCase()}: ${RECIPE_LINES[c]}`).join('; ');
+}
+
+export interface AuditSummary { state: 'never' | 'checked' | 'unavailable'; items?: number; unclear?: number; kinds?: readonly string[]; bytes?: number; lowerBound?: boolean; checkedAt?: string; lastDate?: string }
 
 /**
  * Plain wording for how long ago `checkedAt` (an ISO time) was, by local calendar day: just now, N min ago, today, yesterday, N days ago.

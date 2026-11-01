@@ -182,7 +182,7 @@ function registerAudit(context: vscode.ExtensionContext, onFinding: () => void, 
  const summary = (): AuditSummary => {
   const last = stored(LAST_KEY), lastDate = typeof last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(last) ? last : undefined;
   if (refused || result?.status === 'unavailable') return { state: 'unavailable', lastDate };
-  return result ? { state: 'checked', ...counts(result), ...auditSizeTotal(visible(), result.omitted), checkedAt, lastDate } : { state: 'never', lastDate };
+  return result ? { state: 'checked', ...counts(result), kinds: [...new Set(visible().map(f => f.category))], ...auditSizeTotal(visible(), result.omitted), checkedAt, lastDate } : { state: 'never', lastDate };
  };
  const audit = async (): Promise<void> => {
   if (running) { await vscode.window.showInformationMessage(reminderAbort ? 'An automatic workspace audit is running; try again shortly.' : 'A workspace audit is already running.'); return; }
@@ -506,7 +506,7 @@ function registerAudit(context: vscode.ExtensionContext, onFinding: () => void, 
   viewReady = true;
  } catch { /* Without the list, a finished audit falls back to a notification with a Copy suggestions button. */ }
  // The credit view is re-rendered only when what it shows (state, counts, time of the check) actually changed.
- const keyOf = (a: AuditSummary): string => [a.state, a.items, a.unclear, a.bytes, a.lowerBound, a.checkedAt].join('|');
+ const keyOf = (a: AuditSummary): string => [a.state, a.items, a.unclear, a.kinds?.join(','), a.bytes, a.lowerBound, a.checkedAt].join('|');
  let shown = '';
  return { summary, onChange(fn) {
   try { shown = keyOf(summary()); } catch { /* the first change renders */ }
