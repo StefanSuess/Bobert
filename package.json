@@ -28,11 +28,14 @@
     "kiroignore",
     "steering",
     "hooks",
-    "ai"
+    "ai",
+    "kiro ide",
+    "credit usage",
+    "pricing"
   ],
   "type": "module",
   "displayName": "Bobert: Kiro Credit Tracker",
-  "description": "Forecast your Kiro credit budget, estimate additional credit costs, and review files and automatic hooks. Free, unofficial.",
+  "description": "Will your Kiro credits last until the reset? Daily budget, run-out forecast, add-on cost estimates and a workspace check. Free, unofficial.",
   "publisher": "StefanSuess",
   "icon": "assets/branding/bobert-icon-256.png",
   "main": "./dist/extension.cjs",
