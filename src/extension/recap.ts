@@ -3,6 +3,7 @@ import { DAY_MS, type AccountHistory } from '../history.ts';
 import { observedCycle } from './dashboard-insights.ts';
 import { cycleKey, describeExclusions, plain, type StoredResults } from './results-summary.ts';
 import { date, updated } from './labels.ts';
+import { RECAP_LINK_TEXT } from './recap-card.ts';
 
 // "Your Kiro cycle": the recap of the cycle that has just ended, from account history evidence only. Pure and free of editor APIs.
 // Every figure carries what it is based on, and a figure the evidence does not support reads "not observed", "not comparable" or "unknown";
@@ -10,7 +11,7 @@ import { date, updated } from './labels.ts';
 // the card was shown or dismissed. A value of any other shape is "unknown": the card stays hidden and the value is never overwritten.
 export const RECAP_KEY = 'bobert.recap.v1';
 export const RECAP_TITLE = 'Your Kiro cycle';
-export const RECAP_LINK_TEXT = 'Bobert: https://open-vsx.org/extension/StefanSuess/bobert';
+export { RECAP_LINK_TEXT };
 export const LASTED_HOURS = 6;
 
 export interface RecapState { cycle: string; state: 'shown' | 'dismissed' }
