@@ -33,8 +33,8 @@ test('invalid stored values count as absent, and a missing first-use date is nev
  for (const firstSeen of [undefined, 'synthetic-not-a-date', '2030-02-30', 5, null]) assert.equal(supportDue({ ...base, firstSeen }), false, String(firstSeen));
  assert.equal(supportDue({ ...base, today: 'synthetic-not-a-date' }), false);
 });
-test('Rate and Support snooze for 120 days', () => {
- for (const choice of ['Rate', 'Support']) assert.deepEqual(afterChoice(choice, '2030-03-31'), { next: '2030-07-29' }, choice);
+test('Rate, Feedback and Support snooze for 120 days', () => {
+ for (const choice of ['Rate', 'Feedback', 'Support']) assert.deepEqual(afterChoice(choice, '2030-03-31'), { next: '2030-07-29' }, choice);
 });
 test('Later, a dismissed prompt and retired choices snooze for 60 days', () => {
  for (const choice of ['Later', undefined, 'Star on GitHub', "Don't ask again", 'synthetic-other']) assert.deepEqual(afterChoice(choice, '2030-03-31'), { next: '2030-05-30' }, String(choice));
