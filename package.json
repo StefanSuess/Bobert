@@ -235,6 +235,41 @@
             "completionEvents": ["onStepSelected"]
           }
         ]
+      },
+      {
+        "id": "bobert.lessons",
+        "title": "Learn to spend fewer credits",
+        "description": "Short hands-on lessons: read the credit view, keep Steering small, skip files Kiro does not need and check your plan. Nothing here changes your files unless you save a recipe yourself.",
+        "steps": [
+          {
+            "id": "bobert.lessons.example",
+            "title": "See what the numbers mean",
+            "description": "Learn how to read Bobert before you have any usage of your own. The example preview shows the credit view with invented numbers, so nothing here is yours. Look for the pace line, the daily calendar and the saving tip.\n[Open the example preview](command:bobert.previewExample)\n[Credits and costs in plain language](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/guide.md)",
+            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Credit view filled with example data" },
+            "completionEvents": ["onCommand:bobert.previewExample"]
+          },
+          {
+            "id": "bobert.lessons.steering",
+            "title": "Keep Steering files small",
+            "description": "Steering files that are always included are sent with every request. Bobert lists the large ones. Then try the recipes: load a long guide only when you ask for it, or only for matching files.\n[Review Steering and Hooks](command:bobert.reviewKiroConfig)\n[Copy-paste recipes](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/recipes.md)",
+            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Steering and Hooks review list" },
+            "completionEvents": ["onCommand:bobert.reviewKiroConfig"]
+          },
+          {
+            "id": "bobert.lessons.ignore",
+            "title": "Tell Kiro what to skip",
+            "description": "Build output, dumps and secrets do not help Kiro and can use up context. Run the audit to see what Kiro may read here, then use the starter .kiroignore from the recipes.\n[Run the workspace audit](command:bobert.auditWorkspace)\n[Starter .kiroignore recipe](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/recipes.md)",
+            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Workspace audit results" },
+            "completionEvents": ["onCommand:bobert.auditWorkspace"]
+          },
+          {
+            "id": "bobert.lessons.plan",
+            "title": "Check that your plan fits",
+            "description": "If you often run out before the reset, or leave many credits unused, a different plan or add-on credits may cost less. The Cost Advisor compares them using your observed usage; it never buys anything.\n[Open Cost Advisor](command:bobert.costAdvisor)",
+            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Cost Advisor comparison" },
+            "completionEvents": ["onCommand:bobert.costAdvisor"]
+          }
+        ]
       }
     ],
     "views": {
