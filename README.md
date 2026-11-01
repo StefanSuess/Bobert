@@ -5,16 +5,17 @@
 **Bobert worries about your Kiro credits, so you don't have to.**
 
 [![Open VSX version](https://img.shields.io/open-vsx/v/StefanSuess/bobert)](https://open-vsx.org/extension/StefanSuess/bobert)
+[![Open VSX downloads](https://img.shields.io/open-vsx/dt/StefanSuess/bobert?label=downloads)](https://open-vsx.org/extension/StefanSuess/bobert)
 [![Latest release](https://img.shields.io/github/v/release/StefanSuess/Bobert?label=release)](https://github.com/StefanSuess/Bobert/releases/latest)
 [![CI + coverage ≥80%](https://img.shields.io/github/actions/workflow/status/StefanSuess/Bobert/ci.yml?branch=main&label=CI%20%2B%20coverage%20%E2%89%A580%25)](https://github.com/StefanSuess/Bobert/actions/workflows/ci.yml?query=branch%3Amain)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/StefanSuess/Bobert/blob/HEAD/LICENSE)
 
 Bobert looks like he has seen a ghost. He has: your credit forecast.
 
-Kiro tells you how many credits you have used. Bobert helps you plan ahead: whether they are likely to last until the reset and what additional credits could cost. It also highlights files and automatic hooks worth reviewing. Start with your credit budget in the status bar.
+Will your Kiro credits last until the reset? Kiro tells you how many credits you have used; Bobert tells you whether they are likely to last, what you can spend today and what additional credits could cost. It also highlights files and automatic hooks worth reviewing. Start with your credit budget in the status bar.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/demo.gif" alt="Animated story with invented data: Bobert, a robot with a gauge for a mouth, watches the Kiro credit meter drain to 0% before the reset; a notice warns five days before the credits run out; the credit view shows a modelled cost of about $38 for the add-on credits that would avoid running out; a notice shows the model hint that a pricier model uses more credits than Auto; the workspace audit finds 190 MB of dumps and a hook that runs on every change; Bobert prepares the fix for review; the end card types Bobert into an extensions search box." width="900">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/demo.gif" alt="Demo with invented data: the question &quot;Will your Kiro credits last until the reset?&quot;; the credit view says Likely to exceed, the credits run out on 29 Oct before the 1 Nov reset, with a tip to use about 117.5 credits a day instead of 165.1 and about 345 credits over (about $13.80, modelled); the usage chart with forecast lines, the daily usage calendar and the week-over-week comparison; the shareable cycle card with its Bobert footer; the end card asks you to search Bobert in Kiro's Extensions view." width="900">
 </p>
 
 ## Why you'll want it
@@ -24,16 +25,18 @@ Kiro tells you how many credits you have used. Bobert helps you plan ahead: whet
 - **Review files Kiro may not need.** The workspace audit flags possible secret files, database dumps, archives and build output by filename and prepares `.kiroignore` lines for you to review. It does not measure their credit consumption.
 - **Review automatic context and agent work.** Bobert flags large always-included Steering files and hooks that trigger agent work automatically. It suggests changes for you to review; actual credit savings depend on how you use Kiro.
 - **Keep context and model choices in view.** You get a nudge when a session's context is about 70 % or 85 % full, or a model hint based on Kiro's published credit rates when your budget is tight or context is filling up, with [tips for spending fewer credits](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/credit-tips.md).
-- **Your whole cycle at a glance.** The status bar shows today's usage against your daily budget, and you can spread that budget over only the days you work. The credit view adds a usage chart with forecast scenarios and a recap of the last cycle that you can share.
+- **Your whole cycle at a glance.** The status bar shows today's usage against your daily budget, and you can spread that budget over only the days you work; its tooltip counts down to the reset and to a likely run-out, and a click opens a short Bobert menu. The credit view adds a usage chart with forecast scenarios, a daily usage calendar, a week-over-week comparison and, while a run-out is ahead, a saving tip with the daily amount that would last.
+- **Share how your cycle went.** After each reset, a recap card shows credits used, whether they lasted, the busiest and quietest days and how many days stayed under the even pace. Save it as an image or copy the text.
+- **Learn as you go.** A workspace score rates the audit from 0 to 100, the *Learn to spend fewer credits* walkthrough has four short hands-on lessons, and a [plain-language guide](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/guide.md) and copy-and-paste [recipes](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/recipes.md) explain credits, costs and smaller context.
 
-Free and open source, with no account, no sign-in and no telemetry. Everything stays on your machine, and Kiro's files are only ever read.
+Free and open source, with no account, no sign-in and no telemetry. Everything stays on your machine, and Kiro's files are only ever read. Want to look around first? **Bobert: Preview with Example Data** shows the credit view with invented numbers.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/credit-view.png" alt="Bobert credit view in Kiro with invented data: Likely to exceed, 4210 of 5000 reported credits used, the credits run out on 27 Oct before the 1 Nov reset, about 950 add-on credits (about $37.98, modelled) needed to avoid running out, and the usage chart with forecast lines, with the status bar warning below. No real account information is shown." width="900">
 </p>
 
 <details>
-<summary><b>More screenshots:</b> budget notice, Cost Advisor, workspace audit, Steering and Hooks review, session hint</summary>
+<summary><b>More screenshots:</b> budget notice, Cost Advisor, workspace audit, Steering and Hooks review, session hint, the animated Bobert story</summary>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/budget-notice.png" alt="Budget notice and status bar with invented data: at this pace the Kiro credits run out on 27 Oct, 5 days before the reset (about $37.98 over the limit, modelled), with Show details and Turn off budget notices buttons, above the warning status bar item Kiro credits: Likely to exceed, runs out 27 Oct." width="900">
@@ -53,6 +56,10 @@ Free and open source, with no account, no sign-in and no telemetry. Everything s
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/session-hint.png" alt="Session hint with invented data: your Kiro credit budget is tight and your most recent session in this workspace uses Claude Opus 4.8, which Kiro lists at about 2.2x the credits of Auto (Kiro model table, as of 2026-10-18), with Show credit budget, Tips and Turn off session hints buttons." width="760">
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/demo-story.gif" alt="Animated story with invented data: Bobert, a robot with a gauge for a mouth, watches the Kiro credit meter drain to 0% before the reset; a notice warns five days before the credits run out; the credit view shows a modelled cost of about $38 for the add-on credits that would avoid running out; a notice shows the model hint that a pricier model uses more credits than Auto; the workspace audit finds 190 MB of dumps and a hook that runs on every change; Bobert prepares the fix for review; the end card types Bobert into an extensions search box." width="900">
 </p>
 
 </details>
@@ -75,6 +82,8 @@ The status bar shows "Collecting data" until Kiro has logged its first account u
 - **Something wrong?** **Bobert: Report a Problem** creates a short diagnostic report of fixed codes and counts for you to review before you paste it anywhere. Please never post real Kiro data in issues.
 
 ## Like it?
+
+Reviews help other Kiro users find Bobert; it takes about a minute with a GitHub sign-in on Open VSX. Missing something? [Suggest a feature](https://github.com/StefanSuess/Bobert/issues/new?template=feature_request.yml).
 
 [Leave a review on Open VSX](https://open-vsx.org/extension/StefanSuess/bobert) · [Star on GitHub](https://github.com/StefanSuess/Bobert) · [Support development ☕](https://ko-fi.com/stefansuess)
 
