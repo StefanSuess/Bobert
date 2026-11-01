@@ -4,6 +4,45 @@ All notable changes to Bobert: Kiro Credit Tracker. Bobert is an unofficial proj
 
 Bobert is the new name of Cyclegauge; this is its first release under the new name. Settings and history from Cyclegauge are not carried over. If you had turned off session hints (`bobert.sessionHints`), budget warnings (`bobert.budgetWarnings`) or support prompts (`bobert.supportPrompts`) in Cyclegauge, they are on again in Bobert; turn them off again in your user settings. Cyclegauge's stored history stays where it was until you delete it; see [data left by Cyclegauge](docs/privacy-and-storage.md#data-left-by-cyclegauge).
 
+## 1.6.0 (stable, macOS)
+
+See your whole cycle at a glance (a daily usage calendar, week over week, a saving tip with a daily amount and the next reset in the status bar), try Bobert with invented numbers before you have usage of your own, learn to spend fewer credits in four short lessons, and keep the price list current with an optional weekly refresh. Upgrade note: a click on the status bar item now opens a short Bobert menu (the credit view is its first entry) instead of opening the credit view directly. The new setting `bobert.priceUpdates` defaults to `off`, so Bobert makes no network request unless you turn it on (with `ask`, only after you confirm); it is Bobert's first and only network access (see Privacy below). No stored history, data format or other defaults change.
+
+Platforms: macOS, native acceptance of this candidate. Windows and Ubuntu are not named because this release changes the packaging and adds network access, so the 1.2.0 smoke tests do not carry over; the candidate passed the automated extension-host tests on all three platforms.
+
+### Added
+
+- **Bobert: Preview with Example Data** (`bobert.previewExample`) opens the credit view with invented numbers under a clear "Example data" note, so you can see what Bobert does before Kiro has logged usage of your own. Nothing is read from Kiro or stored.
+- A **daily usage calendar** in the credit view: the last 12 UTC weeks, one cell per day with the credits observed that day. A dash is a day without a retained observation (unknown, never zero) and a plus marks a partial day.
+- **Week over week** in the Observed usage card: the last 7 full UTC days against the 7 before, shown only when all 14 days were fully observed. It is an observation, not a cause.
+- A **saving tip** while the forecast says your credits run out before the reset: "To last until the reset, aim for about 25.2 credits a day instead of the 38.6 you are using now."
+- The status bar tooltip names the **next reset** ("Next reset in 6 days (1 Jul)") and how many days away a projected run-out is.
+- A click on the status bar item opens a **Bobert menu** (`bobert.statusMenu`, **Bobert: Open Menu**): credit view, Cost Advisor, workspace check, Steering and Hooks review, Set Up and Settings.
+- A **workspace score** from 0 to 100 on the audit card after a workspace audit, a rough rating from the items Kiro may read (unclear ones count half), not a security verdict. When the audit found something, the card names the starter `.kiroignore` recipe lines that fit what it found.
+- A second walkthrough, **Learn to spend fewer credits**: four short hands-on lessons (read the credit view with example numbers, keep Steering files small, tell Kiro what to skip, check that your plan fits). Each step opens an existing Bobert command; it adds no data access. A plain-language [guide to credits and costs](docs/guide.md) and copy-paste [Kiro recipes](docs/recipes.md) are linked from it.
+- The cycle recap shows the **quietest observed day** and the **days at or under the even daily pace**, with the longest run. With `bobert.budgetDays` restricted, the pace and the count use only your budget days.
+- One **"what's new" notice** after an update to a new release line, for example "Bobert 1.6 is installed. See what's new?", with **What's new** (opens this changelog) and **Dismiss**. It appears once per release line, never for a patch update or a new user; `bobert.supportPrompts` turns it off.
+- An optional **weekly price refresh** (`bobert.priceUpdates`: `off` by default, `ask` or `auto`, user settings only). A check downloads one fixed public file of dated Kiro prices and model credit rates from github.com; it is used only if it passes the same validation as the built-in list and is strictly newer. See Privacy.
+- Claude Haiku 5.5 in the model table (0.06x, 0.3x above 100K tokens; it never produces a model hint).
+
+### Changed
+
+- **Bobert's face** replaces the emoji in the credit view headline: he smiles when on track, looks flat while unknown, worried when tight or stale, and wide-eyed when over. It is decorative; the heading says the same in words.
+- The walkthrough steps show a small Bobert instead of the full icon tile.
+- The support prompt says that a review on Open VSX needs a GitHub sign-in and offers a **Feedback** button (a feature-request form on GitHub) next to **Rate**, **Support** and **Later**.
+- With `bobert.supportPrompts` on, the saved cycle card ends with a "Bobert · free credit tracker for Kiro" footer, and the copied text ends with "Made with Bobert, the free credit tracker for Kiro" and the Open VSX link.
+- A unit test now checks that every setting is documented.
+
+### Privacy
+
+- **The only network access is the optional price refresh**, off by default and user-level only (a workspace cannot turn it on). A check is one plain `GET` of `https://raw.githubusercontent.com/StefanSuess/Bobert/main/data/prices.json`, at most once a week: no cookies, account, usage, file or workspace data, identifiers or query string are sent; GitHub sees your IP address and the request. Bobert does not follow redirects, stops after 15 seconds and reads at most 100 KB. A valid, newer list is saved as `prices.json` in Bobert's own extension storage folder, with the time of the last check; on any failure the built-in prices are used and nothing is shown. Details: [privacy and storage](docs/privacy-and-storage.md#the-only-network-access-optional-price-refresh).
+- New saved state, all in the editor's own storage: the release line of the last "what's new" notice (such as `1.6`) and, only with the price refresh on, `prices.json` and the last-check time.
+
+### Repository
+
+- A weekly workflow compares Kiro's public pricing and model pages with the bundled price list and model table and opens an issue when they differ. It is repository tooling, not part of the extension.
+- The README has fresh screenshots, a short tour and a downloads badge, and the Open VSX description and keywords were reworded.
+
 ## 1.4.0 (stable, macOS, Windows, Ubuntu)
 
 See what you used today against a daily allowance that stays fixed for the day, spread over only the days you work, set Bobert up in three quick questions, and get one reminder shortly before the reset when many plan credits are likely to lapse unused. Upgrade note: the new setting `bobert.budgetDays` defaults to every day, so nothing changes until you choose your days; the daily figure now stays fixed during the day instead of shrinking with each update. The new setting `bobert.unusedCreditsPercent` defaults to 30, so you may see one reminder in the last 3 days of a cycle (0 turns it off). No stored history, data format or other defaults change; Bobert only adds a flag that remembers the one-time notice.
