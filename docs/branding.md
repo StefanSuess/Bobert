@@ -16,7 +16,7 @@ Bobert is a small robot whose mouth is a credit gauge. He is the product's perso
 
 - **Tagline:** "Bobert worries about your Kiro credits, so you don't have to."
 - **Running joke:** Bobert looks like he has seen a ghost. He has: your credit forecast. (A nod to Kiro's ghost; in text only, never combined with Kiro's logo or artwork.)
-- **Moods (idea for after 1.0):** his face could follow the budget state, for example smiling when "On track", worried when "Likely to exceed", alarmed at the limit. Any mood must match the state the status bar already shows, never add drama to a calm forecast.
+- **Moods:** his face in the credit view follows the budget state: smiling when "On track", flat while unknown, the icon's worried gauge when tight or stale, wide-eyed with the needle pinned when over. Any mood must match the state the status bar already shows, never add drama to a calm forecast.
 - **Tone:** playful in the README, listing, icon and social posts; plain and precise in notices, the credit view and diagnostics. Jokes never replace a caveat, a number or an action.
 
 ## Where each size is used
