@@ -4,7 +4,7 @@ Bobert was formerly called Cyclegauge. Earlier history lives in the archived Cyc
 
 ## Release summary
 
-- **1.5.0** Beta (pre-release, macOS): a daily usage calendar, week over week, a saving tip, the next reset and a menu in the status bar, **Preview with Example Data**, a workspace score, the *Learn to spend fewer credits* lessons, Bobert's face in the credit view and an optional weekly price refresh (`bobert.priceUpdates`, off by default, Bobert's only network access).
+- **1.6.0** Stable (macOS): a daily usage calendar, week over week, a saving tip, the next reset and a menu in the status bar, **Preview with Example Data**, a workspace score, the *Learn to spend fewer credits* lessons, Bobert's face in the credit view and an optional weekly price refresh (`bobert.priceUpdates`, off by default, Bobert's only network access).
 - **1.4.0** Stable (macOS, Windows, Ubuntu): today's usage against a daily allowance that stays fixed for the day, budget days (`bobert.budgetDays`) and **Bobert: Set Up**, plus a reminder before the reset when many plan credits are likely to stay unused (`bobert.unusedCreditsPercent`).
 - **1.2.0** Stable (macOS, Windows, Ubuntu): the stable form of the 1.1.0 beta, with no new features.
 - **1.1.0** Beta (pre-release, macOS); published on 26 October 2026.
