@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { present, examplePreview, exampleSnapshots } from '../../src/extension/presentation.ts';
 import { buildDomModel } from '../../src/extension/dashboard-shell.ts';
 import { ALL_DAYS, type BudgetDay } from '../../src/extension/daily-budget.ts';
+import { workspaceScore } from '../../src/extension/audit-model.ts';
 import { largerPlanText, rightSizeText } from '../../src/extension/budget-warning.ts';
 import { ESTIMATE_MARKER } from '../../src/extension/advisor-presentation.ts';
 import { startExtension } from '../../src/extension/controller.ts';
@@ -797,6 +798,18 @@ test('the status icon is a decorative face that differs by tone',()=>{
  assert.equal(icon(render(10).html),'\u{1F642}');
  assert.notEqual(icon(render(10,'1000',1).html),'\u{1F642}');
  assert.ok(!/class="status-icon"[^>]*>[✓!✕]</.test(hero(render(10).html)));
+});
+
+test('the workspace score is 100 with nothing found, falls as items pile up, and appears only after an audit', () => {
+ assert.deepEqual([0, 1, 10, 40].map(n => workspaceScore(n, 0)), [100, 91, 50, 20]);
+ assert.equal(workspaceScore(0, 2), 91, 'unclear items count half');
+ assert.equal(workspaceScore(-1, 0), 100);
+ const score = (a: AuditSummary) => /Workspace score: (\d+) of 100\./.exec(card(a))?.[1];
+ assert.equal(score({ state: 'checked', items: 0, unclear: 0, checkedAt: '2030-06-15T11:00:00Z' }), '100');
+ assert.equal(score({ state: 'checked', items: 10, unclear: 0, bytes: 5, checkedAt: '2030-06-15T11:00:00Z' }), '50');
+ assert.equal(score({ state: 'never' }), undefined);
+ assert.equal(score({ state: 'unavailable' }), undefined);
+ assert.doesNotThrow(()=>buildDomModel(card({ state: 'checked', items: 3, unclear: 1, checkedAt: '2030-06-15T11:00:00Z' })));
 });
 
 test('the daily usage calendar shows observed days with numbers, marks unknown days and stays inside the DOM allowlist',()=>{
