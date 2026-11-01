@@ -776,3 +776,10 @@ test('the status bar tooltip says when the next reset is, and says nothing once 
  assert.ok(r.tooltip.indexOf('Next reset')>r.tooltip.indexOf('Today:') && r.tooltip.indexOf('Next reset')<r.tooltip.indexOf('Last account update'));
  assert.ok(!/Next reset/.test(render(10,'1000',8,'2030-07-05T00:00:00Z').tooltip));
 });
+
+test('the status icon is a decorative face that differs by tone',()=>{
+ const icon=(html:string)=>/class="status-icon" aria-hidden="true">([^<]*)</.exec(hero(html))?.[1];
+ assert.equal(icon(render(10).html),'\u{1F642}');
+ assert.notEqual(icon(render(10,'1000',1).html),'\u{1F642}');
+ assert.ok(!/class="status-icon"[^>]*>[✓!✕]</.test(hero(render(10).html)));
+});

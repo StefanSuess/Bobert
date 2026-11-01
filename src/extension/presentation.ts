@@ -219,7 +219,8 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const early=eligible && f.tier==='provisional' && outlook==='On track';
  const heading=absent ? 'Kiro not detected' : allowanceShown && !eligible ? day.status==='available' ? `Up to ${compact(day.allowance)} credits${restrictedDays ? ' per budget day' : '/day'} until the reset` : `Up to ${compact(budget!)} credits/day until the reset` : early ? 'Looks on track so far' : outlook;
  const tone=absent ? 'neutral' : stale || (!eligible && !collecting) || floorOver ? 'warn' : !eligible || early ? 'neutral' : exhausted || over ? 'bad' : tight ? 'warn' : 'ok';
- const icon={ok:'✓',warn:'!',bad:'✕',neutral:'…'}[tone];
+ // Bobert's face follows the tone (a smile when on track, flat while unknown, worried when tight or stale, a frown when over). Plain text, so the dashboard's DOM allowlist is unchanged; decorative, the heading says the same in words.
+ const icon={ok:'\u{1F642}',warn:'\u{1F61F}',bad:'\u{1F641}',neutral:'\u{1F610}'}[tone];
  const usedPct=o.usage!==null && o.baseLimit!==null && compare(o.baseLimit,'0')>0 ? Math.max(0,Math.min(100,Math.round(Number(o.usage)/Number(o.baseLimit)*100))) : null;
  const limitations=eligible && f.tier==='provisional' ? 'This limited window may not represent future usage.' : '';
  const budgetDays=restrictedDays ? ` · Budget days: ${daysLabel(daily.days)}` : '';
