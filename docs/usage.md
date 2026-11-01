@@ -68,6 +68,10 @@ The settings are `bobert.sourceRoot`, `bobert.storageRoot` and `bobert.sourceTim
 
 You may see budget notices, an occasional support prompt and (once, for a workspace that was never checked) an audit reminder; on macOS session hints read Kiro's session metadata (see Session hints and [privacy and storage](privacy-and-storage.md)). The walkthrough opens once. The new saved state is small (dates and flags in the editor's own storage); **Bobert: Reset Support Prompts and Summary** clears the prompt, summary and recap state.
 
+## What's new after an update
+
+After an update to a new release line (for example from 1.4 to 1.6), Bobert shows one short notice in Kiro: "Bobert 1.6 is installed. See what's new?" with **What's new** (opens the changelog on GitHub) and **Dismiss**. It appears once per release line, never for a patch update, never for a new user and never together with another Bobert notice. It is one of the suggestions that `bobert.supportPrompts` turns off; with it off, Bobert only remembers the release line. The state is the release line (such as `1.6`) in the editor's global storage, nothing else, and nothing is sent anywhere.
+
 ## Compatibility in 1.x
 
 From 1.0.0 these are kept stable: they are not removed or renamed within 1.x, and a breaking change needs a new major version. New commands, settings and output fields may be added. This section lists what the code and manifest contain today.
