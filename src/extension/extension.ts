@@ -16,7 +16,7 @@ import { IGNORE_USE_NOTE, MAX_DISMISSED, OPEN_SETTING, auditTree, auditSizeTotal
 import { startExtension, type ExtensionUi } from './controller.ts';
 import { buildDiagnostics, formatDiagnostics, runtimeFacts, type DiagnosticsInput } from '../diagnostics.ts';
 import { STATUS_MENU, examplePreview } from './presentation.ts';
-import { ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
+import { FEEDBACK_URL, ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, SUPPORT_PROMPT_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
 import { ALL_DAYS, dayBudget, type BudgetDay } from './daily-budget.ts';
 import { WHATS_NEW_KEY, WHATS_NEW_URL, releaseLine, whatsNewAction, whatsNewText, BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
 import { decideBudgetNotice } from './budget-warning.ts';
@@ -612,11 +612,11 @@ function registerSupport(context: vscode.ExtensionContext): SupportLink {
     if (!(await store(SUPPORT_NEXT_KEY, addDays(today, SNOOZE_DAYS)))) return; // a prompt left open or closed with the window is not repeated for a while
     if (disposed) return;
     shown = true;
-    try { choice = await vscode.window.showInformationMessage('Finding Bobert useful? Rate it or support development. You can turn these off in Settings › Bobert › Support Prompts.', 'Rate', 'Support', 'Later') as SupportChoice | undefined; }
+    try { choice = await vscode.window.showInformationMessage(SUPPORT_PROMPT_TEXT, 'Rate', 'Feedback', 'Support', 'Later') as SupportChoice | undefined; }
     finally { lastPromptAt = Date.now(); }
    } finally { promptOpen = false; }
    if (disposed) return;
-   if (choice === 'Rate') open(LINKS.rate); else if (choice === 'Support') open(LINKS.support);
+   if (choice === 'Rate') open(LINKS.rate); else if (choice === 'Feedback') open(FEEDBACK_URL); else if (choice === 'Support') open(LINKS.support);
    const after = afterChoice(choice, today);
    if (after.next) await store(SUPPORT_NEXT_KEY, after.next);
   } catch { /* fixed and silent */ } finally { checking = false; }

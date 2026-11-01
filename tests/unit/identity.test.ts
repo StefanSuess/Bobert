@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { isPreReleaseVersion } from '../../scripts/release/channel.ts';
-import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, readUnusedCreditsPercent, registerCommand } from '../../src/extension/identity.ts';
+import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, FEEDBACK_URL, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, readUnusedCreditsPercent, registerCommand } from '../../src/extension/identity.ts';
 import { STATUS_MENU } from '../../src/extension/presentation.ts';
 
 const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
@@ -124,6 +124,12 @@ test('the report-a-problem address is one fixed https constant whose only query 
  assert.deepEqual([...new URL(REPORT_PROBLEM_URL).searchParams.entries()], [['template', 'bug_report.yml']]);
  assert.equal(new URL(REPORT_PROBLEM_URL).hash, '');
  assert.equal(REPORT_PROBLEM_ACTION, 'Report a problem');
+});
+
+test('the feedback address is one fixed https constant whose only query is the template', () => {
+ assert.equal(FEEDBACK_URL, 'https://github.com/StefanSuess/Bobert/issues/new?template=feature_request.yml');
+ assert.deepEqual([...new URL(FEEDBACK_URL).searchParams.entries()], [['template', 'feature_request.yml']]);
+ assert.equal(new URL(FEEDBACK_URL).hash, '');
 });
 
 test('the reset reminder command is declared with its palette title', () => {
