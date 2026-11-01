@@ -12,6 +12,15 @@ export const MAX_PNG_BASE64 = 2 * 1024 * 1024;
 // Brand colours (navy tile of the icon, light text). Every text colour keeps at least 4.5:1 against the background (checked in tests).
 export const BRAND = { background: '#0b2545', title: '#ffffff', text: '#e6edf7', muted: '#b8c7de', accent: '#7fd1ff' } as const;
 export const MIN_CONTRAST = 4.5;
+// The fixed share line: the last line of the copied text, and on the image a branded footer instead of a body line. Only shown when support
+// prompts are on (`bobert.supportPrompts`); without it the card carries no Bobert branding at all.
+export const RECAP_LINK_TEXT = 'Made with Bobert, the free credit tracker for Kiro: https://open-vsx.org/extension/StefanSuess/bobert';
+export const CARD_FOOTER = { brand: 'Bobert', tagline: ' · free credit tracker for Kiro', hint: 'Search “Bobert” in Kiro’s Extensions view' } as const;
+/** The card's body lines and whether the branded footer is drawn: the share line, when it is the last line, becomes the footer. */
+export function cardLayout(lines: readonly string[]): { body: string[]; footer: boolean } {
+ const footer = lines.at(-1) === RECAP_LINK_TEXT;
+ return { body: footer ? lines.slice(0, -1) : [...lines], footer };
+}
 function luminance(hex: string): number {
  const channel = (i: number) => { const v = parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
  return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);

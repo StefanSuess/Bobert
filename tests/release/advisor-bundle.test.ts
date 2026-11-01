@@ -1430,7 +1430,7 @@ test('packaged recap card appears once, is marked shown, copies its own text and
   const load=Number(/data-cg-load="(\d+)"/.exec(html)![1]);env.receive({type:'ready',load});await s.later();
   // Copy text: built by the extension from the card, never from the page.
   env.receive({type:'copyRecapText'});await waitFor(()=>env.clipboard.length>0,s);
-  assert.equal(env.clipboard.length,1);assert.match(env.clipboard[0]!,/^Your Kiro cycle\nCycle that ended 1 Jul 2030 \(UTC\)\./);assert.match(env.clipboard[0]!,/Bobert: https:\/\/open-vsx\.org\/extension\/StefanSuess\/bobert$/);
+  assert.equal(env.clipboard.length,1);assert.match(env.clipboard[0]!,/^Your Kiro cycle\nCycle that ended 1 Jul 2030 \(UTC\)\./);assert.match(env.clipboard[0]!,/\nMade with Bobert, the free credit tracker for Kiro: https:\/\/open-vsx\.org\/extension\/StefanSuess\/bobert$/);
   assert.ok(!env.clipboard[0]!.includes(work));assert.deepEqual(results(env),['copyRecapText:copied']);
   // Dismiss writes only the validated shape, and the card is gone from the next page.
   s.advance();env.receive({type:'dismissRecap'});await waitFor(()=>(env.store.get(RECAP_KEY) as any)?.state==='dismissed',s);
@@ -1456,7 +1456,7 @@ test('packaged recap leaves an unreadable stored value untouched and shows no ca
   try{
    const env2=recapEnv(root2);env2.prompts=false;s=await communitySession(env2,root2);
    await s.commands.get('bobert.showUsage')!();await s.later();
-   assert.match(env2.panels.at(-1).webview.html,/id="recap-card"/);assert.ok(!env2.panels.at(-1).webview.html.includes('Bobert: https://'));
+   assert.match(env2.panels.at(-1).webview.html,/id="recap-card"/);assert.ok(!/<ul id="recap-lines"[^]*?<\/ul>/.exec(env2.panels.at(-1).webview.html)![0].includes('Made with Bobert'),'the card lines carry no share line (the page script holds the fixed text)');
   }finally{s?.dispose();rmSync(root2,{recursive:true,force:true});}
  }finally{s?.dispose();rmSync(work,{recursive:true,force:true});}
 });

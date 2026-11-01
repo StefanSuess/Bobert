@@ -800,6 +800,13 @@ test('the status icon is a decorative face that differs by tone',()=>{
  assert.ok(!/class="status-icon"[^>]*>[✓!✕]</.test(hero(render(10).html)));
 });
 
+test('the saving tip names a daily amount that lasts until the reset, only while a run-out is ahead',()=>{
+ const tip=(html:string)=>/<p class="small saving-tip"><strong>Tip:<\/strong> ([^<]*)<\/p>/.exec(html)?.[1];
+ assert.match(tip(render(10,'100').html)!,/^To last until the reset, aim for about [\d.]+ credits a day instead of the 10 you are using now\.$/);
+ assert.equal(tip(render(10,'1000').html),undefined,'on track: no tip');
+ assert.equal(tip(render(10,'30').html),undefined,'already at the limit: no daily amount left to aim for');
+});
+
 test('week over week compares the last 7 full UTC days with the 7 before, and says nothing when a day was not fully observed',()=>{
  const text=(html:string)=>/<h3>Week over week<\/h3><p>([^<]*)<\/p>/.exec(html)?.[1];
  assert.equal(text(render(10,'1000',20).html),'The last 7 full UTC days used 70 credits; the 7 days before used 70, unchanged. This is an observation only; the cause is open.');
