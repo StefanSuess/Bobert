@@ -4,6 +4,7 @@ import { observedCycle } from './dashboard-insights.ts';
 import { cycleKey, describeExclusions, plain, type StoredResults } from './results-summary.ts';
 import { date, updated } from './labels.ts';
 import { RECAP_LINK_TEXT } from './recap-card.ts';
+import { ALL_DAYS, restricted, type BudgetDay } from './daily-budget.ts';
 
 // "Your Kiro cycle": the recap of the cycle that has just ended, from account history evidence only. Pure and free of editor APIs.
 // Every figure carries what it is based on, and a figure the evidence does not support reads "not observed", "not comparable" or "unknown";
@@ -37,7 +38,7 @@ const duration = (ms: number) => `${Math.floor(ms / 3600000)} h ${Math.floor(ms 
 const add = (a: string, b: string) => subtract(a, subtract('0', b));
 
 /** The recap of the previous cycle, or null when the evidence does not support one (see the conditions inline). */
-export function computeRecap(h: AccountHistory, results: StoredResults, link: boolean): Recap | null {
+export function computeRecap(h: AccountHistory, results: StoredResults, link: boolean, budgetDays: readonly BudgetDay[] = ALL_DAYS): Recap | null {
  if (h.status !== 'available') return null;
  const cycles = h.evidence.cycles;
  if (cycles.length < 2) return null;
@@ -56,7 +57,7 @@ export function computeRecap(h: AccountHistory, results: StoredResults, link: bo
   : late ? `Lasted until the reset: yes. Usage below the reported limit was observed within ${LASTED_HOURS} hours before the reset.`
   : `Lasted until the reset: unknown. No update below the reported limit was observed within ${LASTED_HOURS} hours before the reset.`;
 
- const lines = [used, lasted, trendLine(h, chain.at(-1)!.usage, previous.startAt, last.at), exclusionLine(results, previousKey), busiestLine(h, previous.resetAt, previous.startAt, last.at), quietestLine(h, previous.resetAt, previous.startAt, last.at), paceLine(h, limit, previous.startAt, previous.resetAt, last.at)];
+ const lines = [used, lasted, trendLine(h, chain.at(-1)!.usage, previous.startAt, last.at), exclusionLine(results, previousKey), busiestLine(h, previous.resetAt, previous.startAt, last.at), quietestLine(h, previous.resetAt, previous.startAt, last.at), paceLine(h, limit, previous.startAt, previous.resetAt, last.at, budgetDays)];
  if (link) lines.push(RECAP_LINK_TEXT);
  return { cycle: key, period: `Cycle that ended ${date(previous.resetAt, true)} (UTC). Figures come from the account updates Bobert observed; it is not a bill.`, lines };
 }
@@ -113,21 +114,43 @@ function quietestLine(h: AccountHistory, resetAt: string, startAt: string, lastA
   : `${label}: not observed. No day was observed for at least ${QUIET_MIN_HOURS} hours in same-day updates.`;
 }
 
-/** Complete UTC days of the cycle at or under an even daily pace (reported limit divided by the cycle length), and the longest run of such days in a row. */
-function paceLine(h: AccountHistory, limit: string, startAt: string, resetAt: string, lastAt: string): string {
- const label = 'Days at or under the even daily pace';
+const WEEKDAY_KEYS: readonly BudgetDay[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']; // Date.getUTCDay() order
+const dayKey = (day: string): BudgetDay => WEEKDAY_KEYS[new Date(`${day}T00:00:00Z`).getUTCDay()];
+const nextDay = (day: string): string => new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
+
+/**
+ * Complete UTC days of the cycle at or under an even daily pace, and the longest run in a row. With the default (every weekday) the pace is the reported
+ * limit divided by the cycle length. With `bobert.budgetDays` restricted, only those weekdays count: the pace is the limit divided by the number of such
+ * days in the cycle, other days are neither counted nor break a run, and a budget day without a full observation does break it (it is unknown, not under).
+ * Weekdays are taken in UTC like every figure on the card.
+ */
+function paceLine(h: AccountHistory, limit: string, startAt: string, resetAt: string, lastAt: string, budgetDays: readonly BudgetDay[]): string {
+ const only = restricted(budgetDays);
+ const label = only ? 'Budget days at or under the even daily pace' : 'Days at or under the even daily pace';
  const span = Date.parse(resetAt) - Date.parse(startAt);
  if (!(span > 0)) return `${label}: not observed.`;
- const pace = scaleRatio(limit, BigInt(DAY_MS), BigInt(span));
- const days = [...sameDayTotals(h, resetAt, startAt, lastAt)].filter(([, d]) => d.ms === DAY_MS).sort(([x], [y]) => x < y ? -1 : 1).map(([day, d]) => ({ day, netChange: d.net }));
- if (!days.length) return `${label}: not observed. No complete UTC day of the cycle was observed.`;
+ let pace = scaleRatio(limit, BigInt(DAY_MS), BigInt(span)), basis = 'limit divided by the cycle length';
+ if (only) {
+  let count = 0;
+  for (let t = Math.floor(Date.parse(startAt) / DAY_MS) * DAY_MS; t < Date.parse(resetAt); t += DAY_MS) {
+   const from = Math.max(t, Date.parse(startAt)), to = Math.min(t + DAY_MS, Date.parse(resetAt));
+   if (budgetDays.includes(dayKey(new Date(t).toISOString().slice(0, 10)))) count += (to - from) / DAY_MS;
+  }
+  if (!(count > 0)) return `${label}: not observed.`;
+  pace = scaleRatio(limit, BigInt(DAY_MS), BigInt(Math.round(count * DAY_MS)));
+  basis = 'limit divided by the budget days of the cycle';
+ }
+ const days = [...sameDayTotals(h, resetAt, startAt, lastAt)].filter(([day, d]) => d.ms === DAY_MS && (!only || budgetDays.includes(dayKey(day)))).sort(([x], [y]) => x < y ? -1 : 1).map(([day, d]) => ({ day, netChange: d.net }));
+ if (!days.length) return `${label}: not observed. No complete UTC ${only ? 'budget day' : 'day'} of the cycle was observed.`;
+ // The day a run must continue with: the next budget day after `previous`.
+ const following = (previous: string): string => { let day = nextDay(previous); for (let n = 0; n < 7 && only && !budgetDays.includes(dayKey(day)); n++) day = nextDay(day); return day; };
  let under = 0, run = 0, longest = 0, previous = '';
  for (const d of days) {
   const ok = compare(d.netChange, pace) <= 0;
-  if (ok) { under++; run = previous && Date.parse(`${d.day}T00:00:00Z`) - Date.parse(`${previous}T00:00:00Z`) === DAY_MS && run > 0 ? run + 1 : 1; longest = Math.max(longest, run); } else run = 0;
+  if (ok) { under++; run = previous && following(previous) === d.day && run > 0 ? run + 1 : 1; longest = Math.max(longest, run); } else run = 0;
   previous = d.day;
  }
- return `${label} (${pace} credits, limit divided by the cycle length): ${under} of ${days.length} complete UTC days, longest run in a row ${longest}.`;
+ return `${label} (${pace} credits, ${basis}): ${under} of ${days.length} complete UTC ${only ? 'budget days' : 'days'}, longest run in a row ${longest}.`;
 }
 
 export type RecapVisibility = 'hidden' | 'new' | 'shown';

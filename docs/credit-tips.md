@@ -2,6 +2,8 @@
 
 Bobert shows how fast your Kiro credits go and links here from its model hint. These are general habits for using fewer credits per task. Bobert doesn't measure credits per task and never reads your prompts or conversations, so how much each habit saves depends on your work.
 
+Ready-to-copy snippets for the habits below (Steering files, `.kiroignore`, agent hooks, prompt templates) are in the [recipes](recipes.md); [Understanding credits and costs](guide.md) explains the numbers.
+
 ## Pick the model for each step
 
 Kiro charges each model at a different rate relative to **Auto**, the 1x baseline. Its model overview lists the current rates; Bobert's model hint quotes them from a dated table.

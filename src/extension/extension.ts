@@ -3,7 +3,7 @@ import { WATCH_GLOB, runAudit, snippet, type AuditResult, type Finding } from '.
 import { PRUNE } from '../audit/walk.ts';
 import { validIgnoreNames } from '../audit/read-ignore.ts';
 import { lstatSync, realpathSync } from 'node:fs';
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
@@ -182,7 +182,7 @@ function registerAudit(context: vscode.ExtensionContext, onFinding: () => void, 
  const summary = (): AuditSummary => {
   const last = stored(LAST_KEY), lastDate = typeof last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(last) ? last : undefined;
   if (refused || result?.status === 'unavailable') return { state: 'unavailable', lastDate };
-  return result ? { state: 'checked', ...counts(result), ...auditSizeTotal(visible(), result.omitted), checkedAt, lastDate } : { state: 'never', lastDate };
+  return result ? { state: 'checked', ...counts(result), kinds: [...new Set(visible().map(f => f.category))], ...auditSizeTotal(visible(), result.omitted), checkedAt, lastDate } : { state: 'never', lastDate };
  };
  const audit = async (): Promise<void> => {
   if (running) { await vscode.window.showInformationMessage(reminderAbort ? 'An automatic workspace audit is running; try again shortly.' : 'A workspace audit is already running.'); return; }
@@ -506,7 +506,7 @@ function registerAudit(context: vscode.ExtensionContext, onFinding: () => void, 
   viewReady = true;
  } catch { /* Without the list, a finished audit falls back to a notification with a Copy suggestions button. */ }
  // The credit view is re-rendered only when what it shows (state, counts, time of the check) actually changed.
- const keyOf = (a: AuditSummary): string => [a.state, a.items, a.unclear, a.bytes, a.lowerBound, a.checkedAt].join('|');
+ const keyOf = (a: AuditSummary): string => [a.state, a.items, a.unclear, a.kinds?.join(','), a.bytes, a.lowerBound, a.checkedAt].join('|');
  let shown = '';
  return { summary, onChange(fn) {
   try { shown = keyOf(summary()); } catch { /* the first change renders */ }
@@ -894,23 +894,33 @@ function registerPriceUpdates(context: vscode.ExtensionContext, claim: PromptCla
  const mode = () => { try { return readPriceUpdates(vscode.workspace.getConfiguration(ID_PREFIX).inspect<unknown>('priceUpdates')); } catch { return 'off' as const; } };
  const deps: PriceDeps = {
   now: () => Date.now(),
-  async readStored() { try { if ((await stat(file)).size > MAX_PRICE_FILE_BYTES) return undefined; return await readFile(file, 'utf8'); } catch { return undefined; } },
+  async readStored() { try { const info = await lstat(file); if (!info.isFile() || info.size > MAX_PRICE_FILE_BYTES) return undefined; return await readFile(file, 'utf8'); } catch { return undefined; } },
   async writeStored(text) {
-   try { await mkdir(context.globalStorageUri.fsPath, { recursive: true }); const temp = `${file}.tmp`; await writeFile(temp, text, 'utf8'); await rename(temp, file); return true; } catch { return false; }
+   const temp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
+   try { await mkdir(context.globalStorageUri.fsPath, { recursive: true }); await writeFile(temp, text, { encoding: 'utf8', flag: 'wx' }); await rename(temp, file); return true; } catch { try { await unlink(temp); } catch { /* nothing left to remove */ } return false; }
   },
   async fetchText(url) {
    if (url !== PRICE_FILE_URL) return undefined;
    try {
     const res = await fetch(url, { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(15_000), headers: { accept: 'application/json' } });
-    if (!res.ok || Number(res.headers.get('content-length') ?? 0) > MAX_PRICE_FILE_BYTES) return undefined;
-    const text = await res.text();
-    return text.length <= MAX_PRICE_FILE_BYTES ? text : undefined;
+    if (!res.ok || !res.body || Number(res.headers.get('content-length') ?? 0) > MAX_PRICE_FILE_BYTES) return undefined;
+    // Read at most the cap plus one byte, whatever the server says about its length.
+    const reader = res.body.getReader(), chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+     const { done, value } = await reader.read();
+     if (done) break;
+     total += value.byteLength;
+     if (total > MAX_PRICE_FILE_BYTES) { await reader.cancel(); return undefined; }
+     chunks.push(value);
+    }
+    return Buffer.concat(chunks).toString('utf8');
    } catch { return undefined; }
   },
   state: () => { try { return readPriceState(context.globalState.get<unknown>(PRICE_STATE_KEY)); } catch { return {}; } },
   async saveState(next) { try { await context.globalState.update(PRICE_STATE_KEY, next); return true; } catch { return false; } },
   async ask() {
-   if (!claim.claim('prices')) return undefined;
+   if (!claim.claim('prices')) return 'busy';
    try {
     const answer = await vscode.window.showInformationMessage('Bobert can check once a week whether Kiro\'s prices or model credit rates changed, by downloading one public file from github.com. Nothing about you, your usage or your files is sent. Check now?', 'Check now', 'Not now', 'Turn off');
     return answer === 'Check now' ? 'check' : answer === 'Turn off' ? 'off' : answer === 'Not now' ? 'later' : undefined;
@@ -918,9 +928,11 @@ function registerPriceUpdates(context: vscode.ExtensionContext, claim: PromptCla
   },
   async turnOff() { try { await vscode.workspace.getConfiguration(ID_PREFIX).update('priceUpdates', 'off', vscode.ConfigurationTarget.Global); } catch { /* the setting stays as it was */ } },
  };
- void runPriceUpdates(mode(), deps);
+ let running = false; // one pass at a time: a setting change during a download waits for the next start rather than starting a second request
+ const run = (): void => { if (running) return; running = true; void runPriceUpdates(mode(), deps).finally(() => { running = false; }); };
+ run();
  if (vscode.workspace.onDidChangeConfiguration) context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
-  try { if (event.affectsConfiguration(`${ID_PREFIX}.priceUpdates`)) void runPriceUpdates(mode(), deps); } catch { /* unchanged */ }
+  try { if (event.affectsConfiguration(`${ID_PREFIX}.priceUpdates`)) run(); } catch { /* unchanged */ }
  }));
 }
 async function startGauge(context: vscode.ExtensionContext): Promise<void> {
