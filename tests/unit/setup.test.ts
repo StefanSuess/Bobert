@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ALL_DAYS } from '../../src/extension/daily-budget.ts';
-import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, WEEKDAYS, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner } from '../../src/extension/setup.ts';
+import { BUDGET_DAYS_NOTICE_KEY, WHATS_NEW_KEY, WHATS_NEW_URL, releaseLine, whatsNewAction, whatsNewText, NOTICE_TEXT, WEEKDAYS, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner } from '../../src/extension/setup.ts';
 
 test('WEEKDAYS is mon..fri and the notice constants are fixed', () => {
  assert.deepEqual([...WEEKDAYS], ['mon', 'tue', 'wed', 'thu', 'fri']);
@@ -86,4 +86,40 @@ test('setupRunner stops at a step the user ends and shows no confirmation; a fai
  await run([async () => { calls.push('c'); throw new Error('synthetic-failure'); }], async () => { calls.push('confirm'); });
  await run([async () => { calls.push('d'); return true; }], async () => { calls.push('confirm'); });
  assert.deepEqual(calls, ['a', 'c', 'd', 'confirm']);
+});
+
+test('releaseLine keeps major.minor of a real version and rejects anything else', () => {
+ assert.equal(releaseLine('1.6.0'), '1.6');
+ assert.equal(releaseLine('1.6.3'), '1.6');
+ assert.equal(releaseLine('2.0.0-rc.1'), '2.0');
+ for (const bad of ['', '1.6', 'v1.6.0', '1.6.x', '../1.6.0', 1.6, null, undefined, {}, '1.6.0\nextra']) assert.equal(releaseLine(bad), null, String(bad));
+});
+
+test('whatsNewAction: shows once per release line for an existing user in Kiro, records silently otherwise', () => {
+ const base = { kiro: true, testing: false, stored: '1.4', version: '1.6.0', newUser: false, suggestions: true };
+ assert.equal(whatsNewAction(base), 'show');
+ assert.equal(whatsNewAction({ ...base, stored: undefined }), 'show');
+ assert.equal(whatsNewAction({ ...base, stored: '1.6' }), 'none');
+ assert.equal(whatsNewAction({ ...base, version: '1.6.4' }), 'show');
+ assert.equal(whatsNewAction({ ...base, stored: '1.6', version: '1.6.4' }), 'none');
+ assert.equal(whatsNewAction({ ...base, newUser: true }), 'record');
+ assert.equal(whatsNewAction({ ...base, suggestions: false }), 'record');
+ assert.equal(whatsNewAction({ ...base, kiro: false }), 'none');
+ assert.equal(whatsNewAction({ ...base, testing: true }), 'none');
+ assert.equal(whatsNewAction({ ...base, version: 'not a version' }), 'none');
+ assert.equal(WHATS_NEW_KEY, 'bobert.whatsNew.v1');
+ assert.match(WHATS_NEW_URL, /^https:\/\/github\.com\/StefanSuess\/Bobert\//);
+ assert.equal(whatsNewText('1.6'), "Bobert 1.6 is installed. See what's new?");
+});
+
+test("the what's new notice shares the prompt slot: refused while another notice holds it or the support prompt is busy", () => {
+ const claim = new PromptClaim();
+ assert.equal(claim.claim('news', true), false);
+ assert.equal(claim.claim('days'), true);
+ assert.equal(claim.claim('news'), false);
+ claim.release('days');
+ assert.equal(claim.claim('news'), true);
+ assert.equal(claim.claim('budget'), false);
+ claim.release('news');
+ assert.equal(claim.held(), null);
 });
