@@ -797,3 +797,10 @@ test('the status icon is a decorative face that differs by tone',()=>{
  assert.notEqual(icon(render(10,'1000',1).html),'\u{1F642}');
  assert.ok(!/class="status-icon"[^>]*>[✓!✕]</.test(hero(render(10).html)));
 });
+
+test('the status bar tooltip says on which day the credits run out and how far away that is, only when a run-out is projected',()=>{
+ const r=render(10,'100'); // run-out on 11 Jun 2030, counted from the evaluation day 8 Jun
+ assert.match(r.tooltip,/^At the observed pace your credits run out on 11 Jun \(in 3 days, UTC\)$/m);
+ assert.ok(r.tooltip.indexOf('run out')>r.tooltip.indexOf('Today:'));
+ assert.ok(!/run out/.test(render(10,'1000').tooltip)); // on track: nothing projected before the reset
+});
