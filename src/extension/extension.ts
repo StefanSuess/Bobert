@@ -17,7 +17,7 @@ import { startExtension, type ExtensionUi } from './controller.ts';
 import { buildDiagnostics, formatDiagnostics, runtimeFacts, type DiagnosticsInput } from '../diagnostics.ts';
 import { ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
 import { ALL_DAYS, dayBudget, type BudgetDay } from './daily-budget.ts';
-import { BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
+import { WHATS_NEW_KEY, WHATS_NEW_URL, releaseLine, whatsNewAction, whatsNewText, BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
 import { decideBudgetNotice } from './budget-warning.ts';
 import type { view } from '../view.ts';
 import type { PlanInsights } from '../cost/plan-hints.ts';
@@ -840,6 +840,46 @@ function registerBudgetDaysNotice(context: vscode.ExtensionContext, deps: { choo
   })();
  };
 }
+// One-time "what's new" notice after an update to a new release line (major.minor), for an existing user: Kiro only, never in the extension tests, never for a patch update.
+// A new user, or one who turned the suggestions off (bobert.supportPrompts), only gets the line recorded. It shares the window's prompt slot, so it never appears with another
+// Bobert notice. The line is written before the notice is shown, and a failed write means no notice.
+function registerWhatsNew(context: vscode.ExtensionContext, deps: { pause(): void; claim: PromptClaim; supportBusy(): boolean }): () => void {
+ let disposed = false, decided = false;
+ context.subscriptions.push({ dispose() { disposed = true; } });
+ return () => {
+  if (disposed || decided) return;
+  let claimed = false, line: string | null = null;
+  try {
+   const testing = vscode.ExtensionMode !== undefined && context.extensionMode === vscode.ExtensionMode.Test;
+   const version = context.extension?.packageJSON?.version;
+   line = releaseLine(version);
+   let stored: unknown;
+   try { stored = context.globalState.get<unknown>(WHATS_NEW_KEY); } catch { stored = undefined; }
+   const suggestions = readSupportPrompts((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key));
+   const action = whatsNewAction({ kiro: inKiro(), testing, stored, version, newUser: newUserNow, suggestions });
+   if (action === 'none' || line === null) { decided = true; return; }
+   if (action === 'record') {
+    decided = true;
+    void Promise.resolve(context.globalState.update(WHATS_NEW_KEY, line)).catch(() => { /* recorded again next window */ });
+    return;
+   }
+   let busy = false;
+   try { busy = deps.supportBusy(); } catch { busy = true; }
+   if (!deps.claim.claim('news', busy)) return;
+   claimed = true;
+   decided = true;
+   try { deps.pause(); } catch { /* nothing else depends on it */ }
+  } catch { decided = true; return; }
+  const shownLine = line!;
+  void (async () => {
+   try {
+    try { await context.globalState.update(WHATS_NEW_KEY, shownLine); } catch { return; }
+    if (disposed) return;
+    if (await vscode.window.showInformationMessage(whatsNewText(shownLine), "What's new", 'Dismiss') === "What's new") await vscode.env.openExternal(vscode.Uri.parse(WHATS_NEW_URL));
+   } catch { /* fixed and silent */ } finally { if (claimed) deps.claim.release('news'); }
+  })();
+ };
+}
 async function runBobert(context: vscode.ExtensionContext): Promise<void> {
  gaugeState.gauge = 'starting'; gaugeState.diagnostics = undefined; gaugeState.config = undefined; walkthroughOpenedNow = false; newUserNow = false;
  try { await startGauge(context); } catch (e) { gaugeState.gauge = 'failed_to_start'; throw e; }
@@ -854,6 +894,11 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
  let setup: SetupLink | undefined, onAllowance: (() => void) | undefined;
  try { setup = registerSetup(context); } catch { /* Nor the setup command. */ }
  try { onAllowance = registerBudgetDaysNotice(context, { choose: () => setup?.run('days') ?? Promise.resolve(), pause: () => support?.pause(), claim, supportBusy: () => support?.prompted() ?? false }); } catch { /* Nor the budget days notice. */ }
+ try {
+  const whatsNew = registerWhatsNew(context, { pause: () => support?.pause(), claim, supportBusy: () => support?.prompted() ?? false });
+  const days = onAllowance;
+  onAllowance = () => { try { days?.(); } catch { /* independent notices */ } try { whatsNew(); } catch { /* the notice never affects the gauge */ } };
+ } catch { /* Nor the what's new notice. */ }
  try { results = registerResults(context, () => controllerRef?.cycle() ?? null, () => controllerRef?.rerender()); } catch { /* Nor the results summary. */ }
  try { recap = registerRecap(context); } catch { /* Nor the cycle recap. */ }
  sessionHints = undefined;
