@@ -76,6 +76,18 @@ const SHARE_LINK = 'command:bobert.share';
 const REPORT_LINK = 'command:bobert.reportProblem';
 const FOOTER = `<footer class="community muted small"><a href="${REPORT_LINK}">Report a problem</a> · <a href="${SHARE_LINK}">Copy share link</a> · <a href="${LINKS.rate}"><span aria-hidden="true">★</span> Rate on Open VSX</a> · <a href="${LINKS.star}">Star on GitHub</a> · <a href="${LINKS.support}"><span aria-hidden="true">☕</span> Support</a></footer>`;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const GAUGE_ARC = '<path class="face-line" d="M44 86 A16 16 0 0 1 76 86"/>';
+const FACE_MOUTH = {
+ ok: '<path class="face-line" d="M45 74 A17 17 0 0 0 75 74"/>',
+ neutral: '<line class="face-line" x1="46" y1="80" x2="74" y2="80"/>',
+ warn: `${GAUGE_ARC}<line class="face-needle" x1="60" y1="86" x2="68" y2="74"/>`,
+ bad: `${GAUGE_ARC}<line class="face-needle" x1="60" y1="86" x2="73" y2="80"/>`,
+} as const;
+/** Bobert's head from the official icon, drawn with the chart's allowlisted SVG grammar: colors come from classes. Wide eyes only when over. */
+function bobertFace(tone: keyof typeof FACE_MOUTH): string {
+ const eye = tone === 'bad' ? 6 : 4;
+ return `<svg viewBox="14 16 92 88"><line class="face-line" x1="60" y1="40" x2="60" y2="26"/><circle class="face-dot" cx="60" cy="23" r="5"/><line class="face-ear" x1="19" y1="63" x2="19" y2="77"/><line class="face-ear" x1="101" y1="63" x2="101" y2="77"/><path class="face-head" d="M38 40 H82 A16 16 0 0 1 98 56 V86 A16 16 0 0 1 82 102 H38 A16 16 0 0 1 22 86 V56 A16 16 0 0 1 38 40 Z"/><path class="face-screen" d="M40 48 H80 A10 10 0 0 1 90 58 V84 A10 10 0 0 1 80 94 H40 A10 10 0 0 1 30 84 V58 A10 10 0 0 1 40 48 Z"/><circle class="face-eye" cx="46" cy="60" r="${eye}"/><circle class="face-eye" cx="74" cy="60" r="${eye}"/>${FACE_MOUTH[tone]}</svg>`;
+}
 function auditCard(a: AuditSummary | undefined, now: string): string {
  try { return buildAuditCard(a, now); } catch { return ''; } // the card can never take the gauge down
 }
@@ -250,8 +262,8 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const savingTip=eligible && over && !exhausted && budget!==null && compare(budget,'0')>0 && selected.ratePerDay!==null ? `To last until the reset, aim for about ${compact(budget)} credits a day instead of the ${compact(selected.ratePerDay)} you are using now.` : '';
  const heading=absent ? 'Kiro not detected' : allowanceShown && !eligible ? day.status==='available' ? `Up to ${compact(day.allowance)} credits${restrictedDays ? ' per budget day' : '/day'} until the reset` : `Up to ${compact(budget!)} credits/day until the reset` : early ? 'Looks on track so far' : outlook;
  const tone=absent ? 'neutral' : stale || (!eligible && !collecting) || floorOver ? 'warn' : !eligible || early ? 'neutral' : exhausted || over ? 'bad' : tight ? 'warn' : 'ok';
- // Bobert's face follows the tone (a smile when on track, flat while unknown, worried when tight or stale, a frown when over). Plain text, so the dashboard's DOM allowlist is unchanged; decorative, the heading says the same in words.
- const icon={ok:'\u{1F642}',warn:'\u{1F61F}',bad:'\u{1F641}',neutral:'\u{1F610}'}[tone];
+ // Bobert's face follows the tone (a smile when on track, flat while unknown, worried when tight or stale, alarmed when over). Decorative: the heading says the same in words.
+ const icon=bobertFace(tone);
  const usedPct=o.usage!==null && o.baseLimit!==null && compare(o.baseLimit,'0')>0 ? Math.max(0,Math.min(100,Math.round(Number(o.usage)/Number(o.baseLimit)*100))) : null;
  const limitations=eligible && f.tier==='provisional' ? 'This limited window may not represent future usage.' : '';
  const budgetDays=restrictedDays ? ` · Budget days: ${daysLabel(daily.days)}` : '';
@@ -292,7 +304,7 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  *{box-sizing:border-box}body{font:var(--vscode-font-size,14px)/1.5 var(--vscode-font-family,sans-serif);color:var(--vscode-foreground);background:var(--vscode-editor-background);padding:24px;margin:0}main{max-width:820px;margin:auto}a{color:var(--vscode-textLink-foreground,#3794ff)}a:focus-visible,summary:focus-visible{outline:2px solid var(--vscode-focusBorder);outline-offset:2px}h1{font-size:1.1rem;font-weight:600;margin:0 0 12px;color:var(--vscode-descriptionForeground)}h2{font-size:1.1rem;margin:0 0 10px}h3{font-size:1rem}h4{margin:8px 0}p{margin:8px 0}.muted,.label{color:var(--vscode-descriptionForeground)}.small{font-size:.9rem}
  section{border:1px solid var(--vscode-panel-border);border-radius:10px;padding:18px;margin-top:16px;background:var(--vscode-editorWidget-background,transparent)}
  .hero{margin-top:0;border-left:5px solid var(--tone)}.hero.ok{--tone:var(--ok)}.hero.warn{--tone:var(--warn)}.hero.bad{--tone:var(--bad)}.hero.neutral{--tone:var(--neutral)}
- .hero h2{font-size:1.8rem;line-height:1.2;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:10px}.status-icon{display:inline-flex;align-items:center;justify-content:center;width:1.4em;height:1.4em;border-radius:50%;border:2px solid var(--tone);color:var(--tone);font-size:.7em;font-weight:700}.tag{font-size:.8rem;font-weight:400;border:1px solid var(--vscode-panel-border);border-radius:12px;padding:1px 9px;color:var(--vscode-descriptionForeground)}
+ .hero h2{font-size:1.8rem;line-height:1.2;margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:10px}.status-icon{display:inline-block;flex:none;width:1.5em;height:1.5em}.status-icon svg{display:block;width:100%;height:100%;margin:0}.face-ear{stroke:#2dd4bf;stroke-width:6;stroke-linecap:round}.face-head{fill:#2dd4bf}.face-screen{fill:#0f1b2d}.face-eye{fill:#2dd4bf}.face-dot{fill:#f59e0b}.face-line{fill:none;stroke:#2dd4bf;stroke-width:4;stroke-linecap:round}.face-needle{stroke:#f59e0b;stroke-width:4;stroke-linecap:round}.tag{font-size:.8rem;font-weight:400;border:1px solid var(--vscode-panel-border);border-radius:12px;padding:1px 9px;color:var(--vscode-descriptionForeground)}
  .lead{font-size:1.05rem;margin:10px 0 14px}.bar{display:block;width:100%;height:10px;border-radius:5px;background:var(--vscode-panel-border);overflow:hidden;margin:6px 0 16px}.bar>rect{height:10px;fill:var(--tone)}.bar-label{margin:-10px 0 16px}
  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:0}.stat dt{color:var(--vscode-descriptionForeground);font-size:.9rem}.stat dd{margin:0;font-size:1.35rem;font-weight:600;overflow-wrap:anywhere}.stat dd.small{font-size:.9rem;font-weight:400}
  .audit-card h2{margin:0 0 4px}.audit-card p{margin:4px 0}.audit-actions,.advisor-actions{display:flex;flex-wrap:wrap;gap:8px}a.button{display:inline-block;padding:4px 12px;border:1px solid var(--vscode-button-border,transparent);border-radius:4px;text-decoration:none;font-weight:500;cursor:pointer}a.button.primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}a.button.primary:hover{background:var(--vscode-button-hoverBackground)}a.button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}a.button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}
