@@ -12,7 +12,7 @@ import { rightSizeText, unusedAtReset } from './budget-warning.ts';
 import { ESTIMATE_MARKER } from './advisor-presentation.ts';
 import { reviewedCatalog } from '../cost/catalog.ts';
 import { NO_INSIGHTS, type PlanInsights } from '../cost/plan-hints.ts';
-import { cycleComparison } from './dashboard-insights.ts';
+import { cycleComparison, weekComparison } from './dashboard-insights.ts';
 import { ALL_DAYS, dayBudget, daysLabel, localTime, restricted, type BudgetDay, type DayBudget } from './daily-budget.ts';
 import { resultsText, type StoredResults } from './results-summary.ts';
 import type { Recap } from './recap.ts';
@@ -113,7 +113,7 @@ export function inlineAdvisorForm(a:AdvisorAnswers,epoch:number):string {
  <div class="form-actions"><button type="submit">Update estimate</button><button id="advisor-review-again" type="button" hidden>Reload my answers</button></div></fieldset></form></details><p id="advisor-status" class="small" role="status" aria-live="polite"></p>`;
 }
 
-function observedContext(h: ReturnType<typeof view>['history'], day: DayBudget, zone: string): string {
+function observedContext(h: ReturnType<typeof view>['history'], day: DayBudget, zone: string, now: string): string {
  const comparison = cycleComparison(h);
  const usedToday = day.status === 'unavailable' ? null : day.used;
  if (comparison.status === 'not_observed' && usedToday === null) return ''; // nothing to show yet: no card at all
@@ -125,12 +125,14 @@ function observedContext(h: ReturnType<typeof view>['history'], day: DayBudget, 
  let today = "Today's usage isn't available yet.";
  if (day.status !== 'unavailable' && day.used !== null && day.since !== null)
   today = `Since ${localTime(day.since, zone)} (your time): ${day.used} credits used, as of ${updated(day.asOf)}.${day.status === 'available' ? ` Today's allowance: ${compact(day.allowance)} credits.` : ''}`;
- return `<section id="usage-context" aria-labelledby="usage-context-heading"><h2 id="usage-context-heading">Observed usage</h2><h3>This cycle vs last cycle</h3><p>${safe(cycle)}</p><h3>Today</h3><p>${safe(today)}</p></section>`;
+ const w = weekComparison(h, now);
+ const week = w.status === 'observed' ? `<h3>Week over week</h3><p>${safe(`The last 7 full UTC days used ${w.last} credits; the 7 days before used ${w.before}${w.direction === 'unchanged' ? ', unchanged' : `, so the last week was ${w.direction} by ${w.difference} credits`}. This is an observation only; the cause is open.`)}</p>` : '';
+ return `<section id="usage-context" aria-labelledby="usage-context-heading"><h2 id="usage-context-heading">Observed usage</h2><h3>This cycle vs last cycle</h3><p>${safe(cycle)}</p><h3>Today</h3><p>${safe(today)}</p>${week}</section>`;
 }
 
 // The observed-usage card can never take the gauge down.
-function contextCard(h: ReturnType<typeof view>['history'], day: DayBudget, zone: string): string {
- try { return observedContext(h, day, zone); } catch { return ''; }
+function contextCard(h: ReturnType<typeof view>['history'], day: DayBudget, zone: string, now: string): string {
+ try { return observedContext(h, day, zone, now); } catch { return ''; }
 }
 
 // Static, script-free summary of saved exclusions and the observed use trend; every string is escaped here and a failure only omits the section.
@@ -319,7 +321,7 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  ${o.observedAt ? `<div class="meta muted small"><p>Last account update: ${safe(`${updated(o.observedAt)} · ${freshness}`)}</p><details class="about"><summary><span aria-hidden="true">ⓘ</span> About these numbers</summary><p>${safe(ABOUT)}</p>${priceNote ? `<p>${safe(priceNote)}</p>` : ''}</details></div>` : ''}</section>
  ${chart.main}
  ${heatmap(h.days,now)}
- ${contextCard(h, day, daily.zone)}
+ ${contextCard(h, day, daily.zone, now)}
  ${recapCard(recap)}
  ${withAdvisorButton(advisorHtml,advisorForm)}
  ${auditCard(audit, now)}

@@ -800,6 +800,21 @@ test('the status icon is a decorative face that differs by tone',()=>{
  assert.ok(!/class="status-icon"[^>]*>[✓!✕]</.test(hero(render(10).html)));
 });
 
+test('week over week compares the last 7 full UTC days with the 7 before, and says nothing when a day was not fully observed',()=>{
+ const text=(html:string)=>/<h3>Week over week<\/h3><p>([^<]*)<\/p>/.exec(html)?.[1];
+ assert.equal(text(render(10,'1000',20).html),'The last 7 full UTC days used 70 credits; the 7 days before used 70, unchanged. This is an observation only; the cause is open.');
+ // 10 credits a day for 13 days, then 20 a day: the last week uses more than the week before
+ const daily=Array.from({length:20},(_,i)=>i<13?i*10:130+(i-13)*20);
+ const snaps=daily.map((u,i)=>snapshot(`2030-06-${String(i+1).padStart(2,'0')}T00:00:00Z`,String(u),{limit:'1000'}));
+ const now='2030-06-20T00:00:00Z';
+ const higher=text(present(view(snaps,now),[],'','',undefined,now).html);
+ assert.match(higher!,/^The last 7 full UTC days used \d+ credits; the 7 days before used \d+, so the last week was higher by \d+ credits\./);
+ assert.equal(text(render(10,'1000',12).html),undefined); // fewer than 14 observed days
+ const gap=snaps.filter((_,i)=>i!==9); // a missing midnight update leaves two days partly unobserved
+ assert.equal(text(present(view(gap,now),[],'','',undefined,now).html),undefined);
+ assert.doesNotThrow(()=>buildDomModel(render(10,'1000',20).html));
+});
+
 test('the status bar tooltip says on which day the credits run out and how far away that is, only when a run-out is projected',()=>{
  const r=render(10,'100'); // run-out on 11 Jun 2030, counted from the evaluation day 8 Jun
  assert.match(r.tooltip,/^At the observed pace your credits run out on 11 Jun \(in 3 days, UTC\)$/m);
