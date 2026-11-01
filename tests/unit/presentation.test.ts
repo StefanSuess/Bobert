@@ -806,10 +806,12 @@ test('the status bar tooltip says when the next reset is, and says nothing once 
 });
 
 test('the status icon is a decorative face that differs by tone',()=>{
- const icon=(html:string)=>/class="status-icon" aria-hidden="true">([^<]*)</.exec(hero(html))?.[1];
- assert.equal(icon(render(10).html),'\u{1F642}');
- assert.notEqual(icon(render(10,'1000',1).html),'\u{1F642}');
- assert.ok(!/class="status-icon"[^>]*>[✓!✕]</.test(hero(render(10).html)));
+ const icon=(html:string)=>/class="status-icon" aria-hidden="true">(<svg[\s\S]*?<\/svg>)</.exec(hero(html))?.[1];
+ assert.ok(icon(render(10).html));
+ assert.notEqual(icon(render(10).html),icon(render(10,'1000',1).html));
+ assert.ok(!/\p{Extended_Pictographic}/u.test(hero(render(10).html)));
+ assert.doesNotThrow(()=>buildDomModel(render(10).html));
+ assert.doesNotThrow(()=>buildDomModel(render(10,'1000',1).html));
 });
 
 test('the saving tip names a daily amount that lasts until the reset, only while a run-out is ahead',()=>{
