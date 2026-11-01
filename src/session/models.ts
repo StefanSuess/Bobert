@@ -42,6 +42,10 @@ export const MODELS: readonly ModelRow[] = [
  { id: 'glm-5', name: 'GLM-5', multiplier: '0.5', basis: 'pattern' },
  { id: 'qwen3-coder-next', name: 'Qwen3 Coder Next', multiplier: '0.05', basis: 'pattern' }, // experimental
 ];
+// The table in use: the one built into this version, or a newer validated one the user allowed (src/session/price-data.ts). Read at call time.
+let inUse: { rows: readonly ModelRow[]; date: string } = { rows: MODELS, date: TABLE_DATE };
+export function activeModels(): { rows: readonly ModelRow[]; date: string } { return inUse; }
+export function useModels(next: { rows: readonly ModelRow[]; date: string } | null): void { inUse = next ?? { rows: MODELS, date: TABLE_DATE }; }
 export interface ModelHint { name: string; multiplier: string; from: boolean; stale: boolean; date: string }
 /** "1.3" -> "1.3", "2.0" -> "2", rounded to one decimal; undefined unless a finite positive decimal. */
 export function multiplierText(decimal: string): string | undefined {
@@ -50,7 +54,7 @@ export function multiplierText(decimal: string): string | undefined {
  return String(Math.round(n * 10) / 10);
 }
 /** A hint only for a listed identifier whose table multiplier is above 1.0; silent for Auto, unknown ids, silent rows and everything at or below 1.0. */
-export function modelHint(id: string | null, now: number, table: readonly ModelRow[] = MODELS, date = TABLE_DATE): ModelHint | undefined {
+export function modelHint(id: string | null, now: number, table: readonly ModelRow[] = activeModels().rows, date = activeModels().date): ModelHint | undefined {
  if (id === null || !MODEL_ID.test(id)) return undefined;
  const row = table.find(r => r.id === id);
  if (!row || row.flag === 'silent' || !MODEL_ID.test(row.id) || !(Number(row.multiplier) > 1)) return undefined;

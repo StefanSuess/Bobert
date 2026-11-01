@@ -24,6 +24,10 @@ const catalogData:PricingCatalog={schemaVersion:1,id:'kiro-commercial',version:'
  enterprise:{billingSystem:'enterprise_postpaid',pricePerCredit:'0.04',allowedPlans:['pro','pro_plus','pro_max','power']},changes:[]};
 function freeze<T>(value:T):T {if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;}
 export const reviewedCatalog:PricingCatalog=freeze(catalogData);
+// The catalog in use: the reviewed one built into this version, or a newer validated one the user allowed (src/session/price-data.ts). Read it at call time, never at load time.
+let inUse:PricingCatalog=reviewedCatalog;
+export function activeCatalog():PricingCatalog {return inUse;}
+export function useCatalog(catalog:PricingCatalog|null):void {inUse=catalog??reviewedCatalog;}
 
 // Rebuild an allowlisted projection; never return the input object or exception text.
 export function validateCatalog(input:unknown,now:string):CatalogValidation {

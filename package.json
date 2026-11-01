@@ -367,6 +367,20 @@
           "description": "Private Bobert storage folder. Leave empty to use the editor's standard per-extension storage.",
           "scope": "machine"
         },
+        "bobert.priceUpdates": {
+          "type": "string",
+          "default": "off",
+          "enum": ["off", "ask", "auto"],
+          "enumItemLabels": ["Off", "Ask me weekly", "Automatically"],
+          "enumDescriptions": [
+            "Use only the prices built into this version. No network access.",
+            "At most once a week, ask whether to check for newer Kiro prices and model credit rates.",
+            "At most once a week, check without asking."
+          ],
+          "order": 13,
+          "description": "Check for newer Kiro prices and model credit rates. A check downloads one public file from github.com (data/prices.json in the Bobert repository); nothing about you, your usage or your files is sent. The file is validated, used only if newer than the built-in prices, and kept in Bobert's own storage. Off by default.",
+          "scope": "application"
+        },
         "bobert.sourceTimezone": {
           "type": "string",
           "default": "",

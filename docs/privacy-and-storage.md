@@ -5,7 +5,7 @@ The short version is in the README. This page keeps the full detail.
 ## Principles
 
 - **Read-only.** Kiro's files and databases are never modified, and Kiro is never started or called.
-- **Local only.** No telemetry and no network transmission: the extension contains no network code. Derived numbers are kept in the extension's own private directory.
+- **Local only.** No telemetry and no transmission of your data. Bobert's only network access is the optional price refresh below, which is **off by default**. Derived numbers are kept in the extension's own private directory.
 - **Minimal data.** Complete log lines are processed in memory while parsing, but only explicitly allowlisted billing fields are extracted and persisted. Raw account identifiers are not stored; pseudonymous identifiers derived with a device-local key (HMAC) are used locally to separate accounts. Prompts, code, conversations, tool data and credentials are dropped after parsing and never stored or shown, and diagnostics contain only fixed codes and counts.
 
 ## Storage and reliability
@@ -15,6 +15,14 @@ The adapter temporarily parses a bounded complete log envelope, projects only va
 Full bounded rescans plus durable deduplication protect restarts, rotation, truncation and same-size replacement. Content/identity fingerprints and source lengths remain private. `source_changed` means content/identity changed or length shrank, including ordinary append; it does not prove lost usage. Partial trailing lines are deferred until a complete newline. A changing source read is discarded. Each stable source import is transactional; concurrent store connections serialize via SQLite transactions. A failed later file can leave earlier successful file transactions durable and safe to re-import.
 
 Bounds: 256 KiB per line, 64 MiB per file, 10,000 accepted records per file, at most 1,000 discovered files and 1,000 run/window entries per level. Oversized files, too many records, and malformed/unsupported records produce fixed codes. These are conservative operational limits, not verified Kiro limits. The extension adds a watcher and polling fallback. SQLite schema version 1 supports this collector only. The store has an ordered migration path for future versions; a store written by a newer Bobert version is refused (`STORAGE_NEWER`) and never modified. Import evidence keeps at most 10,000 rows, and unchanged codes refresh the latest row's time instead of adding rows. Snapshot history is not pruned. Keep `device.key` and `usage.sqlite` together; loss or corruption fails unavailable rather than inventing a balance. Local snapshots contain private billing amounts: keep them local and do not attach the store to bug reports.
+
+## The only network access: optional price refresh
+
+`bobert.priceUpdates` is `off` by default and can only be set in your user settings (a workspace `settings.json` cannot switch it on). With `ask`, Bobert asks at most once a week whether to check; with `auto`, it checks at most once a week without asking.
+
+A check is one plain `GET` of a single fixed public address, `https://raw.githubusercontent.com/StefanSuess/Bobert/main/data/prices.json` (the dated price list and model credit rates, the same data this version ships). No cookies, no account, usage, file or workspace data, no identifiers and no query string are sent; as with any web request, GitHub sees your IP address and the request itself. Bobert does not follow redirects, stops after 15 seconds and ignores a file over 100 KB.
+
+The downloaded text is never trusted: it must pass the same validation as the built-in prices (exact structure, allowed characters and values, not dated in the future) and must be **strictly newer** than what this version ships. Only then is a rebuilt copy saved as `prices.json` in Bobert's own extension storage folder and used for the Cost Advisor, the plan hints and the model hint. On any failure, or with the setting `off`, the built-in prices are used and nothing is shown. The date of the data is shown wherever prices or multipliers are quoted, and the weekly last-check time is the only other thing stored.
 
 ## Data left by Cyclegauge
 
