@@ -37,7 +37,7 @@ What must be verified for Bobert, how each item is verified today, and what is s
 | Support prompts, walkthrough | Offer once, off switch, walkthrough steps tick | `support-schedule`, `extension` | A | pass (prompt and walkthrough shown) |
 | Share, recap, CSV, report a problem | Fixed text and links, no private values, PNG/CSV content | `recap*`, `csv-export`, `diagnostics`, `identity` | A; opening the browser **M** | not run natively |
 | Diagnostics | Fixed codes only, no paths or values | `diagnostics`, `safety` | A | pass (copy shows codes only) |
-| Settings | All settings present, user scope, workspace values ignored for sourceRoot/storageRoot | `extension`, `runtime-guard` | A for the list; **H** for workspace hardening | pass (10 settings, workspace roots ignored) |
+| Settings | All settings present, user scope, workspace values ignored for sourceRoot/storageRoot | `extension`, `runtime-guard`, `settings-docs` (every setting and Command Palette command is documented in `docs/usage.md`; every setting is described in the manifest) | A for the list; **H** for workspace hardening | pass (10 settings, workspace roots ignored) |
 | Commands | All commands titled `Bobert: …`, none duplicated, expected ones registered | `extension`, `tests/host/suite.ts` | A | pass (11 palette commands) |
 | CLI | Output, exit codes, data folder `Bobert` | `cli` | A | not run natively |
 | Accessibility | Heading order, keyboard reach, screen reader text, High Contrast Light | `dashboard-webview` (markup only) | **M** | keyboard and screen reader not run |
