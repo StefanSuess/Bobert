@@ -48,7 +48,7 @@ Free and open source, with no account, no sign-in and no telemetry. Everything s
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/lessons.png" alt="The Learn to spend fewer credits walkthrough on Kiro's Welcome page: four lessons (See what the numbers mean, Keep Steering files small, Tell Kiro what to skip, Check that your plan fits). The first is open, with buttons for the example preview and a plain-language guide to credits and costs; beside it the Bobert icon, a teal robot head whose mouth is a gauge." width="900">
+  <img src="https://raw.githubusercontent.com/StefanSuess/Bobert/main/docs/media/lessons.png" alt="The Learn to spend fewer credits walkthrough on Kiro's Welcome page: four lessons (See what the numbers mean, Keep Steering files small, Tell Kiro what to skip, Check that your plan fits). The first is open, with buttons for the example preview and a plain-language guide to credits and costs; beside it a small Bobert, a teal robot head whose mouth is a gauge." width="900">
   <br><sub><i>Four short lessons. Bobert promises not to quiz you.</i></sub>
 </p>
 
