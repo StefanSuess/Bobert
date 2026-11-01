@@ -42,6 +42,7 @@ After installation, new users inside Kiro get a short walkthrough, **Get started
 **Bobert: Show Account Credits** (or a click on the status-bar item) opens the credit dashboard. It runs one bundled script under a strict content security policy that blocks all network connections; see [privacy and storage](privacy-and-storage.md). It is built only from what Kiro has logged and Bobert has stored, and gaps are shown as unknown, never as zero.
 
 - **Usage chart.** Hover or keyboard focus shows a tooltip for each point (arrow keys move between points, Escape closes it), with forecast scenarios when there is enough history. A data table accompanies the chart.
+- **Daily usage calendar.** The last 12 UTC weeks as a grid, one cell per day with the credits observed that day (darker means more; the number is always shown). A dash is a day with no retained observation: unknown, never zero. A plus marks a partial day, where at least that much was observed. It appears once at least two days have a known change, and it uses only history Bobert already holds.
 - **Today's pace.** The observed net change within your local day, with the local time it starts at and today's allowance (spread over the days you choose in `bobert.budgetDays`). Usage before the first update of the day is unknown, so it is a lower bound. It is never extrapolated.
 - **Cycle comparison.** Compares with the previous billing cycle at the same elapsed point, only where both cycles have evidence-backed starts; otherwise it shows the bracketing observations or "not comparable".
 - **Cost Advisor.** An inline form with the same result as the native pickers. Answers stay session-only and are never persisted.
@@ -70,7 +71,7 @@ You may see budget notices, an occasional support prompt and (once, for a worksp
 
 ## Preview with example data
 
-**Bobert: Preview with Example Data** (`bobert.previewExample`) opens the credit view filled with invented numbers (12 daily updates at about 18 credits a day on a 1000-credit plan), under a note that says so. Use it to see what Bobert shows before Kiro has produced any usage, or to take screenshots. It reads nothing from Kiro, writes and stores nothing, and sends nothing; it opens its own read-only panel with scripts turned off, separate from your real credit view.
+**Bobert: Preview with Example Data** (`bobert.previewExample`) opens the credit view filled with invented numbers (45 updates, four a day, at about 18 credits a day on a 1000-credit plan), under a note that says so. Use it to see what Bobert shows before Kiro has produced any usage, or to take screenshots. It reads nothing from Kiro, writes and stores nothing, and sends nothing; it opens its own read-only panel with scripts turned off, separate from your real credit view.
 
 ## What's new after an update
 
