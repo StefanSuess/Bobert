@@ -53,6 +53,10 @@
         "title": "Bobert: Show Credit Budget"
       },
       {
+        "command": "bobert.statusMenu",
+        "title": "Bobert: Open Menu"
+      },
+      {
         "command": "bobert.setup",
         "title": "Bobert: Set Up"
       },

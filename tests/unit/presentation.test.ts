@@ -769,3 +769,17 @@ test('the credit view says how many plan credits are likely left only in the las
  assert.ok(!present(view(series(10,'1000',5),'2030-06-05T00:00:00Z'),[],'','',undefined,'2030-06-05T00:00:00Z').html.includes('Likely left at the reset'));
  assert.ok(!render(10).html.includes('Likely left at the reset'));
 });
+
+test('the status bar tooltip says when the next reset is, and says nothing once it has passed',()=>{
+ const r=render(10);
+ assert.match(r.tooltip,/^Next reset in \d+ days? \(\d{1,2} [A-Z][a-z]{2}\)$/m);
+ assert.ok(r.tooltip.indexOf('Next reset')>r.tooltip.indexOf('Today:') && r.tooltip.indexOf('Next reset')<r.tooltip.indexOf('Last account update'));
+ assert.ok(!/Next reset/.test(render(10,'1000',8,'2030-07-05T00:00:00Z').tooltip));
+});
+
+test('the status icon is a decorative face that differs by tone',()=>{
+ const icon=(html:string)=>/class="status-icon" aria-hidden="true">([^<]*)</.exec(hero(html))?.[1];
+ assert.equal(icon(render(10).html),'\u{1F642}');
+ assert.notEqual(icon(render(10,'1000',1).html),'\u{1F642}');
+ assert.ok(!/class="status-icon"[^>]*>[✓!✕]</.test(hero(render(10).html)));
+});
