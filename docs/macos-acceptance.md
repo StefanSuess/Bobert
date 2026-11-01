@@ -44,7 +44,7 @@ printed `node ".../open-demo.mjs"` command.
 | A3 | Click it | A tab "Your credit budget" opens; hero, metrics, usage bar, chart with accessible text; tooltip is short and contains no path |
 | A4 | Command Palette, type "Bobert" | Entries start with "Bobert:"; no duplicates |
 | A5 | Cost Advisor via Command Palette, lightbulb title action and panel-visible status item | All open the native questions; Clear my answers resets; cancelling changes nothing. No old Optimizer commands |
-| A6 | Settings UI, search "bobert" (`@ext:StefanSuess.bobert`) | Twelve settings (see [usage](usage.md#settings-and-defaults)), each shown as a user-level setting |
+| A6 | Settings UI, search "bobert" (`@ext:StefanSuess.bobert`) | Thirteen settings (see [usage](usage.md#settings-and-defaults)), each shown as a user-level setting |
 | A7 | Cmd+Q, relaunch | Extension activates again; history from the first run is still reflected |
 | A8 | Unused-credits reminder: demo in the last 3 days before the reset, `bobert.unusedCreditsPercent` at its default | Either the plan-size note (**rightsize**) or the unused-credits reminder appears, never both in one cycle. The plan-size note comes first and settles the reminder for that cycle, so the reminder shows only when no plan-size note applies (for example the previous cycle did not fit a smaller plan, or the plan is unknown). Record which one appeared; if neither, record the forecast tier, the days to the reset and the budget day. The decision itself is covered by `tests/unit/budget-warning.test.ts`; only its native notice and buttons are manual |
 

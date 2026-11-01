@@ -6,7 +6,7 @@ Bobert is the new name of Cyclegauge; this is its first release under the new na
 
 ## 1.5.0 (beta, macOS)
 
-A beta (pre-release) build: install it with **Switch to Pre-Release Version** on Bobert's page in the Extensions view. See your whole cycle at a glance (a daily usage calendar, week over week, a saving tip with a daily amount and the next reset in the status bar), try Bobert with invented numbers before you have usage of your own, learn to spend fewer credits in four short lessons, and keep the price list current with an optional weekly refresh. Upgrade note: a click on the status bar item now opens a short Bobert menu (the credit view is its first entry) instead of opening the credit view directly. The new setting `bobert.priceUpdates` defaults to `off`, so Bobert makes no network request unless you turn it on; it is Bobert's first and only network access (see Privacy below). No stored history, data format or other defaults change.
+A beta (pre-release) build: install it with **Switch to Pre-Release Version** on Bobert's page in the Extensions view. See your whole cycle at a glance (a daily usage calendar, week over week, a saving tip with a daily amount and the next reset in the status bar), try Bobert with invented numbers before you have usage of your own, learn to spend fewer credits in four short lessons, and keep the price list current with an optional weekly refresh. Upgrade note: a click on the status bar item now opens a short Bobert menu (the credit view is its first entry) instead of opening the credit view directly. The new setting `bobert.priceUpdates` defaults to `off`, so Bobert makes no network request unless you turn it on (with `ask`, only after you confirm); it is Bobert's first and only network access (see Privacy below). No stored history, data format or other defaults change.
 
 Platforms: macOS, native acceptance of this candidate. Windows and Ubuntu are not named because this release changes the packaging and adds network access, so the 1.2.0 smoke tests do not carry over; the candidate passed the automated extension-host tests on all three platforms.
 
@@ -23,7 +23,7 @@ Platforms: macOS, native acceptance of this candidate. Windows and Ubuntu are no
 - The cycle recap shows the **quietest observed day** and the **days at or under the even daily pace**, with the longest run. With `bobert.budgetDays` restricted, the pace and the count use only your budget days.
 - One **"what's new" notice** after an update to a new release line, for example "Bobert 1.5 is installed. See what's new?", with **What's new** (opens this changelog) and **Dismiss**. It appears once per release line, never for a patch update or a new user; `bobert.supportPrompts` turns it off.
 - An optional **weekly price refresh** (`bobert.priceUpdates`: `off` by default, `ask` or `auto`, user settings only). A check downloads one fixed public file of dated Kiro prices and model credit rates from github.com; it is used only if it passes the same validation as the built-in list and is strictly newer. See Privacy.
-- Claude Haiku 5.5 in the model table (0.06x; it never produces a model hint).
+- Claude Haiku 5.5 in the model table (0.06x, 0.3x above 100K tokens; it never produces a model hint).
 
 ### Changed
 
