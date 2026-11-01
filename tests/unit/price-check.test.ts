@@ -19,6 +19,10 @@ test('the pricing check passes on a page that matches the catalog and names the 
  assert.equal(checkPricing(text.replace('2,000 credits', '2,500 credits')).status, 'differs');
 });
 
+test('page text decodes entities once and collapses whitespace',()=>{
+ assert.equal(pageText('<p>A&nbsp;&amp;\n B</p><script>x</script>&amp;#36;5'),'A & B &#36;5');
+});
+
 test('a page that no longer looks like the known one is unverified, never a difference', () => {
  assert.equal(checkPricing('Page not found').status, 'unverified');
  assert.equal(checkModels('Page not found').status, 'unverified');

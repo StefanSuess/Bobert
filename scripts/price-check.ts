@@ -18,7 +18,7 @@ export interface PriceCheck { status: PriceStatus; findings: string[] }
 /** Plain text of a page: tags, scripts and styles removed, entities for the few characters prices use decoded, whitespace collapsed. */
 export function pageText(html: string): string {
  return html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' ')
-  .replace(/&nbsp;|&#160;/g, ' ').replace(/&amp;/g, '&').replace(/&#36;/g, '$').replace(/\s+/g, ' ').trim();
+  .replace(/&nbsp;|&#160;/g, ' ').replace(/&#36;/g, '$').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim(); // &amp; last, so "&amp;#36;" is never unescaped twice
 }
 const grouped = (n: string): string => n.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const hasAmount = (text: string, amount: string): boolean => {
