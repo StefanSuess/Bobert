@@ -17,7 +17,7 @@ test('manifest identity and commands use the Bobert names', () => {
  for (const c of manifest.contributes.menus['editor/title']) { assert.ok(commands.includes(c.command)); assert.equal(c.when, `activeWebviewPanelId == ${PANEL_VIEW_TYPE}`); }
 });
 
-test('the getting-started walkthrough has actionable steps, completion events and a distinct alt text per packaged image', () => {
+test('the getting-started walkthrough has actionable steps, completion events and a distinct alt text per packaged image', async () => {
  const titles = Object.fromEntries(manifest.contributes.commands.map((c: any) => [c.command, c.title]));
  assert.equal(titles[commandId('gettingStarted')], 'Bobert: Get Started');
  const [walkthrough, ...rest] = manifest.contributes.walkthroughs;
@@ -26,8 +26,11 @@ test('the getting-started walkthrough has actionable steps, completion events an
  const lessons: any[] = rest[0].steps;
  assert.deepEqual(lessons.map(s => s.title), ['See what the numbers mean', 'Keep Steering files small', 'Tell Kiro what to skip', 'Check that your plan fits']);
  assert.deepEqual(steps.map(s => s.title), ['Set up Bobert', 'See your Kiro credits', "Find files Kiro doesn't need", 'Find ways to use fewer credits', 'Get warned before credits run out', 'Look back on each cycle', 'Nudges from your latest Kiro session']);
- // The editor requires media on every step and only the icon is packaged; each step names what it is about instead of repeating "Bobert icon".
- for (const step of steps) { assert.ok(step.id && step.description); assert.deepEqual(step.media, { image: manifest.icon, altText: step.media.altText }); assert.equal(step.media.image, 'assets/branding/bobert-icon-256.png'); assert.ok(step.media.altText); }
+ // The editor requires media on every step; every step shows the small, tile-less walkthrough drawing; each step names what it is about instead of repeating "Bobert icon".
+ for (const step of [...steps, ...lessons]) { assert.ok(step.id && step.description); assert.deepEqual(step.media, { svg: 'assets/branding/bobert-walkthrough.svg', altText: step.media.altText }); assert.ok(step.media.altText); }
+ // A transparent drawing, not the tiled icon: no full-size background rect, and the robot fills only a small part of the canvas.
+ const art = await readFile(new URL('../../assets/branding/bobert-walkthrough.svg', import.meta.url), 'utf8');
+ assert.match(art, /viewBox="-100 -106 320 320"/); assert.ok(!/<rect[^>]*width="120"/.test(art)); assert.ok(!/<(script|image|foreignObject)\b|href=/i.test(art));
  assert.equal(new Set(steps.map(s => s.media.altText)).size, steps.length); assert.ok(!steps.some(s => /Bobert icon/i.test(s.media.altText)));
  assert.equal(steps[0].id, 'bobert.gettingStarted.setup'); assert.match(steps[0].description, /\[Set up Bobert\]\(command:bobert\.setup\)/); assert.deepEqual(steps[0].completionEvents, ['onCommand:bobert.setup']);
  assert.match(steps[1].description, /\(command:bobert\.showUsage\)/); assert.deepEqual(steps[1].completionEvents, ['onCommand:bobert.showUsage']);
@@ -211,7 +214,7 @@ test('extension entry point starts Bobert without installation gates', async () 
 
 test('VSIX allowlist ships exactly manifest, readme, license, changelog, bundle and icon', async () => {
  const ignore = (await readFile(new URL('../../.vscodeignore', import.meta.url), 'utf8')).split('\n').map(l => l.trim()).filter(Boolean);
- assert.deepEqual(ignore, ['**', '!package.json', '!README.md', '!LICENSE', '!CHANGELOG.md', '!dist/extension.cjs', '!assets/branding/bobert-icon-256.png']);
+ assert.deepEqual(ignore, ['**', '!package.json', '!README.md', '!LICENSE', '!CHANGELOG.md', '!dist/extension.cjs', '!assets/branding/bobert-icon-256.png', '!assets/branding/bobert-walkthrough.svg']);
  assert.equal(manifest.license, 'MIT');
  assert.equal(manifest.preview === true, isPreReleaseVersion(manifest.version));
  for (const key of Object.keys(manifest.contributes.configuration.properties)) assert.equal(manifest.contributes.configuration.properties[key].scope, [...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS, ...PRICE_UPDATE_SETTING_KEYS].some(k => key === `bobert.${k}`) ? 'application' : 'machine', key);

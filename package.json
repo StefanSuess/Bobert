@@ -192,49 +192,49 @@
             "id": "bobert.gettingStarted.setup",
             "title": "Set up Bobert",
             "description": "Tell Bobert on which days you work, when to warn you about your budget and whether to show session hints. Takes under a minute; you can change everything later in Settings.\n[Set up Bobert](command:bobert.setup)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Bobert setup questions" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Bobert setup questions" },
             "completionEvents": ["onCommand:bobert.setup"]
           },
           {
             "id": "bobert.gettingStarted.credits",
             "title": "See your Kiro credits",
             "description": "The status bar shows how many Kiro credits you have used and whether you are on track until the reset. A forecast appears after a few days of usage; just keep working in Kiro. It shows how much of today's budget you have used, for example \"55/100 today\".\n[Show credit budget](command:bobert.showUsage)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Bobert status bar item and credit budget" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Bobert status bar item and credit budget" },
             "completionEvents": ["onCommand:bobert.showUsage"]
           },
           {
             "id": "bobert.gettingStarted.audit",
             "title": "Find files Kiro doesn't need",
             "description": "Check this workspace for files Kiro may read but probably doesn't need, like secrets, database dumps or build output. This works right away, without any usage history.\n[Run the workspace audit](command:bobert.auditWorkspace)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Workspace Audit view in the Explorer" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Workspace Audit view in the Explorer" },
             "completionEvents": ["onCommand:bobert.auditWorkspace"]
           },
           {
             "id": "bobert.gettingStarted.savings",
             "title": "Find ways to use fewer credits",
             "description": "The Cost Advisor compares Kiro plans against your usage. The Steering and Hooks review points out large always-included Steering files and hooks that start agent work automatically, which can add credits.\n[Open Cost Advisor](command:bobert.costAdvisor)\n[Review Steering and Hooks](command:bobert.reviewKiroConfig)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Cost Advisor and Steering and Hooks review" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Cost Advisor and Steering and Hooks review" },
             "completionEvents": ["onCommand:bobert.costAdvisor", "onCommand:bobert.reviewKiroConfig"]
           },
           {
             "id": "bobert.gettingStarted.budget",
             "title": "Get warned before credits run out",
             "description": "Bobert can tell you when your credits are on course to run out before the reset, and estimate what additional credits could cost. It is on by default; you can change it in the settings.\n[Open budget settings](command:workbench.action.openSettings?%5B%22bobert.budgetWarnings%22%5D)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Budget notice settings" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Budget notice settings" },
             "completionEvents": ["onStepSelected"]
           },
           {
             "id": "bobert.gettingStarted.cycleRecap",
             "title": "Look back on each cycle",
             "description": "When a billing cycle ends, Bobert shows a short recap card that you can save or share. You can also export your observed usage as CSV from the credit budget view.\n[Show credit budget](command:bobert.showUsage)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Cycle recap card and CSV export" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Cycle recap card and CSV export" },
             "completionEvents": ["onStepSelected"]
           },
           {
             "id": "bobert.gettingStarted.sessionHints",
             "title": "Nudges from your latest Kiro session",
             "description": "Bobert can tell you when your newest Kiro session is nearly full or set to a pricier model. It reads only the newest session's model, context level and time, on your computer. Nothing is stored or sent. Turn it off any time.\n[Open session hint settings](command:workbench.action.openSettings?%5B%22bobert.sessionHints%22%5D)\n[What is read, exactly](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/privacy-and-storage.md)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Session hint settings" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Session hint settings" },
             "completionEvents": ["onStepSelected"]
           }
         ]
@@ -248,28 +248,28 @@
             "id": "bobert.lessons.example",
             "title": "See what the numbers mean",
             "description": "Learn how to read Bobert before you have any usage of your own. The example preview shows the credit view with invented numbers, so nothing here is yours. Look for the pace line, the daily calendar and the saving tip.\n[Open the example preview](command:bobert.previewExample)\n[Credits and costs in plain language](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/guide.md)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Credit view filled with example data" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Credit view filled with example data" },
             "completionEvents": ["onCommand:bobert.previewExample"]
           },
           {
             "id": "bobert.lessons.steering",
             "title": "Keep Steering files small",
             "description": "Steering files that are always included are sent with every request. Bobert lists the large ones. Then try the recipes: load a long guide only when you ask for it, or only for matching files.\n[Review Steering and Hooks](command:bobert.reviewKiroConfig)\n[Copy-paste recipes](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/recipes.md)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Steering and Hooks review list" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Steering and Hooks review list" },
             "completionEvents": ["onCommand:bobert.reviewKiroConfig"]
           },
           {
             "id": "bobert.lessons.ignore",
             "title": "Tell Kiro what to skip",
             "description": "Build output, dumps and secrets do not help Kiro and can use up context. Run the audit to see what Kiro may read here, then use the starter .kiroignore from the recipes.\n[Run the workspace audit](command:bobert.auditWorkspace)\n[Starter .kiroignore recipe](https://github.com/StefanSuess/Bobert/blob/HEAD/docs/recipes.md)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Workspace audit results" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Workspace audit results" },
             "completionEvents": ["onCommand:bobert.auditWorkspace"]
           },
           {
             "id": "bobert.lessons.plan",
             "title": "Check that your plan fits",
             "description": "If you often run out before the reset, or leave many credits unused, a different plan or add-on credits may cost less. The Cost Advisor compares them using your observed usage; it never buys anything.\n[Open Cost Advisor](command:bobert.costAdvisor)",
-            "media": { "image": "assets/branding/bobert-icon-256.png", "altText": "Cost Advisor comparison" },
+            "media": { "svg": "assets/branding/bobert-walkthrough.svg", "altText": "Cost Advisor comparison" },
             "completionEvents": ["onCommand:bobert.costAdvisor"]
           }
         ]
