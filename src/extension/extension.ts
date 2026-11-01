@@ -3,6 +3,7 @@ import { WATCH_GLOB, runAudit, snippet, type AuditResult, type Finding } from '.
 import { PRUNE } from '../audit/walk.ts';
 import { validIgnoreNames } from '../audit/read-ignore.ts';
 import { lstatSync, realpathSync } from 'node:fs';
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
@@ -14,9 +15,11 @@ import { APPLY_TEXT, createPreparedFiles, preparedText } from './config-apply.ts
 import { readConfigReviewMode } from './config-schedule.ts';
 import { IGNORE_USE_NOTE, MAX_DISMISSED, OPEN_SETTING, auditTree, auditSizeTotal, dismissHash, excludeAnnotation, findingKey, findingsToast, ignoreNotEffective, isHash, countFindings, kiroignoreAppend, revealTarget, sizePhrase, visibleFindings, type AuditNode, type AuditParts, type AuditSummary } from './audit-model.ts';
 import { startExtension, type ExtensionUi } from './controller.ts';
+import { PRICE_STATE_KEY, readPriceState, readPriceUpdates, runPriceUpdates, type PriceDeps } from './price-updates.ts';
+import { MAX_PRICE_FILE_BYTES, PRICE_FILE_URL } from '../session/price-data.ts';
 import { buildDiagnostics, formatDiagnostics, runtimeFacts, type DiagnosticsInput } from '../diagnostics.ts';
 import { STATUS_MENU, examplePreview } from './presentation.ts';
-import { ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
+import { FEEDBACK_URL, ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, SUPPORT_PROMPT_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
 import { ALL_DAYS, dayBudget, type BudgetDay } from './daily-budget.ts';
 import { WHATS_NEW_KEY, WHATS_NEW_URL, releaseLine, whatsNewAction, whatsNewText, BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
 import { decideBudgetNotice } from './budget-warning.ts';
@@ -612,11 +615,11 @@ function registerSupport(context: vscode.ExtensionContext): SupportLink {
     if (!(await store(SUPPORT_NEXT_KEY, addDays(today, SNOOZE_DAYS)))) return; // a prompt left open or closed with the window is not repeated for a while
     if (disposed) return;
     shown = true;
-    try { choice = await vscode.window.showInformationMessage('Finding Bobert useful? Rate it or support development. You can turn these off in Settings › Bobert › Support Prompts.', 'Rate', 'Support', 'Later') as SupportChoice | undefined; }
+    try { choice = await vscode.window.showInformationMessage(SUPPORT_PROMPT_TEXT, 'Rate', 'Feedback', 'Support', 'Later') as SupportChoice | undefined; }
     finally { lastPromptAt = Date.now(); }
    } finally { promptOpen = false; }
    if (disposed) return;
-   if (choice === 'Rate') open(LINKS.rate); else if (choice === 'Support') open(LINKS.support);
+   if (choice === 'Rate') open(LINKS.rate); else if (choice === 'Feedback') open(FEEDBACK_URL); else if (choice === 'Support') open(LINKS.support);
    const after = afterChoice(choice, today);
    if (after.next) await store(SUPPORT_NEXT_KEY, after.next);
   } catch { /* fixed and silent */ } finally { checking = false; }
@@ -885,6 +888,41 @@ async function runBobert(context: vscode.ExtensionContext): Promise<void> {
  gaugeState.gauge = 'starting'; gaugeState.diagnostics = undefined; gaugeState.config = undefined; walkthroughOpenedNow = false; newUserNow = false;
  try { await startGauge(context); } catch (e) { gaugeState.gauge = 'failed_to_start'; throw e; }
 }
+// Optional price refresh (bobert.priceUpdates, off by default). The only network access Bobert has: one plain GET of PRICE_FILE_URL, at most weekly, see price-updates.ts.
+function registerPriceUpdates(context: vscode.ExtensionContext, claim: PromptClaim): void {
+ const file = join(context.globalStorageUri.fsPath, 'prices.json');
+ const mode = () => { try { return readPriceUpdates(vscode.workspace.getConfiguration(ID_PREFIX).inspect<unknown>('priceUpdates')); } catch { return 'off' as const; } };
+ const deps: PriceDeps = {
+  now: () => Date.now(),
+  async readStored() { try { if ((await stat(file)).size > MAX_PRICE_FILE_BYTES) return undefined; return await readFile(file, 'utf8'); } catch { return undefined; } },
+  async writeStored(text) {
+   try { await mkdir(context.globalStorageUri.fsPath, { recursive: true }); const temp = `${file}.tmp`; await writeFile(temp, text, 'utf8'); await rename(temp, file); return true; } catch { return false; }
+  },
+  async fetchText(url) {
+   if (url !== PRICE_FILE_URL) return undefined;
+   try {
+    const res = await fetch(url, { redirect: 'error', credentials: 'omit', signal: AbortSignal.timeout(15_000), headers: { accept: 'application/json' } });
+    if (!res.ok || Number(res.headers.get('content-length') ?? 0) > MAX_PRICE_FILE_BYTES) return undefined;
+    const text = await res.text();
+    return text.length <= MAX_PRICE_FILE_BYTES ? text : undefined;
+   } catch { return undefined; }
+  },
+  state: () => { try { return readPriceState(context.globalState.get<unknown>(PRICE_STATE_KEY)); } catch { return {}; } },
+  async saveState(next) { try { await context.globalState.update(PRICE_STATE_KEY, next); return true; } catch { return false; } },
+  async ask() {
+   if (!claim.claim('prices')) return undefined;
+   try {
+    const answer = await vscode.window.showInformationMessage('Bobert can check once a week whether Kiro\'s prices or model credit rates changed, by downloading one public file from github.com. Nothing about you, your usage or your files is sent. Check now?', 'Check now', 'Not now', 'Turn off');
+    return answer === 'Check now' ? 'check' : answer === 'Turn off' ? 'off' : answer === 'Not now' ? 'later' : undefined;
+   } finally { claim.release('prices'); }
+  },
+  async turnOff() { try { await vscode.workspace.getConfiguration(ID_PREFIX).update('priceUpdates', 'off', vscode.ConfigurationTarget.Global); } catch { /* the setting stays as it was */ } },
+ };
+ void runPriceUpdates(mode(), deps);
+ if (vscode.workspace.onDidChangeConfiguration) context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
+  try { if (event.affectsConfiguration(`${ID_PREFIX}.priceUpdates`)) void runPriceUpdates(mode(), deps); } catch { /* unchanged */ }
+ }));
+}
 async function startGauge(context: vscode.ExtensionContext): Promise<void> {
  let audit: AuditLink | undefined, support: SupportLink | undefined, budget: BudgetLink | undefined, results: ResultsLink | undefined, recap: RecapLink | undefined;
  let controllerRef: Awaited<ReturnType<typeof startExtension>> | undefined;
@@ -892,6 +930,7 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
  try { support = registerSupport(context); } catch { /* Nor must the community prompts. */ }
  const claim = new PromptClaim(); // the window's one prompt slot: budget notice, then support prompt, then the budget days notice
  try { budget = registerBudget(context, () => support?.pause(), claim); } catch { /* Nor the budget warning. */ }
+ try { registerPriceUpdates(context, claim); } catch { /* Nor the optional price refresh: the built-in prices stay in use. */ }
  let setup: SetupLink | undefined, onAllowance: (() => void) | undefined;
  try { setup = registerSetup(context); } catch { /* Nor the setup command. */ }
  try { onAllowance = registerBudgetDaysNotice(context, { choose: () => setup?.run('days') ?? Promise.resolve(), pause: () => support?.pause(), claim, supportBusy: () => support?.prompted() ?? false }); } catch { /* Nor the budget days notice. */ }

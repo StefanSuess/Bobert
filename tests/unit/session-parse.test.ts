@@ -139,7 +139,7 @@ test('model table: every row by category; hints only above 1.0; Auto, unknown id
  const basis = (b: string) => MODELS.filter(r => r.basis === b).map(r => r.id).sort();
  assert.deepEqual(basis('observed'), ['claude-sonnet-4.5', 'minimax-m2.1', 'minimax-m2.5']);
  assert.deepEqual(basis('documented'), ['claude-opus-4.8', 'claude-sonnet-4.6']);
- assert.equal(MODELS.length, 22); // every model of the table of 2026-10-18 except Auto
+ assert.equal(MODELS.length, 23); // the table of 2026-10-18 except Auto, plus Claude Haiku 5.5 (added 2026-11-01)
  // [id, published name, multiplier text shown or undefined for silent, "from about" wording]
  const rows: [string, string, string | undefined, boolean][] = [
   ['gpt-5.6-sol', 'GPT-5.6 Sol', '4.4', true], ['gpt-5.6-terra', 'GPT-5.6 Terra', '2.2', true], ['gpt-5.6-luna', 'GPT-5.6 Luna', undefined, true],
@@ -148,7 +148,7 @@ test('model table: every row by category; hints only above 1.0; Auto, unknown id
   ['claude-opus-4.6', 'Claude Opus 4.6', '2.2', false], ['claude-opus-4.5', 'Claude Opus 4.5', '2.2', false], ['claude-sonnet-5', 'Claude Sonnet 5', '1.3', false],
   ['claude-sonnet-4.6', 'Claude Sonnet 4.6', '1.3', false], ['claude-sonnet-4.5', 'Claude Sonnet 4.5', '1.3', false],
   ['claude-sonnet-4.0', 'Claude Sonnet 4.0', undefined, false], // end of life: silent on purpose
-  ['claude-haiku-4.5', 'Claude Haiku 4.5', undefined, false], ['kimi-k3', 'Kimi K3', '2.4', false], ['deepseek-3.2', 'DeepSeek 3.2', undefined, false],
+  ['claude-haiku-4.5', 'Claude Haiku 4.5', undefined, false], ['claude-haiku-5.5', 'Claude Haiku 5.5', undefined, true], ['kimi-k3', 'Kimi K3', '2.4', false], ['deepseek-3.2', 'DeepSeek 3.2', undefined, false],
   ['minimax-m2.5', 'MiniMax M2.5', undefined, false], ['glm-5', 'GLM-5', undefined, false], ['minimax-m2.1', 'MiniMax M2.1', undefined, false], ['qwen3-coder-next', 'Qwen3 Coder Next', undefined, false],
  ];
  assert.deepEqual(rows.map(r => r[0]).sort(), MODELS.map(r => r.id).sort());

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { isPreReleaseVersion } from '../../scripts/release/channel.ts';
-import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, readUnusedCreditsPercent, registerCommand } from '../../src/extension/identity.ts';
+import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, FEEDBACK_URL, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, PRICE_UPDATE_SETTING_KEYS, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, readUnusedCreditsPercent, registerCommand } from '../../src/extension/identity.ts';
 import { STATUS_MENU } from '../../src/extension/presentation.ts';
 
 const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
@@ -46,12 +46,12 @@ test('the getting-started walkthrough has actionable steps, completion events an
 
 test('only current settings are declared under the Bobert prefix', () => {
  const props = manifest.contributes.configuration.properties;
- assert.deepEqual(Object.keys(props).sort(), [...SETTING_KEYS, ...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS].map(k => `bobert.${k}`).sort());
+ assert.deepEqual(Object.keys(props).sort(), [...SETTING_KEYS, ...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS, ...PRICE_UPDATE_SETTING_KEYS].map(k => `bobert.${k}`).sort());
  for (const k of SETTING_KEYS) {
   assert.ok(props[`bobert.${k}`] && !props[`bobert.${k}`].deprecationMessage, k);
   assert.equal(props[`bobert.${k}`].scope, 'machine');
  }
- for (const k of [...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS]) {
+ for (const k of [...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS, ...PRICE_UPDATE_SETTING_KEYS]) {
   assert.ok(props[`bobert.${k}`] && !props[`bobert.${k}`].deprecationMessage, k);
   assert.equal(props[`bobert.${k}`].scope, 'application');
  }
@@ -64,7 +64,7 @@ test('only current settings are declared under the Bobert prefix', () => {
  assert.ok(!/\bstar\b/i.test(prompts.description));
  // User-facing settings come first; the testing and storage overrides come last. Raw values and the legacy true are not in the visible text.
  const order = Object.entries(props).sort((a: any, b: any) => a[1].order - b[1].order).map(([k]) => k.replace('bobert.', ''));
- assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'unusedCreditsPercent', 'budgetDays', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone']);
+ assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'unusedCreditsPercent', 'budgetDays', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone', 'priceUpdates']);
  assert.equal(new Set(Object.values(props).map((p: any) => p.order)).size, Object.keys(props).length);
  for (const k of ['auditAutomatically', 'configReviewAutomatically']) {
   assert.deepEqual(props[`bobert.${k}`].enumItemLabels, ['Off', 'On open', 'On open and on changes'], k);
@@ -124,6 +124,12 @@ test('the report-a-problem address is one fixed https constant whose only query 
  assert.deepEqual([...new URL(REPORT_PROBLEM_URL).searchParams.entries()], [['template', 'bug_report.yml']]);
  assert.equal(new URL(REPORT_PROBLEM_URL).hash, '');
  assert.equal(REPORT_PROBLEM_ACTION, 'Report a problem');
+});
+
+test('the feedback address is one fixed https constant whose only query is the template', () => {
+ assert.equal(FEEDBACK_URL, 'https://github.com/StefanSuess/Bobert/issues/new?template=feature_request.yml');
+ assert.deepEqual([...new URL(FEEDBACK_URL).searchParams.entries()], [['template', 'feature_request.yml']]);
+ assert.equal(new URL(FEEDBACK_URL).hash, '');
 });
 
 test('the reset reminder command is declared with its palette title', () => {
@@ -206,7 +212,7 @@ test('VSIX allowlist ships exactly manifest, readme, license, changelog, bundle 
  assert.deepEqual(ignore, ['**', '!package.json', '!README.md', '!LICENSE', '!CHANGELOG.md', '!dist/extension.cjs', '!assets/branding/bobert-icon-256.png']);
  assert.equal(manifest.license, 'MIT');
  assert.equal(manifest.preview === true, isPreReleaseVersion(manifest.version));
- for (const key of Object.keys(manifest.contributes.configuration.properties)) assert.equal(manifest.contributes.configuration.properties[key].scope, [...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS].some(k => key === `bobert.${k}`) ? 'application' : 'machine', key);
+ for (const key of Object.keys(manifest.contributes.configuration.properties)) assert.equal(manifest.contributes.configuration.properties[key].scope, [...AUDIT_SETTING_KEYS, ...CONFIG_REVIEW_SETTING_KEYS, ...SUPPORT_SETTING_KEYS, ...BUDGET_SETTING_KEYS, ...SESSION_HINT_SETTING_KEYS, ...PRICE_UPDATE_SETTING_KEYS].some(k => key === `bobert.${k}`) ? 'application' : 'machine', key);
  assert.equal(manifest.icon, 'assets/branding/bobert-icon-256.png');
  assert.ok((await readFile(new URL(`../../${manifest.icon}`, import.meta.url))).length > 0);
  assert.match(await readFile(new URL('../../LICENSE', import.meta.url), 'utf8'), /MIT License/);

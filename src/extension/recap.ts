@@ -3,6 +3,7 @@ import { DAY_MS, type AccountHistory } from '../history.ts';
 import { observedCycle } from './dashboard-insights.ts';
 import { cycleKey, describeExclusions, plain, type StoredResults } from './results-summary.ts';
 import { date, updated } from './labels.ts';
+import { RECAP_LINK_TEXT } from './recap-card.ts';
 
 // "Your Kiro cycle": the recap of the cycle that has just ended, from account history evidence only. Pure and free of editor APIs.
 // Every figure carries what it is based on, and a figure the evidence does not support reads "not observed", "not comparable" or "unknown";
@@ -10,7 +11,7 @@ import { date, updated } from './labels.ts';
 // the card was shown or dismissed. A value of any other shape is "unknown": the card stays hidden and the value is never overwritten.
 export const RECAP_KEY = 'bobert.recap.v1';
 export const RECAP_TITLE = 'Your Kiro cycle';
-export const RECAP_LINK_TEXT = 'Bobert: https://open-vsx.org/extension/StefanSuess/bobert';
+export { RECAP_LINK_TEXT };
 export const LASTED_HOURS = 6;
 
 export interface RecapState { cycle: string; state: 'shown' | 'dismissed' }
@@ -55,7 +56,7 @@ export function computeRecap(h: AccountHistory, results: StoredResults, link: bo
   : late ? `Lasted until the reset: yes. Usage below the reported limit was observed within ${LASTED_HOURS} hours before the reset.`
   : `Lasted until the reset: unknown. No update below the reported limit was observed within ${LASTED_HOURS} hours before the reset.`;
 
- const lines = [used, lasted, trendLine(h, chain.at(-1)!.usage, previous.startAt, last.at), exclusionLine(results, previousKey), busiestLine(h, previous.resetAt, previous.startAt, last.at)];
+ const lines = [used, lasted, trendLine(h, chain.at(-1)!.usage, previous.startAt, last.at), exclusionLine(results, previousKey), busiestLine(h, previous.resetAt, previous.startAt, last.at), quietestLine(h, previous.resetAt, previous.startAt, last.at), paceLine(h, limit, previous.startAt, previous.resetAt, last.at)];
  if (link) lines.push(RECAP_LINK_TEXT);
  return { cycle: key, period: `Cycle that ended ${date(previous.resetAt, true)} (UTC). Figures come from the account updates Bobert observed; it is not a bill.`, lines };
 }
@@ -83,18 +84,50 @@ function exclusionLine(results: StoredResults, key: string): string {
 }
 
 // Same-day evidence intervals only, so the day is partially observed by construction: updates across days are never spread over the days.
-function busiestLine(h: AccountHistory, resetAt: string, startAt: string, lastAt: string): string {
- const label = 'Busiest observed day (partial observation)';
+function sameDayTotals(h: AccountHistory, resetAt: string, startAt: string, lastAt: string): Map<string, { net: string; ms: number }> {
  const days = new Map<string, { net: string; ms: number }>();
  for (const iv of h.evidence.intervals) {
   if (iv.kind !== 'day' || iv.resetAt !== resetAt || Date.parse(iv.from) < Date.parse(startAt) || Date.parse(iv.to) > Date.parse(lastAt)) continue;
   const day = iv.from.slice(0, 10), x = days.get(day) ?? { net: '0', ms: 0 };
   days.set(day, { net: add(x.net, iv.netChange), ms: x.ms + Date.parse(iv.to) - Date.parse(iv.from) });
  }
+ return days;
+}
+function busiestLine(h: AccountHistory, resetAt: string, startAt: string, lastAt: string): string {
+ const label = 'Busiest observed day (partial observation)';
+ const days = sameDayTotals(h, resetAt, startAt, lastAt);
  let best: [string, { net: string; ms: number }] | undefined;
  for (const entry of [...days].sort(([a], [b]) => a < b ? -1 : 1)) if (compare(entry[1].net, '0') > 0 && (!best || compare(entry[1].net, best[1].net) > 0)) best = entry;
  return best ? `${label}: ${date(`${best[0]}T00:00:00.000Z`, true)} (UTC), ${best[1].net} credits in ${duration(best[1].ms)} of observed updates.`
   : `${label}: not observed. No day with observed use was recorded in same-day updates.`;
+}
+
+/** The smallest observed use among days with at least this much observed time, so a day seen for a few minutes is never "quiet". */
+export const QUIET_MIN_HOURS = 12;
+function quietestLine(h: AccountHistory, resetAt: string, startAt: string, lastAt: string): string {
+ const label = 'Quietest observed day';
+ let best: [string, { net: string; ms: number }] | undefined;
+ for (const entry of [...sameDayTotals(h, resetAt, startAt, lastAt)].sort(([a], [b]) => a < b ? -1 : 1))
+  if (entry[1].ms >= QUIET_MIN_HOURS * 3600000 && compare(entry[1].net, '0') >= 0 && (!best || compare(entry[1].net, best[1].net) < 0)) best = entry;
+ return best ? `${label}: ${date(`${best[0]}T00:00:00.000Z`, true)} (UTC), ${best[1].net} credits in ${duration(best[1].ms)} of observed updates.`
+  : `${label}: not observed. No day was observed for at least ${QUIET_MIN_HOURS} hours in same-day updates.`;
+}
+
+/** Complete UTC days of the cycle at or under an even daily pace (reported limit divided by the cycle length), and the longest run of such days in a row. */
+function paceLine(h: AccountHistory, limit: string, startAt: string, resetAt: string, lastAt: string): string {
+ const label = 'Days at or under the even daily pace';
+ const span = Date.parse(resetAt) - Date.parse(startAt);
+ if (!(span > 0)) return `${label}: not observed.`;
+ const pace = scaleRatio(limit, BigInt(DAY_MS), BigInt(span));
+ const days = [...sameDayTotals(h, resetAt, startAt, lastAt)].filter(([, d]) => d.ms === DAY_MS).sort(([x], [y]) => x < y ? -1 : 1).map(([day, d]) => ({ day, netChange: d.net }));
+ if (!days.length) return `${label}: not observed. No complete UTC day of the cycle was observed.`;
+ let under = 0, run = 0, longest = 0, previous = '';
+ for (const d of days) {
+  const ok = compare(d.netChange, pace) <= 0;
+  if (ok) { under++; run = previous && Date.parse(`${d.day}T00:00:00Z`) - Date.parse(`${previous}T00:00:00Z`) === DAY_MS && run > 0 ? run + 1 : 1; longest = Math.max(longest, run); } else run = 0;
+  previous = d.day;
+ }
+ return `${label} (${pace} credits, limit divided by the cycle length): ${under} of ${days.length} complete UTC days, longest run in a row ${longest}.`;
 }
 
 export type RecapVisibility = 'hidden' | 'new' | 'shown';

@@ -92,3 +92,7 @@ The identifiers live in code in `src/extension/identity.ts` and the contributed 
 ## Real extension-host integration
 
 Build a development candidate with `pnpm release:build candidate.vsix`, then run `pnpm test:host candidate.vsix` (`xvfb-run -a pnpm test:host candidate.vsix` on headless Linux). CI instead tests the exact shared candidate artifact. See [platform verification](platform-verification.md) for isolation, coverage, host pins and native Kiro limitations.
+
+## Weekly price check
+
+`.github/workflows/price-check.yml` runs `scripts/price-check.ts` every Monday (and on manual dispatch). It fetches only `https://kiro.dev/pricing/` and `https://kiro.dev/docs/models/`, compares plan fees, plan credits, the add-on price per credit and the model multipliers with `src/cost/catalog.ts` and `src/session/models.ts`, and reports `ok`, `differs` or `unverified`. On `differs` it opens one issue (not a second while one is open); on `unverified` the run fails so a changed page layout is noticed. It never edits the catalog: a maintainer reads the pages and updates the catalog and model table (with their dates) by hand. It is repository tooling and is not part of the extension or the VSIX.

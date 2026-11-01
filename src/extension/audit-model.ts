@@ -113,6 +113,12 @@ export function countsText(items: number, unclear: number, size = ''): string {
  const n = (k: number): string => `${k} ${k === 1 ? 'item' : 'items'}`;
  return items > 0 ? `${n(items)} Kiro may read${size ? ` (${size})` : ''}${unclear > 0 ? ` · ${unclear} unclear` : ''}` : unclear > 0 ? `${n(unclear)} to review` : 'No risky files found';
 }
+/** A rough rating from 0 to 100 for a finished audit: 100 with nothing found, falling as items Kiro may read pile up (unclear ones count half). Not a security verdict; it only moves when the audit finds something different. */
+export function workspaceScore(items: number, unclear: number): number {
+ if (!Number.isInteger(items) || !Number.isInteger(unclear) || items < 0 || unclear < 0) return 100;
+ const penalty = items + unclear / 2;
+ return Math.round(100 * 10 / (10 + penalty));
+}
 /** The notification after an audit, in plain words: files Kiro may read, their size when known and how many are unclear. It points to the view only when the view exists. */
 export function findingsToast(items: number, unclear: number, size: string, viewReady: boolean): string {
  const files = (k: number): string => `${k} ${k === 1 ? 'file' : 'files'}`;

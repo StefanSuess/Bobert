@@ -2,7 +2,7 @@
 // catalog, the demand builder or the optimizer; it only builds their inputs and labels their outputs.
 import {compare,subtract} from '../decimal.ts';
 import {PLAN_IDS,type BillingProfile,type CostOptimization,type PlanId,type PricingCatalog} from './types.ts';
-import {reviewedCatalog} from './catalog.ts';
+import {activeCatalog} from './catalog.ts';
 
 export type PlanSource='confirmed'|'hint'|'unknown';
 /** A hint is never a confirmed plan: the reported limit may include purchased add-on credits. */
@@ -44,7 +44,7 @@ const validAnswers=(a:AdvisorAnswers)=>!!a&&(a.plan===null||PLAN_IDS.includes(a.
  * the only hypothetical is "no purchased add-ons" when the user is not sure, and it is returned as an assumption so
  * the result can never be presented as savings or as "no action needed".
  */
-export function advisorProfile(o:AdvisorObservation,answers:AdvisorAnswers,hint:PlanHint,catalog:PricingCatalog=reviewedCatalog):{profile:BillingProfile|null;context:AdvisorContext} {
+export function advisorProfile(o:AdvisorObservation,answers:AdvisorAnswers,hint:PlanHint,catalog:PricingCatalog=activeCatalog()):{profile:BillingProfile|null;context:AdvisorContext} {
  const assumptions:string[]=[];
  const billingConfirmed=answers.billing!==null;
  const system=answers.billing??'consumer_prepaid';
