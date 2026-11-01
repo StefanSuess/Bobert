@@ -10,7 +10,7 @@ import { overageOver, type Overage } from '../cost/overage.ts';
 import { decimalToRational, formatRational, multiplyRational } from '../cost/money.ts';
 import { rightSizeText, unusedAtReset } from './budget-warning.ts';
 import { ESTIMATE_MARKER } from './advisor-presentation.ts';
-import { reviewedCatalog } from '../cost/catalog.ts';
+import { activeCatalog } from '../cost/catalog.ts';
 import { NO_INSIGHTS, type PlanInsights } from '../cost/plan-hints.ts';
 import { cycleComparison, weekComparison } from './dashboard-insights.ts';
 import { ALL_DAYS, dayBudget, daysLabel, localTime, restricted, type BudgetDay, type DayBudget } from './daily-budget.ts';
@@ -55,7 +55,7 @@ const withSeparators=(n:string)=>/^\d{4,}$/.test(n) ? n.replace(/\B(?=(\d{3})+(?
 // What a projected overage means in add-on credits, from the price list's purchase rules (125 credits at the least, five packs of 2,500 at once).
 // Only for a paid consumer plan; for Free, an unknown plan or Enterprise the neutral "credits over" wording is used instead.
 function addOnNeedText(o: Overage, resetDate: string | null): string {
- const rules = reviewedCatalog.consumer, until = `before the reset${resetDate ? ` on ${resetDate}` : ''}`;
+ const rules = activeCatalog().consumer, until = `before the reset${resetDate ? ` on ${resetDate}` : ''}`;
  const dollars = (amount: string) => { const [whole, fraction = ''] = amount.split('.'); return `$${whole}${fraction ? `.${fraction.padEnd(2, '0')}` : ''}`; };
  if (compare(o.credits, rules.minimumCredits) < 0) {
   const smallest = o.pricePerCredit === null ? null : formatRational(multiplyRational(decimalToRational(rules.minimumCredits), decimalToRational(o.pricePerCredit)), 2, 'half_up');

@@ -3,7 +3,7 @@ import {compare} from '../decimal.ts';
 import {estimateSavings,formatUsd,type DemandEstimate,type SavingsEstimate} from '../cost/estimate.ts';
 import {planNames,type CostHorizon} from './cost-inputs.ts';
 import {winnerText,reasonText,presentCost} from './cost-presentation.ts';
-import {reviewedCatalog} from '../cost/catalog.ts';
+import {activeCatalog} from '../cost/catalog.ts';
 import {decimalToRational,divideRational,formatRational,rational} from '../cost/money.ts';
 
 const safe=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]!);
@@ -32,7 +32,7 @@ const assumptionText:Record<string,string>={
  limited_history:'The forecast is based on limited history.',
  long_history_future_rate:'Full future cycles use the longest qualified pooled-history rate, which can differ from the selected dashboard forecast window.',
  short_window_long_horizon:'Multi-cycle figures extend a short observation window.',
- bridge_leftover_credit_ignored:`A purchase needed before the next reset leaves less than one credit unused; its value (under $${reviewedCatalog.consumer.pricePerCredit}) is not counted.`,
+ get bridge_leftover_credit_ignored(){return `A purchase needed before the next reset leaves less than one credit unused; its value (under $${activeCatalog().consumer.pricePerCredit}) is not counted.`;},
  pack_slots_assumed_free:'All five add-on pack slots are assumed free (no unexpired earlier packs).',
  mid_cycle_upgrade_cheaper:'Upgrading immediately, mid-cycle, is priced lower than keeping your plan; that option is not part of the estimate figure.',
  net_changes_not_gross_billable_usage:'The forecast is based on net changes in the reported counter, not on gross billable usage.',
@@ -74,8 +74,8 @@ function sensitivityLines(e:SavingsEstimate):string {
 /** Most useful near-term estimate: the first horizon (next full cycle) that has any calculable figure. */
 const headlineOf=(estimates:SavingsEstimate[])=>estimates.find(e=>e.tier!=='insufficient')??null;
 
-const PLAN_CREDITS:Record<string,string>=Object.fromEntries(reviewedCatalog.plans.map(p=>[p.id,p.credits]));
-const PLAN_FEE:Record<string,string>=Object.fromEntries(reviewedCatalog.plans.map(p=>[p.id,p.fee]));
+const planCredits=():Record<string,string>=>Object.fromEntries(activeCatalog().plans.map(p=>[p.id,p.credits]));
+const planFee=():Record<string,string>=>Object.fromEntries(activeCatalog().plans.map(p=>[p.id,p.fee]));
 const label={low:'75%',base:'100%',high:'125%'} as const;
 /** Whole credits with thousands separators; decimals are rounded for display only. */
 const grouped=(value:string)=>{const n=Number(value);if(!Number.isFinite(n))return safe(value);return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,',');};
@@ -106,7 +106,7 @@ function recommend(e:SavingsEstimate,context:AdvisorContext,limit:string|null):R
  const bestPer=usdCostOf(perCycle(best.cost,m,'up'));
  let headline='',saving='';
  if(e.outcome==='saving'&&b.saving!==null&&b.baseline!==null){
-  const upgrade=curPlan!==null&&compare(PLAN_FEE[best.plan]??'0',PLAN_FEE[curPlan]??'0')>0;
+  const upgrade=curPlan!==null&&compare(planFee()[best.plan]??'0',planFee()[curPlan]??'0')>0;
   headline=`${upgrade?'Upgrade':'Switch'} to ${target} at your next reset${buys?' and buy add-on credits as needed':''}: about ${bestPer} a month instead of ${usdCostOf(perCycle(b.baseline,m,'up'))}${baselineBuys?' with add-on credits':''}.`;
   saving=`Save about ${usdSavingOf(perCycle(b.saving,m,'down'))} a month${qualified?' under your current forecast':''}`;
  }else if(e.outcome==='no_cheaper'&&b.baseline!==null){
@@ -118,14 +118,14 @@ function recommend(e:SavingsEstimate,context:AdvisorContext,limit:string|null):R
   headline=`The lowest cost that could be priced is ${target} at about ${bestPer} a month. The cost of staying on ${cur??'your current plan'} could not be calculated, so no saving is shown.`;
  }
  // Only facts computed by the estimate layer: forecast credits, the plan's own allowance and the add-on part with its price.
- const includes=PLAN_CREDITS[best.plan];
+ const includes=planCredits()[best.plan];
  const usage=b.usageCredits!==null?perCycleCredits(b.usageCredits,m):null;
  let line='';
  if(usage!==null&&includes!==undefined){
   if(buys&&b.addOnCredits!==null&&b.addOnBought!==null&&b.addOnCost!==null){
    // Bought and used differ by less than a credit when only whole-credit rounding is involved; more means a minimum purchase.
    const exact=Number(b.addOnBought)-Number(b.addOnCredits)<1;
-   const unit=exact?` (${usdCostOf(reviewedCatalog.consumer.pricePerCredit)} each)`:` (the smallest purchase is ${grouped(reviewedCatalog.consumer.minimumCredits)} credits)`;
+   const unit=exact?` (${usdCostOf(activeCatalog().consumer.pricePerCredit)} each)`:` (the smallest purchase is ${grouped(activeCatalog().consumer.minimumCredits)} credits)`;
    line=`You use ${usage} credits a month. ${target} includes ${grouped(includes)}; the other ${perCycleCredits(b.addOnCredits,m)?.replace(/^about /,'')??''} cost about ${usdCostOf(perCycle(b.addOnCost,m,'up'))} as add-on credits${unit}.`;
   }else if(!buys)line=`${target} includes ${grouped(includes)} credits, enough for your forecast of ${usage}${usage==='under 1'?' credit':''}.`;
  }
@@ -181,7 +181,7 @@ export function presentAdvisor(o:{hint:PlanHint;context:AdvisorContext;horizons:
  const assumptions=codes.filter(c=>c in assumptionText).map(c=>assumptionText[c]);
  const engineReasons=codes.filter(c=>!(c in assumptionText)&&!(headline&&c==='sensitivity_changes_winner'));
  const conditions=[...assumptions,...engineReasons.map(reasonText)];
- const catalog=reviewedCatalog;
+ const catalog=activeCatalog();
  const first=horizons[0]?.result??null;
  const kind=advice[0]?.kind??'insufficient_information';
  // Without a numerical estimate the verdict never states a saving unless the engine classified it as potential_savings.
@@ -191,7 +191,7 @@ export function presentAdvisor(o:{hint:PlanHint;context:AdvisorContext;horizons:
   :kind==='conditional_comparison'?(advice[0]?.reasons.includes('savings_not_established')?'No saving is established with the details you confirmed. No savings are claimed.':'No saving can be confirmed yet. A comparison exists, but it depends on details you have not confirmed (see below). No savings are claimed.')
   :horizons.length?'Not enough confirmed information to compare plans yet. No savings are claimed.':"Bobert can't compare plans yet. It needs a current usage forecast; keep using Kiro and this updates automatically.";
  // Name the visible blocking condition when the plan remainder is unknown; still fail-closed, no figures are derived from it.
- const nominal=context.plan?reviewedCatalog.plans.find(p=>p.id===context.plan)?.credits:undefined;
+ const nominal=context.plan?activeCatalog().plans.find(p=>p.id===context.plan)?.credits:undefined;
  const blocker=headline!==null||kind==='potential_savings'||kind==='no_action'?null
   :codes.includes('limit_differs_from_plan_credits')&&nominal!==undefined&&o.limit!==null?`Your reported limit (${safe(o.limit)}) doesn't match ${planName} (${safe(nominal)}). Check your plan or add-on credits.`
   :codes.includes('usage_exceeds_reported_limit')?'Observed usage is above the reported limit, so the remaining plan credits are unknown.'

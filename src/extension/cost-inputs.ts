@@ -1,5 +1,5 @@
 import {decimal} from '../decimal.ts';
-import {validAmount,reviewedCatalog} from '../cost/catalog.ts';
+import {validAmount,activeCatalog} from '../cost/catalog.ts';
 import {buildDemand} from '../cost/demand.ts';
 import {optimizeCosts} from '../cost/optimize.ts';
 import type {BillingProfile,PricingCatalog,CostOptimization} from '../cost/types.ts';
@@ -17,7 +17,7 @@ export interface NativeCostInput {
 export interface CostHorizon {months:1|3|6; result:CostOptimization|null; reasons:string[]}
 export function parseAmount(text:string):string|null {try{const n=decimal(text);return validAmount(n)?n:null;}catch{return null;}}
 
-export function calculateCosts(input:CostInput,f:ForecastResult,h:AccountHistory,now:string,catalog:PricingCatalog=reviewedCatalog):CostHorizon[]{
+export function calculateCosts(input:CostInput,f:ForecastResult,h:AccountHistory,now:string,catalog:PricingCatalog=activeCatalog()):CostHorizon[]{
  return ([1,3,6] as const).map(months=>{
   try{
    const p=structuredClone(input.profile),standalone=input.mode==='independent';

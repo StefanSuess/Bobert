@@ -6,7 +6,7 @@ import { decimalToRational } from './money.ts';
 import type { AccountHistory } from '../history.ts';
 import type { view } from '../view.ts';
 import type { PlanSource } from './advisor.ts';
-import { reviewedCatalog, validateCatalog } from './catalog.ts';
+import { activeCatalog, validateCatalog } from './catalog.ts';
 import type { SavingsEstimate } from './estimate.ts';
 import { PLAN_IDS, type PlanId, type PricingCatalog } from './types.ts';
 
@@ -61,7 +61,7 @@ export interface InsightsInput {
 function largerPlan(i: InsightsInput, projected: string, limit: string): PlanComparison | null {
  const o = i.view;
  if (i.plan === null || i.planSource === 'unknown' || compare(projected, limit) <= 0 || o.flags.includes('unsupported_extra_credits')) return null;
- const checked = validateCatalog(i.catalog ?? reviewedCatalog, i.now), catalog = checked.catalog;
+ const checked = validateCatalog(i.catalog ?? activeCatalog(), i.now), catalog = checked.catalog;
  if (!catalog || checked.status === 'unavailable' || catalog.evidence !== 'reviewed') return null;
  const next = PLAN_IDS[rank(i.plan) + 1];
  const a = catalog.plans.find(p => p.id === i.plan), b = next && catalog.plans.find(p => p.id === next);
@@ -87,7 +87,7 @@ export function planInsights(i: InsightsInput): PlanInsights {
 function rightSizing(i: InsightsInput, projected: string, limit: string): RightSizing | null {
  try {
   const o = i.view, e = i.estimate;
-  const checked = validateCatalog(i.catalog ?? reviewedCatalog, i.now), catalog = checked.catalog;
+  const checked = validateCatalog(i.catalog ?? activeCatalog(), i.now), catalog = checked.catalog;
   if (!catalog || checked.status === 'unavailable' || catalog.evidence !== 'reviewed') return null;
   if (o.flags.includes('unsupported_extra_credits')) return null;
   if (i.planSource === 'unknown' || !e || (e.tier !== 'supported' && e.tier !== 'modelled') || e.outcome !== 'saving' || !e.baselinePlan || !e.base?.best || e.base.best.keep || e.base.saving === null) return null;

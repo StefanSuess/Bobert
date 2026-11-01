@@ -16,6 +16,8 @@ export const BUDGET_PERCENT_DEFAULT = 80;
 export const UNUSED_PERCENT_DEFAULT = 30;
 // The session hints' user setting (application scope, boolean, default on): the context reminder and the model hint read from the newest IDE session.
 export const SESSION_HINT_SETTING_KEYS = ['sessionHints'] as const;
+// The optional price refresh (application scope, off | ask | auto, default off): Bobert's only network access, see price-updates.ts.
+export const PRICE_UPDATE_SETTING_KEYS = ['priceUpdates'] as const;
 // Fixed constants: the only external addresses the extension ever opens, and only when the user clicks. No data, no query strings.
 export const LINKS = { rate: 'https://open-vsx.org/extension/StefanSuess/bobert/reviews', star: 'https://github.com/StefanSuess/Bobert', support: 'https://ko-fi.com/stefansuess', kiro: 'https://kiro.dev', tips: 'https://github.com/StefanSuess/Bobert/blob/main/docs/credit-tips.md' } as const;
 // The fixed bug-report form opened by Report a Problem. Nothing, not even a diagnostics value, is ever added to it.

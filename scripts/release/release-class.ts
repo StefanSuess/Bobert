@@ -7,7 +7,7 @@ export const SYSTEM_PATHS: readonly string[] = [
  'src/collector.ts', 'src/source.ts', 'src/store.ts', 'src/paths.ts', 'src/windows-storage.ts',
  'src/session/', 'src/audit/',
  'src/extension/audit-root.ts', 'src/extension/file-target.ts', 'src/extension/config-apply.ts',
- 'src/extension/csv-export.ts', 'src/extension/recap-io.ts',
+ 'src/extension/csv-export.ts', 'src/extension/recap-io.ts', 'src/extension/price-updates.ts', // the only network access and a write to Bobert's own storage
  'scripts/release/build-vsix.ts', 'scripts/release/zip.ts', 'scripts/build-extension.ts',
   'scripts/release/release-class.ts', // a change to the classifier itself is never ruled by the classifier
  // The tools that compute the type, check the candidate or decide what is packaged and promoted: a release cannot weaken them unnoticed.
@@ -45,7 +45,7 @@ export const COST_PATHS: readonly string[] = [
  'src/cost/', 'src/extension/cost-', 'src/extension/advisor-',
  'src/extension/dashboard-webview.ts', 'src/extension/dashboard-panel.ts', 'src/extension/presentation.ts',
  'src/extension/controller.ts', 'src/extension/extension.ts', 'src/extension/budget-warning.ts',
- 'src/extension/dashboard-shell.ts', 'src/extension/support-schedule.ts',
+ 'src/extension/dashboard-shell.ts', 'src/extension/support-schedule.ts', 'src/session/models.ts', 'src/session/price-data.ts', 'src/extension/price-updates.ts',
 ];
 
 /** package.json fields that may change in an app release; any other changed field makes a system release. */
