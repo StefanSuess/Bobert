@@ -24,3 +24,12 @@ test('every contributed setting has a description in the manifest', () => {
  const undescribed = sections.flatMap(section => Object.entries(section.properties ?? {})).filter(([, value]) => !value.description && !value.markdownDescription).map(([key]) => key);
  assert.deepEqual(undescribed, []);
 });
+
+test('every command shown in the Command Palette is documented in docs/usage.md', () => {
+ const commands: Array<{ command: string }> = manifest.contributes.commands;
+ const hidden = new Set<string>((manifest.contributes.menus?.commandPalette ?? []).filter((entry: { when?: string }) => entry.when === 'false').map((entry: { command: string }) => entry.command));
+ const shown = commands.map(entry => entry.command).filter(command => !hidden.has(command));
+ assert.ok(shown.length > 0, 'at least one command is shown in the Command Palette');
+ const missing = shown.filter(command => !usage.includes(command));
+ assert.deepEqual(missing, [], `document these commands in docs/usage.md: ${missing.join(', ')}`);
+});
