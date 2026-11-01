@@ -1,5 +1,5 @@
 import {reconcileAdvisorDraft} from './advisor-draft.js';
-import {BRAND, CARD_HEIGHT, CARD_WIDTH, encodePng, toBase64, wrapText} from './recap-card.js';
+import {BRAND, CARD_FOOTER, CARD_HEIGHT, CARD_WIDTH, cardLayout, encodePng, toBase64, wrapText} from './recap-card.js';
 import {ACTION_CODES, ACTION_NAMES, ACTION_TEXT, type ActionCode, type ActionName} from './recap-actions.js';
 // Bundled separately into one nonce'd inline script. No Node or extension APIs are available here.
 type DomNode = { kind: 'text'; text: string } | DomElement;
@@ -262,8 +262,9 @@ const STATUS_OF: Record<ActionName, string> = { exportCsv: 'export-status', copy
 const statuses = new Map<string, string>(), inFlight = new Set<string>(), flightTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let drawnCanvas: Element | null = null, drawnKey = '';
 function say(id: string, text: string): void { statuses.set(id, text); const node = el(id); if (node && node.textContent !== text) node.textContent = text; }
-function paint(ctx: CanvasRenderingContext2D, title: string, period: string, lines: string[]): void {
+function paint(ctx: CanvasRenderingContext2D, title: string, period: string, all: string[]): void {
  const pad = 56, width = CARD_WIDTH - 2 * pad, family = 'system-ui, -apple-system, "Segoe UI", sans-serif', top = 112;
+ const { body: lines, footer } = cardLayout(all), bottom = footer ? 96 : 40;
  ctx.fillStyle = BRAND.background; ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
  ctx.fillStyle = BRAND.accent; ctx.fillRect(0, 0, 12, CARD_HEIGHT);
  ctx.textBaseline = 'top';
@@ -273,11 +274,21 @@ function paint(ctx: CanvasRenderingContext2D, title: string, period: string, lin
   ctx.font = `400 ${size}px ${family}`;
   const measure = (text: string) => ctx.measureText(text).width, height = Math.round(size * 1.35), gap = Math.round(size * 0.55);
   const blocks = [period, ...lines].map(text => wrapText(text, width, measure));
-  if (blocks.reduce((n, b) => n + b.length * height + gap, 0) > CARD_HEIGHT - top - 40 && size !== sizes.at(-1)) continue;
+  if (blocks.reduce((n, b) => n + b.length * height + gap, 0) > CARD_HEIGHT - top - bottom && size !== sizes.at(-1)) continue;
   let y = top;
   blocks.forEach((block, i) => { ctx.fillStyle = i === 0 ? BRAND.muted : BRAND.text; for (const line of block) { ctx.fillText(line, pad, y); y += height; } y += gap; });
-  return;
+  break;
  }
+ if (!footer) return;
+ // Branded footer: an accent rule, "Bobert · free credit tracker for Kiro" on the left and the search hint on the right (left-aligned below it if it does not fit).
+ const y = CARD_HEIGHT - 64;
+ ctx.fillStyle = BRAND.accent; ctx.fillRect(pad, y - 16, width, 2);
+ ctx.font = `700 26px ${family}`; ctx.fillText(CARD_FOOTER.brand, pad, y);
+ const brandWidth = ctx.measureText(CARD_FOOTER.brand).width;
+ ctx.font = `400 22px ${family}`; ctx.fillStyle = BRAND.muted; ctx.fillText(CARD_FOOTER.tagline, pad + brandWidth, y + 3);
+ const used = brandWidth + ctx.measureText(CARD_FOOTER.tagline).width, hint = ctx.measureText(CARD_FOOTER.hint).width;
+ if (used + 32 + hint <= width) ctx.fillText(CARD_FOOTER.hint, CARD_WIDTH - pad - hint, y + 3);
+ else ctx.fillText(CARD_FOOTER.hint, pad, y + 30);
 }
 function drawCard(): void {
  const canvas = el('recap-canvas') as HTMLCanvasElement | null, figure = el('recap-preview');
