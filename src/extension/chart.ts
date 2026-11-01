@@ -1,7 +1,7 @@
 import type { view } from '../view.ts';
 import { chartModel, LOWER_FACTOR, HIGHER_FACTOR, type ChartModel } from './chart-model.ts';
 import { escapeHtml as safe, date } from './labels.ts';
-import { DAY_MS } from '../history.ts';
+import { DAY_MS, type HistoryDay } from '../history.ts';
 
 // Script-free inline SVG. Colors come from editor theme tokens; line patterns and marker shapes carry the same distinctions.
 export const CHART_CSS = `.chart-frame{margin:0}.chart-frame svg{display:block;width:100%;height:auto;max-width:100%}
@@ -84,6 +84,37 @@ function tableRows(m: ChartModel): string {
  if (m.projection && m.evaluatedAt) r('query', 'Evaluation time', m.evaluatedAt, '—', 'usage after the last account update is unobserved');
  if (m.exhaustion) r('exhaustion', 'Reported limit reached (conditional)', m.exhaustion.day, '—', 'UTC day, if the observed rate continues');
  return rows.join('');
+}
+
+// Calendar of observed daily changes. Plain table cells: the number is in every cell, so the shade is never the only carrier.
+export const HEATMAP_CSS = `.hm-wrap{overflow-x:auto}.hm{border-collapse:separate;border-spacing:2px;font-size:.78rem;min-width:100%}.hm th{font-weight:500;color:var(--vscode-descriptionForeground,#888);text-align:left;padding:0 4px 0 0;white-space:nowrap}.hm thead th{text-align:center;padding:0}
+.hm td{min-width:2.4em;height:2em;text-align:center;border-radius:3px;border:1px solid var(--vscode-panel-border,#8884);padding:0}.hm .l1{background:color-mix(in srgb,var(--vscode-charts-blue,#3794ff) 18%,transparent)}.hm .l2{background:color-mix(in srgb,var(--vscode-charts-blue,#3794ff) 38%,transparent)}.hm .l3{background:color-mix(in srgb,var(--vscode-charts-blue,#3794ff) 60%,transparent)}.hm .l4{background:color-mix(in srgb,var(--vscode-charts-blue,#3794ff) 85%,transparent)}
+.hm .unk{border-style:dashed;color:var(--vscode-descriptionForeground,#888);background:transparent}.hm .fut{border-color:transparent}.hm .part{border-style:dotted}
+@media(forced-colors:active){.hm td{border-color:CanvasText}}`;
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const HEATMAP_WEEKS = 12;
+/** Last 12 UTC weeks of observed daily changes. Days without a retained observation are unknown ("–"), never zero; partial days show the observed part with "+". */
+export function heatmap(days: readonly HistoryDay[], now: string): string {
+ const known = new Map<string, { v: number; partial: boolean }>();
+ for (const d of days) { const v = d.netChange === null ? NaN : Number(d.netChange); if (Number.isFinite(v) && v >= 0) known.set(d.day, { v, partial: !d.complete }); }
+ if (known.size < 2) return '';
+ const today = Date.parse(`${now.slice(0, 10)}T00:00:00Z`);
+ if (!Number.isFinite(today)) return '';
+ const monday = today - ((new Date(today).getUTCDay() + 6) % 7) * DAY_MS, first = monday - (HEATMAP_WEEKS - 1) * 7 * DAY_MS;
+ const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+ let max = 0;
+ for (let ms = first; ms <= today; ms += DAY_MS) { const k = known.get(iso(ms)); if (k && !k.partial) max = Math.max(max, k.v); }
+ const level = (v: number) => max <= 0 || v <= 0 ? 0 : Math.min(4, Math.max(1, Math.ceil(v / max * 4)));
+ const head = Array.from({ length: HEATMAP_WEEKS }, (_, w) => `<th scope="col">${w % 2 === 0 ? safe(date(new Date(first + w * 7 * DAY_MS).toISOString())) : ''}</th>`).join('');
+ const rows = WEEKDAYS.map((name, r) => `<tr><th scope="row">${name}</th>${Array.from({ length: HEATMAP_WEEKS }, (_, w) => {
+  const ms = first + (w * 7 + r) * DAY_MS;
+  if (ms > today) return '<td class="fut"></td>';
+  const k = known.get(iso(ms)), label = date(new Date(ms).toISOString());
+  if (!k) return `<td class="unk" aria-label="${safe(label)}: unknown">–</td>`;
+  const text = `${Math.round(k.v)}${k.partial ? '+' : ''}`;
+  return `<td class="l${level(k.v)}${k.partial ? ' part' : ''}" aria-label="${safe(label)}: ${k.partial ? 'at least ' : ''}${safe(text.replace('+', ''))} credits">${safe(text)}</td>`;
+ }).join('')}</tr>`).join('');
+ return `<section id="usage-calendar" aria-label="Daily usage calendar"><h2>Daily usage calendar</h2><p class="muted small">Credits observed per UTC day, last ${HEATMAP_WEEKS} weeks, columns are weeks starting Monday. Darker means more. A dash is a day with no retained observation: unknown, not zero. A plus is a partial day: at least this much was observed.</p><div class="hm-wrap"><table class="hm"><thead><tr><th scope="col"></th>${head}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
 export interface ChartParts { main: string; advanced: string }
