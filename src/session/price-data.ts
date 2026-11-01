@@ -14,6 +14,20 @@ export interface PriceUpdate { catalog: PricingCatalog; models: { date: string; 
 
 const day = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && validInstant(`${s}T00:00:00Z`);
 
+/**
+ * A downloaded catalog is only ever as trustworthy as the repository file, so beyond the structural validation it must also look like a
+ * real price list: reviewed evidence (never "hypothetical"), fees and credit grants in sane ranges, an add-on price within a tenfold band of the
+ * built-in one. Anything else is ignored rather than shown as a Kiro price.
+ */
+function plausible(c: PricingCatalog): boolean {
+ const within = (v: string, lo: number, hi: number): boolean => Number(v) >= lo && Number(v) <= hi;
+ const base = Number(reviewedCatalog.consumer.pricePerCredit);
+ return c.evidence === 'reviewed'
+  && c.plans.every(p => within(p.fee, 0, 10_000) && within(p.credits, 0, 1_000_000))
+  && within(c.consumer.pricePerCredit, base / 10, base * 10) && within(c.enterprise.pricePerCredit, base / 10, base * 10)
+  && within(c.consumer.minimumCredits, 1, 1_000_000) && within(c.consumer.maximumCredits, 1, 10_000_000);
+}
+
 /** The projected rows, or undefined when anything is off. Unknown fields are dropped. */
 function modelRows(input: unknown): ModelRow[] | undefined {
  if (!Array.isArray(input) || input.length < 1 || input.length > 80) return undefined;
@@ -22,7 +36,7 @@ function modelRows(input: unknown): ModelRow[] | undefined {
   if (!r || typeof r !== 'object') return undefined;
   const { id, name, multiplier, basis, flag } = r;
   if (typeof id !== 'string' || !MODEL_ID.test(id) || typeof name !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9 ._+-]{0,39}$/.test(name)) return undefined;
-  if (typeof multiplier !== 'string' || !/^\d{1,3}(\.\d{1,3})?$/.test(multiplier) || !(Number(multiplier) > 0)) return undefined;
+  if (typeof multiplier !== 'string' || !/^\d{1,3}(\.\d{1,3})?$/.test(multiplier) || !(Number(multiplier) > 0) || Number(multiplier) > 50) return undefined;
   if (basis !== 'observed' && basis !== 'documented' && basis !== 'pattern') return undefined;
   if (flag !== undefined && flag !== 'tiered' && flag !== 'silent') return undefined;
   rows.push(flag === undefined ? { id, name, multiplier, basis } : { id, name, multiplier, basis, flag });
@@ -37,7 +51,7 @@ export function parsePriceFile(text: string, now: string, builtIn: PricingCatalo
   const raw = JSON.parse(text) as Record<string, unknown>;
   if (!raw || typeof raw !== 'object' || raw.schemaVersion !== 1) return undefined;
   const checked = validateCatalog(raw.catalog, now);
-  if (!checked.catalog || checked.status === 'unavailable') return undefined;
+  if (!checked.catalog || checked.status === 'unavailable' || !plausible(checked.catalog)) return undefined;
   const models = raw.models as { date?: unknown; rows?: unknown } | undefined;
   if (!models || !day(models.date) || Date.parse(`${models.date}T00:00:00Z`) > Date.parse(now)) return undefined;
   const rows = modelRows(models.rows);

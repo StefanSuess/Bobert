@@ -41,6 +41,8 @@ test('a file that is not strictly newer, from the future, oversized, malformed o
   (f: any) => { f.schemaVersion = 2; }, (f: any) => { f.catalog.plans[1].fee = '-1'; }, (f: any) => { f.catalog.plans.pop(); }, (f: any) => { f.catalog.currency = 'EUR'; },
   (f: any) => { f.models.rows[0].multiplier = '1e9'; }, (f: any) => { f.models.rows[0].id = '../x'; }, (f: any) => { f.models.rows[0].name = '<b>'; },
   (f: any) => { f.models.rows.push({ ...f.models.rows[0] }); }, (f: any) => { f.models.rows[0].basis = 'guess'; }, (f: any) => { f.models.date = '2030-13-40'; }, (f: any) => { f.models.rows = []; },
+  (f: any) => { f.catalog.evidence = 'hypothetical'; }, (f: any) => { f.catalog.plans[1].fee = '999999'; }, (f: any) => { f.catalog.consumer.pricePerCredit = '0.0001'; },
+  (f: any) => { f.catalog.consumer.pricePerCredit = '40'; }, (f: any) => { f.models.rows[0].multiplier = '99'; },
  ]) assert.equal(parsePriceFile(newer(bad), NOW), undefined);
 });
 
@@ -151,4 +153,22 @@ test('the price refresh is the only place that opens a connection, and the addre
  assert.match(ext, /if \(url !== PRICE_FILE_URL\) return undefined;/);
  assert.match(ext, /redirect: 'error', credentials: 'omit'/);
  assert.equal(PRICE_FILE_URL, 'https://raw.githubusercontent.com/StefanSuess/Bobert/main/data/prices.json');
+});
+
+test('ask: when another prompt holds the slot nothing is asked and the week is not used up', async () => {
+ reset();
+ const h = harness({ answer: 'busy', remote: newer() });
+ await runPriceUpdates('ask', h.deps);
+ assert.deepEqual([h.log.fetched.length, h.state.askedAt], [0, undefined]);
+ h.deps.ask = async () => 'check';
+ await runPriceUpdates('ask', h.deps);
+ assert.equal(h.log.fetched.length, 1);
+ reset();
+});
+
+test('the fetch reads a capped number of bytes whatever the server announces, and only a regular file is read back', () => {
+ const ext = readFileSync(new URL('../../src/extension/extension.ts', import.meta.url), 'utf8');
+ assert.match(ext, /total > MAX_PRICE_FILE_BYTES\) \{ await reader\.cancel\(\); return undefined; \}/);
+ assert.match(ext, /!info\.isFile\(\) \|\| info\.size > MAX_PRICE_FILE_BYTES/);
+ assert.match(ext, /flag: 'wx'/);
 });
