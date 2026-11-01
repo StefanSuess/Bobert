@@ -92,7 +92,9 @@ export async function startExtension(ui: ExtensionUi, options: ExtensionOptions)
   // The recap card of the cycle that just ended: shown the first time its cycle is observed and until dismissed; a failure only omits it.
   let recap:Recap|undefined;
   try{
-   const candidate=computeRecap(observation.history,results??{status:'unknown',entries:[]},options.recapLink?.()??true);
+   let recapDays:readonly BudgetDay[];
+   try{recapDays=options.budgetDays?.()??ALL_DAYS;}catch{recapDays=ALL_DAYS;}
+   const candidate=computeRecap(observation.history,results??{status:'unknown',entries:[]},options.recapLink?.()??true,recapDays);
    const visibility=recapVisibility(candidate,options.recapState?.()??{status:'unknown'});
    if(candidate&&visibility!=='hidden'){
     recap=candidate;

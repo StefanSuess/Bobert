@@ -24,7 +24,7 @@ export function readPriceState(raw: unknown): PriceState {
  const ok = (v: unknown): v is string => typeof v === 'string' && v.length <= 40 && Number.isFinite(Date.parse(v));
  return { ...(ok(r.checkedAt) ? { checkedAt: r.checkedAt } : {}), ...(ok(r.askedAt) ? { askedAt: r.askedAt } : {}) };
 }
-export type PriceChoice = 'check' | 'later' | 'off';
+export type PriceChoice = 'check' | 'later' | 'off' | 'busy'; // 'busy': another prompt holds the window's slot, so nothing was asked
 export interface PriceDeps {
  now(): number;
  /** The stored, already validated copy, if any. */
@@ -34,7 +34,7 @@ export interface PriceDeps {
  fetchText(url: string): Promise<string | undefined>;
  state(): PriceState;
  saveState(next: PriceState): Promise<boolean>;
- /** Shows the weekly question. undefined when dismissed. */
+ /** Shows the weekly question. undefined when dismissed; 'busy' when another prompt is open and the question was not shown. */
  ask(): Promise<PriceChoice | undefined>;
  turnOff(): Promise<void>;
 }
@@ -64,6 +64,7 @@ export async function runPriceUpdates(mode: PriceUpdateMode, deps: PriceDeps): P
    if (!due(state.askedAt, now)) return;
    if (!await deps.saveState({ ...state, askedAt: new Date(now).toISOString() })) return; // an unsaved "asked" mark would repeat the question
    const choice = await deps.ask();
+   if (choice === 'busy') { await deps.saveState(state); return; } // not shown: do not use up this week's question
    if (choice === 'off') { await deps.turnOff(); await applyStoredPrices('off', deps); return; }
    if (choice !== 'check') return;
   }
