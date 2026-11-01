@@ -797,3 +797,10 @@ test('the status icon is a decorative face that differs by tone',()=>{
  assert.notEqual(icon(render(10,'1000',1).html),'\u{1F642}');
  assert.ok(!/class="status-icon"[^>]*>[✓!✕]</.test(hero(render(10).html)));
 });
+
+test('the saving tip names a daily amount that lasts until the reset, only while a run-out is ahead',()=>{
+ const tip=(html:string)=>/<p class="small saving-tip"><strong>Tip:<\/strong> ([^<]*)<\/p>/.exec(html)?.[1];
+ assert.match(tip(render(10,'100').html)!,/^To last until the reset, aim for about [\d.]+ credits a day instead of the 10 you are using now\.$/);
+ assert.equal(tip(render(10,'1000').html),undefined,'on track: no tip');
+ assert.equal(tip(render(10,'30').html),undefined,'already at the limit: no daily amount left to aim for');
+});

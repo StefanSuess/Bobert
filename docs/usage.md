@@ -41,6 +41,7 @@ After installation, new users inside Kiro get a short walkthrough, **Get started
 
 **Bobert: Show Account Credits** (or a click on the status-bar item) opens the credit dashboard. It runs one bundled script under a strict content security policy that blocks all network connections; see [privacy and storage](privacy-and-storage.md). It is built only from what Kiro has logged and Bobert has stored, and gaps are shown as unknown, never as zero.
 
+- **Saving tip.** While the forecast says your credits will run out before the reset, the headline area adds one line: "To last until the reset, aim for about 1.3 credits a day instead of the 10 you are using now." It uses the daily amount that would last until the reset and your observed pace, nothing else, and it disappears once you are on track or the limit is reached.
 - **Usage chart.** Hover or keyboard focus shows a tooltip for each point (arrow keys move between points, Escape closes it), with forecast scenarios when there is enough history. A data table accompanies the chart.
 - **Today's pace.** The observed net change within your local day, with the local time it starts at and today's allowance (spread over the days you choose in `bobert.budgetDays`). Usage before the first update of the day is unknown, so it is a lower bound. It is never extrapolated.
 - **Cycle comparison.** Compares with the previous billing cycle at the same elapsed point, only where both cycles have evidence-backed starts; otherwise it shows the bracketing observations or "not comparable".
