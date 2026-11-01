@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { isPreReleaseVersion } from '../../scripts/release/channel.ts';
 import { AUDIT_SETTING_KEYS, BUDGET_SETTING_KEYS, CONFIG_REVIEW_SETTING_KEYS, LINKS, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SESSION_HINT_SETTING_KEYS, SETTING_KEYS, SUPPORT_SETTING_KEYS, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readSetting, readSupportPrompts, readUnusedCreditsPercent, registerCommand } from '../../src/extension/identity.ts';
+import { STATUS_MENU } from '../../src/extension/presentation.ts';
 
 const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8'));
 const stub = (log: string[]) => (id: string) => { log.push(id); return { dispose() {} }; };
@@ -209,4 +210,17 @@ test('VSIX allowlist ships exactly manifest, readme, license, changelog, bundle 
  assert.equal(manifest.icon, 'assets/branding/bobert-icon-256.png');
  assert.ok((await readFile(new URL(`../../${manifest.icon}`, import.meta.url))).length > 0);
  assert.match(await readFile(new URL('../../LICENSE', import.meta.url), 'utf8'), /MIT License/);
+});
+
+test('the status bar menu offers the credit view first and only runs commands that exist', () => {
+ const contributed: string[] = manifest.contributes.commands.map((c: any) => c.command);
+ assert.ok(contributed.includes(commandId('statusMenu')));
+ assert.equal(STATUS_MENU[0]!.command, commandId('showUsage'));
+ assert.equal(new Set(STATUS_MENU.map(e => e.command)).size, STATUS_MENU.length);
+ for (const entry of STATUS_MENU) {
+  assert.ok(entry.label.length > 0 && entry.description.length > 0);
+  assert.ok(contributed.includes(entry.command) || entry.command === 'workbench.action.openSettings', entry.command);
+ }
+ const settings = STATUS_MENU.find(e => e.command === 'workbench.action.openSettings')!;
+ assert.deepEqual(settings.args, [`@ext:${manifest.publisher}.${manifest.name}`.toLowerCase()]);
 });
