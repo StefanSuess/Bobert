@@ -190,6 +190,14 @@ test('workspace audit card: never checked offers only Run audit', () => {
  assert.match(card({ state: 'never', lastDate: '2030-03-01' }), /Last checked 2030-03-01 \(UTC\)\./);
  assert.ok(!card({ state: 'never', lastDate: '<b>synthetic</b>' }).includes('Last checked'));
 });
+test('the audit card points to the recipes only when something was found, in plain text without a new link',()=>{
+ const text=(a:AuditSummary)=>/copy-paste recipes for keeping Kiro's context small \(docs\/recipes\.md/.test(card(a).replace(/&#39;/g,"'"));
+ assert.equal(text({state:'checked',items:3,checkedAt:'2030-06-15T11:00:00Z'}),true);
+ assert.equal(text({state:'checked',items:0,unclear:2,checkedAt:'2030-06-15T11:00:00Z'}),true);
+ assert.equal(text({state:'checked',items:0,unclear:0,checkedAt:'2030-06-15T11:00:00Z'}),false);
+ assert.equal(text({state:'never'}),false);
+ assert.deepEqual(cardHrefs(card({state:'checked',items:3,checkedAt:'2030-06-15T11:00:00Z'})).sort(),['command:bobert.audit.show','command:bobert.auditWorkspace']);
+});
 test('workspace audit card: checked states show the count and a relative time, plus Show', () => {
  const now = new Date(2030, 5, 15, 12, 0, 0), ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
  const some = card({ state: 'checked', items: 3, checkedAt: ago(5 * 60_000) }, now.toISOString());
