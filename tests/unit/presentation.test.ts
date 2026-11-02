@@ -555,7 +555,7 @@ test('observed usage has plain headings, one sentence plus a next step when a pa
 });
 test('the sections follow one order: hero, chart, observed usage, recap, Cost Advisor, Workspace audit, summary, Advanced details, footer', () => {
  const points = [snapshot('2030-06-08T00:40:00Z', '1.1'), snapshot('2030-06-08T02:50:00Z', '2.223456789')];
- const recap = { cycle: '2030-06-01T00:00:00.000Z', period: 'Period', lines: ['Line'] };
+ const recap: import('../../src/extension/recap.ts').Recap = { cycle: '2030-06-01T00:00:00.000Z', period: 'Period', lines: ['Line'], card: { persona: 'saver', big: '40%', subline: 'of my credits used', highlights: [] } };
  const results = { status: 'ok' as const, entries: [] };
  const html = present(view(points, '2030-06-08T02:51:00Z'), [], '', '<section id="cost-advisor"></section>', { state: 'never' }, '2030-06-08T02:51:00Z', false, undefined, '', results, recap).html;
  const marks = ['class="hero ', 'id="usage-chart"', 'id="usage-context"', 'id="recap-card"', 'id="cost-advisor"', 'class="audit-card"', 'id="results-summary"', 'id="advanced-details"', '<footer'].map(m => html.indexOf(m));

@@ -1,9 +1,9 @@
-import { compare, scaleRatio, subtract } from '../decimal.ts';
+import { compare, compareRatios, scaleRatio, subtract } from '../decimal.ts';
 import { DAY_MS, type AccountHistory } from '../history.ts';
 import { observedCycle } from './dashboard-insights.ts';
 import { cycleKey, describeExclusions, plain, type StoredResults } from './results-summary.ts';
 import { date, updated } from './labels.ts';
-import { RECAP_LINK_TEXT } from './recap-card.ts';
+import { MAX_HIGHLIGHTS, PERSONAS, RECAP_LINK_TEXT, type PersonaKey } from './recap-card.ts';
 import { ALL_DAYS, restricted, type BudgetDay } from './daily-budget.ts';
 
 // "Your Kiro cycle": the recap of the cycle that has just ended, from account history evidence only. Pure and free of editor APIs.
@@ -32,6 +32,16 @@ export interface Recap {
  /** Sentences for the card, in order; the card image and the copied text use exactly these. */
  period: string;
  lines: string[];
+ /** The short share card drawn on the image and copied by Copy text: the same observed facts, fewer words. */
+ card: RecapCard;
+}
+export interface RecapCard {
+ persona: PersonaKey;
+ /** The big figure, e.g. "97%", and the words after it. */
+ big: string;
+ subline: string;
+ /** Up to MAX_HIGHLIGHTS observed facts as [label, value]; a fact that is not observed is left out, never shown as zero. */
+ highlights: [string, string][];
 }
 
 const duration = (ms: number) => `${Math.floor(ms / 3600000)} h ${Math.floor(ms % 3600000 / 60000)} min`;
@@ -57,24 +67,59 @@ export function computeRecap(h: AccountHistory, results: StoredResults, link: bo
   : late ? `Lasted until the reset: yes. Usage below the reported limit was observed within ${LASTED_HOURS} hours before the reset.`
   : `Lasted until the reset: unknown. No update below the reported limit was observed within ${LASTED_HOURS} hours before the reset.`;
 
- const lines = [used, lasted, trendLine(h, chain.at(-1)!.usage, previous.startAt, last.at), exclusionLine(results, previousKey), busiestLine(h, previous.resetAt, previous.startAt, last.at), quietestLine(h, previous.resetAt, previous.startAt, last.at), paceLine(h, limit, previous.startAt, previous.resetAt, last.at, budgetDays)];
+ const trend = trendLine(h, chain.at(-1)!.usage, previous.startAt, last.at), busiest = busiestLine(h, previous.resetAt, previous.startAt, last.at), pace = paceLine(h, limit, previous.startAt, previous.resetAt, last.at, budgetDays);
+ const lines = [used, lasted, trend.line, exclusionLine(results, previousKey), busiest.line, quietestLine(h, previous.resetAt, previous.startAt, last.at), pace.line];
  if (link) lines.push(RECAP_LINK_TEXT);
- return { cycle: key, period: `Cycle that ended ${date(previous.resetAt, true)} (UTC). Figures come from the account updates Bobert observed; it is not a bill.`, lines };
+
+ // The share card: a persona from the observed outcome, the share of the reported limit used, and the observed highlights only.
+ const percent = percentUsed(last.usage, limit);
+ const persona: PersonaKey = reached ? 'full_throttle' : !late || percent === null ? 'explorer' : percent >= 90 ? 'precision' : percent >= 60 ? 'steady' : 'saver';
+ const highlights: [string, string][] = [];
+ if (reached) highlights.push(['Limit reached by', `${date(reached.at)} (UTC)`]);
+ else if (late) highlights.push(['Lasted to the reset', 'Yes']);
+ if (pace.longest !== undefined && pace.longest >= 2) highlights.push([pace.budget ? 'Budget-day streak' : 'On-pace streak', `${pace.longest} days`]);
+ if (busiest.net !== undefined) highlights.push(['Busiest observed day', `${short(busiest.net)} credits`]);
+ if (trend.change !== undefined) highlights.push(['vs. cycle before', trend.change]);
+ const card: RecapCard = {
+  persona,
+  big: percent === null ? short(last.usage) : `${percent}%`,
+  subline: percent === null ? 'credits used in the cycle' : reached ? 'of my credits used before the reset' : late ? 'of my credits used, and they lasted to the reset' : 'of my credits used in the cycle',
+  highlights: highlights.slice(0, MAX_HIGHLIGHTS),
+ };
+ return { cycle: key, period: `Cycle that ended ${date(previous.resetAt, true)} (UTC). Figures come from the account updates Bobert observed; it is not a bill.`, lines, card };
+}
+
+/** The whole percent of the reported limit used, rounded down and compared exactly; null for a limit that is not positive or above 999 % (the card then shows the credits). */
+export function percentUsed(usage: string, limit: string): number | null {
+ if (compare(limit, '0') <= 0 || compareRatios(usage, 1000, limit, 100) >= 0) return null;
+ let lo = 0, hi = 999;
+ // usage * 100 >= limit * p  <=>  usage / p >= limit / 100
+ while (lo < hi) { const mid = Math.ceil((lo + hi) / 2); if (compareRatios(usage, mid, limit, 100) >= 0) lo = mid; else hi = mid - 1; }
+ return lo;
+}
+/** A decimal for the card, truncated towards zero to one decimal place ("412.75" reads "412.7", "-3.0" reads "-3"). */
+export function short(value: string): string {
+ const m = /^(-?\d+)(?:\.(\d))?/.exec(value);
+ if (!m) return value;
+ const out = m[2] && m[2] !== '0' ? `${m[1]}.${m[2]}` : m[1]!;
+ return out === '-0' ? '0' : out;
 }
 
 // Average credits per day over the observed part of each cycle (its evidence-backed start to its last observation), compared exactly.
-function trendLine(h: AccountHistory, usage: string, startAt: string, lastAt: string): string {
+function trendLine(h: AccountHistory, usage: string, startAt: string, lastAt: string): { line: string; change?: string } {
  const e = h.evidence, cycles = e.cycles, before = cycles.length >= 3 ? cycles.at(-3)! : undefined, previous = cycles.at(-2)!;
  const heading = 'Use compared with the cycle before';
- if (!before?.startAt) return `${heading}: not observed. The cycle before was not seen from its start.`;
+ if (!before?.startAt) return { line: `${heading}: not observed. The cycle before was not seen from its start.` };
  if (e.exclusions.length || (e.stoppedBy && e.stoppedBy !== 'evidence_range') || !before.baseLimit || before.baseLimit !== previous.baseLimit)
-  return `${heading}: not comparable because the retained account updates contain a quality barrier such as an adjustment, a conflict or a limit change.`;
+  return { line: `${heading}: not comparable because the retained account updates contain a quality barrier such as an adjustment, a conflict or a limit change.` };
  const chain = observedCycle(h, before);
  const spanNow = Date.parse(lastAt) - Date.parse(startAt), spanBefore = chain?.length ? Date.parse(before.lastObservedAt) - Date.parse(before.startAt) : 0;
- if (!chain?.length || spanNow <= 0 || spanBefore <= 0) return `${heading}: not comparable because the cycle before has no unbroken run of observed updates.`;
+ if (!chain?.length || spanNow <= 0 || spanBefore <= 0) return { line: `${heading}: not comparable because the cycle before has no unbroken run of observed updates.` };
  const now = scaleRatio(usage, BigInt(DAY_MS), BigInt(spanNow)), earlier = scaleRatio(chain.at(-1)!.usage, BigInt(DAY_MS), BigInt(spanBefore));
  const d = compare(now, earlier), delta = subtract(now, earlier).replace(/^-/, '');
- return `${heading}: average ${now} credits per day over the observed part of the cycle, against ${earlier} in the cycle before, ${d === 0 ? 'unchanged' : `${d > 0 ? 'higher' : 'lower'} by ${delta}`}. This is an observation only; the cause is open.`;
+ const line = `${heading}: average ${now} credits per day over the observed part of the cycle, against ${earlier} in the cycle before, ${d === 0 ? 'unchanged' : `${d > 0 ? 'higher' : 'lower'} by ${delta}`}. This is an observation only; the cause is open.`;
+ const rounded = short(delta);
+ return { line, change: d === 0 ? 'Same pace' : rounded === '0' ? `Slightly ${d > 0 ? 'higher' : 'lower'}` : `${d > 0 ? '+' : '−'}${rounded} per day` };
 }
 
 function exclusionLine(results: StoredResults, key: string): string {
@@ -94,13 +139,13 @@ function sameDayTotals(h: AccountHistory, resetAt: string, startAt: string, last
  }
  return days;
 }
-function busiestLine(h: AccountHistory, resetAt: string, startAt: string, lastAt: string): string {
+function busiestLine(h: AccountHistory, resetAt: string, startAt: string, lastAt: string): { line: string; net?: string } {
  const label = 'Busiest observed day (partial observation)';
  const days = sameDayTotals(h, resetAt, startAt, lastAt);
  let best: [string, { net: string; ms: number }] | undefined;
  for (const entry of [...days].sort(([a], [b]) => a < b ? -1 : 1)) if (compare(entry[1].net, '0') > 0 && (!best || compare(entry[1].net, best[1].net) > 0)) best = entry;
- return best ? `${label}: ${date(`${best[0]}T00:00:00.000Z`, true)} (UTC), ${best[1].net} credits in ${duration(best[1].ms)} of observed updates.`
-  : `${label}: not observed. No day with observed use was recorded in same-day updates.`;
+ return best ? { line: `${label}: ${date(`${best[0]}T00:00:00.000Z`, true)} (UTC), ${best[1].net} credits in ${duration(best[1].ms)} of observed updates.`, net: best[1].net }
+  : { line: `${label}: not observed. No day with observed use was recorded in same-day updates.` };
 }
 
 /** The smallest observed use among days with at least this much observed time, so a day seen for a few minutes is never "quiet". */
@@ -124,11 +169,11 @@ const nextDay = (day: string): string => new Date(Date.parse(`${day}T00:00:00Z`)
  * days in the cycle, other days are neither counted nor break a run, and a budget day without a full observation does break it (it is unknown, not under).
  * Weekdays are taken in UTC like every figure on the card.
  */
-function paceLine(h: AccountHistory, limit: string, startAt: string, resetAt: string, lastAt: string, budgetDays: readonly BudgetDay[]): string {
+function paceLine(h: AccountHistory, limit: string, startAt: string, resetAt: string, lastAt: string, budgetDays: readonly BudgetDay[]): { line: string; longest?: number; budget: boolean } {
  const only = restricted(budgetDays);
  const label = only ? 'Budget days at or under the even daily pace' : 'Days at or under the even daily pace';
  const span = Date.parse(resetAt) - Date.parse(startAt);
- if (!(span > 0)) return `${label}: not observed.`;
+ if (!(span > 0)) return { line: `${label}: not observed.`, budget: !!only };
  let pace = scaleRatio(limit, BigInt(DAY_MS), BigInt(span)), basis = 'limit divided by the cycle length';
  if (only) {
   let count = 0;
@@ -136,12 +181,12 @@ function paceLine(h: AccountHistory, limit: string, startAt: string, resetAt: st
    const from = Math.max(t, Date.parse(startAt)), to = Math.min(t + DAY_MS, Date.parse(resetAt));
    if (budgetDays.includes(dayKey(new Date(t).toISOString().slice(0, 10)))) count += (to - from) / DAY_MS;
   }
-  if (!(count > 0)) return `${label}: not observed.`;
+  if (!(count > 0)) return { line: `${label}: not observed.`, budget: true };
   pace = scaleRatio(limit, BigInt(DAY_MS), BigInt(Math.round(count * DAY_MS)));
   basis = 'limit divided by the budget days of the cycle';
  }
  const days = [...sameDayTotals(h, resetAt, startAt, lastAt)].filter(([day, d]) => d.ms === DAY_MS && (!only || budgetDays.includes(dayKey(day)))).sort(([x], [y]) => x < y ? -1 : 1).map(([day, d]) => ({ day, netChange: d.net }));
- if (!days.length) return `${label}: not observed. No complete UTC ${only ? 'budget day' : 'day'} of the cycle was observed.`;
+ if (!days.length) return { line: `${label}: not observed. No complete UTC ${only ? 'budget day' : 'day'} of the cycle was observed.`, budget: !!only };
  // The day a run must continue with: the next budget day after `previous`.
  const following = (previous: string): string => { let day = nextDay(previous); for (let n = 0; n < 7 && only && !budgetDays.includes(dayKey(day)); n++) day = nextDay(day); return day; };
  let under = 0, run = 0, longest = 0, previous = '';
@@ -150,7 +195,7 @@ function paceLine(h: AccountHistory, limit: string, startAt: string, resetAt: st
   if (ok) { under++; run = previous && following(previous) === d.day && run > 0 ? run + 1 : 1; longest = Math.max(longest, run); } else run = 0;
   previous = d.day;
  }
- return `${label} (${pace} credits, ${basis}): ${under} of ${days.length} complete UTC ${only ? 'budget days' : 'days'}, longest run in a row ${longest}.`;
+ return { line: `${label} (${pace} credits, ${basis}): ${under} of ${days.length} complete UTC ${only ? 'budget days' : 'days'}, longest run in a row ${longest}.`, longest, budget: !!only };
 }
 
 export type RecapVisibility = 'hidden' | 'new' | 'shown';
@@ -168,7 +213,12 @@ export function nextRecapState(stored: StoredRecap, cycle: string, state: RecapS
  if (v && (v.cycle > cycle || (v.cycle === cycle && (v.state === 'dismissed' || v.state === state)))) return null;
  return { cycle, state };
 }
-/** The plain text that Copy text puts on the clipboard: the card's own text, built here and never by the page. */
+/** The plain text that Copy text puts on the clipboard: the share card in words, built here and never by the page. */
 export function recapText(recap: Recap): string {
- return [RECAP_TITLE, recap.period, ...recap.lines].join('\n');
+ const c = recap.card, p = PERSONAS[c.persona];
+ const text = [`My Kiro cycle: ${p.title}`, `${c.big} ${c.subline}.`];
+ if (c.highlights.length) text.push(c.highlights.map(([label, value]) => `${label}: ${value}`).join(' · '));
+ text.push(recap.period);
+ if (recap.lines.at(-1) === RECAP_LINK_TEXT) text.push(RECAP_LINK_TEXT);
+ return text.join('\n');
 }

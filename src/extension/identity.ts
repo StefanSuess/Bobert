@@ -1,5 +1,6 @@
 // Technical identity of the extension. No vscode import: unit-testable and shared by the manifest test.
 import { ALL_DAYS, type BudgetDay } from './daily-budget.ts';
+import type { PostNetwork } from './recap-actions.ts';
 export const ID_PREFIX = 'bobert';
 export const PANEL_VIEW_TYPE = `${ID_PREFIX}.usage`;
 export const SETTING_KEYS = ['sourceRoot', 'storageRoot', 'sourceTimezone'] as const;
@@ -28,6 +29,25 @@ export const REPORT_PROBLEM_ACTION = 'Report a problem';
 // The support prompt: names the Open VSX sign-in so a Rate click does not surprise, and offers feedback as the alternative to a review.
 export const SUPPORT_PROMPT_TEXT = "Finding Bobert useful? A review on Open VSX helps other Kiro users find it (takes a minute, needs a GitHub sign-in). Missing something? Send feedback. You can turn these off in Settings › Bobert › Support Prompts.";
 export const SHARE_TEXT = "Bobert shows your Kiro credit usage, forecasts when you'll run out and finds files Kiro may read but probably doesn't need. Free and open source: https://open-vsx.org/extension/StefanSuess/bobert";
+// Share recap: Share puts the image on the clipboard for chats and email, and a notification offers the text instead. The card's post buttons
+// (LinkedIn, X, Bluesky) take an image only as a file, so they save it through the save dialog first and then open the post. The post links
+// carry only this fixed text and the Open VSX link, never a figure of the recap; the image with the figures goes where the user attaches it.
+export const OPEN_VSX_URL = 'https://open-vsx.org/extension/StefanSuess/bobert';
+export const SHARE_POST_TEXT = 'My Kiro cycle, tracked with Bobert, the free credit tracker for Kiro';
+export const SHARE_RECAP_LINKS: Record<PostNetwork, string> = {
+ linkedIn: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(OPEN_VSX_URL)}`,
+ x: `https://x.com/intent/post?text=${encodeURIComponent(SHARE_POST_TEXT)}&url=${encodeURIComponent(OPEN_VSX_URL)}`,
+ bluesky: `https://bsky.app/intent/compose?text=${encodeURIComponent(`${SHARE_POST_TEXT} ${OPEN_VSX_URL}`)}`,
+};
+export const SHARE_RECAP_PROMPT = 'Recap image copied. Paste it into Slack, Teams or an email.';
+export const SHARE_RECAP_ACTIONS = { text: 'Copy text instead' } as const;
+// After a save: the post (if any) is open, and the file can be shown in the system file manager to attach or drag it.
+export const RECAP_SAVED_PROMPT = 'Recap image saved. Attach it to a post or drag it into a chat.';
+export const RECAP_SAVED_FOR_POST_PROMPT = 'Recap image saved. Add it to the post with the photo button.';
+export const SHOW_FILE_ACTION = 'Show file';
+// The one reminder per new cycle (see registerRecapReminder): fixed text, no figure.
+export const RECAP_READY_PROMPT = 'Your Kiro cycle card is ready to share: see how your last cycle went, then copy it into a chat or post it.';
+export const SHOW_CARD_ACTION = 'Show card';
 export const NOT_KIRO_TEXT = "Bobert is built for Kiro IDE, so there is no credit view in this editor. What helps here is the workspace audit: run Bobert: Run Workspace Audit to find files Kiro may read but doesn't need.";
 export const REMINDER_DAYS_DEFAULT = 30;
 export const REMINDER_DAYS_MAX = 365;

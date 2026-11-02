@@ -388,7 +388,7 @@
           "type": "boolean",
           "default": true,
           "order": 9,
-          "description": "Controls Bobert's occasional suggestions: the reminder to rate or support Bobert, the one-time offer to turn on the automatic Steering and Hooks review, the \"what's new\" notice after an update, opening the getting-started walkthrough on first use, and the Open VSX link line on the shareable cycle recap. Turn it off to see none of these. It does not affect budget notices, session hints or audit reminders; they have their own settings.",
+          "description": "Controls Bobert's occasional suggestions: the reminder to rate or support Bobert, the one-time offer to turn on the automatic Steering and Hooks review, the \"what's new\" notice after an update, opening the getting-started walkthrough on first use, the one reminder per new cycle that its share card is ready, and the Open VSX link line on the shareable cycle recap. Turn it off to see none of these. It does not affect budget notices, session hints or audit reminders; they have their own settings.",
           "scope": "application"
         },
         "bobert.sourceRoot": {

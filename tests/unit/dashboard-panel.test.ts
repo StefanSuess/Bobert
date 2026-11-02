@@ -142,7 +142,8 @@ function actionPanel(overrides: Partial<import('../../src/extension/dashboard-pa
  const sent: any[] = [], calls: string[] = []; let rejected = 0, now = 1000;
  const actions = {
   exportCsv: async () => { calls.push('exportCsv'); return 'saved' as const; }, copyRecapText: async () => { calls.push('copyRecapText'); return 'copied' as const; },
-  dismissRecap: async () => { calls.push('dismissRecap'); return 'dismissed' as const; }, saveRecapImage: async (png: string) => { calls.push(`saveRecapImage:${png}`); return 'saved' as const; }, ...overrides,
+  dismissRecap: async () => { calls.push('dismissRecap'); return 'dismissed' as const; }, saveRecapImage: async (png: string) => { calls.push(`saveRecapImage:${png}`); return 'saved' as const; }, shareRecap: async () => { calls.push('shareRecap'); return 'image_copied' as const; },
+  postRecap: async (network: string, png: string) => { calls.push(`postRecap:${network}:${png}`); return 'post_opened' as const; }, ...overrides,
  };
  const panel = new DashboardPanel({ html: '', postMessage(m: object) { sent.push(m); return true; } }, 'console.log(1)', () => { rejected++; }, () => now, undefined, actions);
  panel.set(one); panel.receive({ type: 'ready', load: 1 });
@@ -153,9 +154,9 @@ function actionPanel(overrides: Partial<import('../../src/extension/dashboard-pa
 test('each action runs once, answers with a fixed code and passes only the image text on', async () => {
  const t = actionPanel();
  t.panel.receive({ type: 'exportCsv' }); await flush();
- t.advance(0); t.panel.receive({ type: 'copyRecapText' }); t.panel.receive({ type: 'dismissRecap' }); t.panel.receive({ type: 'saveRecapImage', png: 'AAAA' }); await flush();
- assert.deepEqual(t.calls, ['exportCsv', 'copyRecapText', 'dismissRecap', 'saveRecapImage:AAAA']);
- assert.deepEqual(t.results(), [{ type: 'actionResult', action: 'exportCsv', code: 'saved' }, { type: 'actionResult', action: 'copyRecapText', code: 'copied' }, { type: 'actionResult', action: 'dismissRecap', code: 'dismissed' }, { type: 'actionResult', action: 'saveRecapImage', code: 'saved' }]);
+ t.advance(0); t.panel.receive({ type: 'copyRecapText' }); t.panel.receive({ type: 'dismissRecap' }); t.panel.receive({ type: 'saveRecapImage', png: 'AAAA' }); t.panel.receive({ type: 'shareRecap' }); t.panel.receive({ type: 'postRecap', network: 'bluesky', png: 'BBBB' }); await flush();
+ assert.deepEqual(t.calls, ['exportCsv', 'copyRecapText', 'dismissRecap', 'saveRecapImage:AAAA', 'shareRecap', 'postRecap:bluesky:BBBB']);
+ assert.deepEqual(t.results(), [{ type: 'actionResult', action: 'exportCsv', code: 'saved' }, { type: 'actionResult', action: 'copyRecapText', code: 'copied' }, { type: 'actionResult', action: 'dismissRecap', code: 'dismissed' }, { type: 'actionResult', action: 'saveRecapImage', code: 'saved' }, { type: 'actionResult', action: 'shareRecap', code: 'image_copied' }, { type: 'actionResult', action: 'postRecap', code: 'post_opened' }]);
  assert.equal(t.rejected(), 0); t.panel.dispose();
 });
 
@@ -189,7 +190,7 @@ test('an action that throws or rejects ends with a fixed failure and frees its s
 });
 
 test('actions are refused before ready, without handlers, after disposal and above ten messages a second', async () => {
- const early = new DashboardPanel({ html: '', postMessage() { return true; } }, 'x', () => {}, () => 1000, undefined, { exportCsv: async () => { throw new Error('must not run'); }, copyRecapText: async () => 'copied', dismissRecap: async () => 'dismissed', saveRecapImage: async () => 'saved' });
+ const early = new DashboardPanel({ html: '', postMessage() { return true; } }, 'x', () => {}, () => 1000, undefined, { exportCsv: async () => { throw new Error('must not run'); }, copyRecapText: async () => 'copied', dismissRecap: async () => 'dismissed', shareRecap: async () => 'image_copied', saveRecapImage: async () => 'saved', postRecap: async () => 'post_opened' });
  let rejected = 0; const calls: string[] = [];
  const make = (actions?: any) => new DashboardPanel({ html: '', postMessage() { return true; } }, 'x', () => { rejected++; }, () => 1000, undefined, actions);
  const notReady = make({ exportCsv: async () => { calls.push('x'); return 'saved'; } }); notReady.set(one); notReady.receive({ type: 'exportCsv' }); await flush();
@@ -199,7 +200,15 @@ test('actions are refused before ready, without handlers, after disposal and abo
  const flood = actionPanel();
  for (let i = 0; i < 12; i++) flood.panel.receive({ type: 'copyRecapText' });
  await flush(); assert.deepEqual(flood.calls, ['copyRecapText']); assert.ok(flood.rejected() >= 10);
- for (const hostile of [{ type: 'saveRecapImage' }, { type: 'exportCsv', png: 'AAAA' }, { type: 'dismissRecap', extra: 1 }, { type: '__proto__' }]) { flood.advance(1500); flood.panel.receive(hostile); }
+ for (const hostile of [{ type: 'saveRecapImage' }, { type: 'exportCsv', png: 'AAAA' }, { type: 'dismissRecap', extra: 1 }, { type: '__proto__' }, { type: 'postRecap', network: 'mastodon', png: 'AAAA' }, { type: 'shareRecap', png: 'AAAA' }]) { flood.advance(1500); flood.panel.receive(hostile); }
  await flush(); assert.deepEqual(flood.calls, ['copyRecapText'], 'invalid action messages never reach a handler');
  early.dispose(); notReady.dispose(); none.dispose(); flood.panel.dispose();
+});
+
+test('a reveal asked to focus the recap card marks only that document', () => {
+ const webview = { html: '', postMessage() { return true; } };
+ const panel = new DashboardPanel(webview, 'console.log(1)', () => {});
+ panel.reveal(one, 'recap'); assert.match(webview.html, /<html lang="en" data-cg-load="1" data-cg-focus="recap">/);
+ panel.reveal(one); assert.ok(!/<html[^>]*data-cg-focus/.test(webview.html), 'the next reveal starts at the top again');
+ panel.dispose();
 });

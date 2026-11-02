@@ -1,5 +1,6 @@
 import { LINKS } from './identity.ts';
 import { CARD_HEIGHT, CARD_WIDTH, MAX_PNG_BASE64 } from './recap-card.ts';
+import { POST_NETWORKS, type PostNetwork } from './recap-actions.ts';
 
 // The model is built only from our own escaped presentation, never from Kiro source data.
 // Its element/attribute grammar is deliberately narrower than HTML. New markup must be reviewed here.
@@ -9,7 +10,7 @@ const TAGS = new Set('main section article div h1 h2 h3 h4 p span dl dt dd detai
 const ATTRS = new Set('id class role aria-label aria-hidden aria-labelledby aria-describedby aria-live aria-atomic aria-invalid scope type name for value data-advisor-epoch data-plan data-billing data-add-ons data-add-on-credits data-hint data-kind data-chart-point tabindex hidden x y x1 x2 y1 y2 cx cy r width height viewBox preserveAspectRatio d points text-anchor patternUnits patternTransform stroke-dasharray stroke-width stroke-opacity stroke-linecap fill-opacity'.split(' '));
 const SAFE_LINKS = new Set([LINKS.rate, LINKS.star, LINKS.support, LINKS.tips, 'command:bobert.costAdvisor', 'command:bobert.auditWorkspace', 'command:bobert.audit.show', 'command:bobert.share', 'command:bobert.reportProblem']);
 // `hidden` is allowed only on these ids (own-property lookup on a null-prototype object), each only on its own tag.
-const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'advisor-confirm': 'button', 'advisor-change-open': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure' });
+const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'advisor-confirm': 'button', 'advisor-change-open': 'button', 'recap-share': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure', 'recap-post': 'p' });
 const decode = (value: string) => value.replace(/&(amp|lt|gt|quot|#39);/g, (_, entity: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[entity]!);
 
 export function buildDomModel(html: string): DomElement {
@@ -73,7 +74,8 @@ export function buildDomModel(html: string): DomElement {
  return root;
 }
 
-export function renderDashboardShell(staticHtml: string, nonce: string, load: number, script: string): string {
+/** `focus: 'recap'` marks the document so the page script scrolls to the recap card once (the reminder's Show card). */
+export function renderDashboardShell(staticHtml: string, nonce: string, load: number, script: string, focus?: 'recap'): string {
  if (!/^[A-Za-z0-9+/]{16,}={0,2}$/.test(nonce) || !Number.isSafeInteger(load) || load < 1 || /\sstyle=/i.test(staticHtml) || /<script\b/i.test(staticHtml)) throw new Error('DASHBOARD_SHELL_INVALID');
  const csp = `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; img-src data:; font-src 'none'; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; require-trusted-types-for 'script'; trusted-types 'none'`;
  const old = 'default-src \'none\'; style-src \'unsafe-inline\'';
@@ -81,16 +83,19 @@ export function renderDashboardShell(staticHtml: string, nonce: string, load: nu
  // These inert, host-defined anchors are the complete inventory for links that can appear later.
  // The browser may move an anchor, but cannot create one or assign its href.
  const reserve = `<div id="cg-link-reserve" hidden aria-hidden="true">${[...SAFE_LINKS].map(href => `<a href="${href}"></a>`).join('')}</div>`;
- return staticHtml.replace(old, csp).replace('<style>', `<style nonce="${nonce}">`).replace('<html lang="en">', `<html lang="en" data-cg-load="${load}">`).replace('</body>', `${reserve}<script nonce="${nonce}">${script}</script></body>`);
+ return staticHtml.replace(old, csp).replace('<style>', `<style nonce="${nonce}">`).replace('<html lang="en">', `<html lang="en" data-cg-load="${load}"${focus === 'recap' ? ' data-cg-focus="recap"' : ''}>`).replace('</body>', `${reserve}<script nonce="${nonce}">${script}</script></body>`);
 }
 
 export type AdvisorSubmit={type:'advisorSubmit';ticket:number;plan:string;billing:string;addOns:string;addOnCredits:string};
-// Messages without payload, and the image message whose base64 text is the one string allowed beyond the usual 4 KB cap.
-export type ActionMessage = { type: 'exportCsv' } | { type: 'copyRecapText' } | { type: 'dismissRecap' } | { type: 'saveRecapImage'; png: string };
-export const ACTION_TYPES = ['exportCsv', 'copyRecapText', 'dismissRecap', 'saveRecapImage'] as const;
+// Messages without payload, and the two image messages whose base64 text is the one string allowed beyond the usual 4 KB cap (a post button
+// sends the image too, with one of the fixed networks, so it can be saved as a file before the post opens).
+export type ActionMessage = { type: 'exportCsv' } | { type: 'copyRecapText' } | { type: 'dismissRecap' } | { type: 'shareRecap' } | { type: 'saveRecapImage'; png: string } | { type: 'postRecap'; network: PostNetwork; png: string };
+export const ACTION_TYPES = ['exportCsv', 'copyRecapText', 'dismissRecap', 'shareRecap', 'saveRecapImage', 'postRecap'] as const;
 export type AcceptedMessage = { type: 'ready' } | { type: 'ack' } | AdvisorSubmit | ActionMessage;
 type Handler=(m:Record<string,unknown>,keys:string[],load:number,version:number)=>AcceptedMessage|null;
-const bare=(type:'exportCsv'|'copyRecapText'|'dismissRecap'):Handler=>(_m,keys)=>keys.length===1?{type}:null;
+const bare=(type:'exportCsv'|'copyRecapText'|'dismissRecap'|'shareRecap'):Handler=>(_m,keys)=>keys.length===1?{type}:null;
+const pngOk=(m:Record<string,unknown>,keys:string[]):m is {png:string}=>keys.includes('png')&&typeof m.png==='string'&&m.png.length>0&&m.png.length<=MAX_PNG_BASE64;
+const network=(value:unknown):PostNetwork|undefined=>POST_NETWORKS.find(n=>n===value);
 const HANDLERS=new Map<string,Handler>([
  ['ready',(m,keys,load)=>keys.length===2&&keys.includes('load')&&m.load===load?{type:'ready'}:null],
  ['ack',(m,keys,_load,version)=>keys.length===2&&keys.includes('version')&&m.version===version&&version>0?{type:'ack'}:null],
@@ -99,8 +104,9 @@ const HANDLERS=new Map<string,Handler>([
   if(!['plan','billing','addOns','addOnCredits'].every(k=>typeof m[k]==='string'&&(m[k] as string).length<=4096))return null;
   return {type:'advisorSubmit',ticket:m.ticket as number,plan:m.plan as string,billing:m.billing as string,addOns:m.addOns as string,addOnCredits:m.addOnCredits as string};
  }],
- ['exportCsv',bare('exportCsv')],['copyRecapText',bare('copyRecapText')],['dismissRecap',bare('dismissRecap')],
- ['saveRecapImage',(m,keys)=>keys.length===2&&keys.includes('png')&&typeof m.png==='string'&&m.png.length>0&&m.png.length<=MAX_PNG_BASE64?{type:'saveRecapImage',png:m.png}:null],
+ ['exportCsv',bare('exportCsv')],['copyRecapText',bare('copyRecapText')],['dismissRecap',bare('dismissRecap')],['shareRecap',bare('shareRecap')],
+ ['saveRecapImage',(m,keys)=>keys.length===2&&pngOk(m,keys)?{type:'saveRecapImage',png:m.png}:null],
+ ['postRecap',(m,keys)=>{const n=network(m.network);return keys.length===3&&keys.includes('network')&&n&&pngOk(m,keys)?{type:'postRecap',network:n,png:m.png}:null;}],
 ]);
 export function acceptMessage(raw: unknown, load: number, version: number): AcceptedMessage | null {
  if (!raw || typeof raw !== 'object') return null;

@@ -768,7 +768,7 @@ const communitySession=async(env:ReturnType<typeof communityEnv>,work:string)=>{
  let fixedNow=Date.parse(env.now);
  class SyntheticDate extends Date {constructor(...args:any[]){super(args.length?args[0]:fixedNow);}static now(){return fixedNow;}}
  const realSet=globalThis.setTimeout,realClear=globalThis.clearTimeout;
- (globalThis as any).setTimeout=(fn:any,ms?:number,...rest:any[])=>{if(ms!==1000&&ms!==5000&&ms!==30000&&ms!==60000&&ms!==180000)return realSet(fn,ms,...rest);const t={fn,ms:ms!,cleared:false,unref(){return t;}};env.timers.push(t);return t;};
+ (globalThis as any).setTimeout=(fn:any,ms?:number,...rest:any[])=>{if(ms!==1000&&ms!==5000&&ms!==30000&&ms!==60000&&ms!==120000&&ms!==180000)return realSet(fn,ms,...rest);const t={fn,ms:ms!,cleared:false,unref(){return t;}};env.timers.push(t);return t;};
  (globalThis as any).clearTimeout=(t:any)=>{if(t&&env.timers.includes(t))t.cleared=true;else realClear(t);};
  const require=createRequire(new URL('../../package.json',import.meta.url));
  const module={exports:{} as any};
@@ -1416,6 +1416,31 @@ const readyPanel=async(s:any,env:ReturnType<typeof communityEnv>)=>{
 };
 const results=(env:ReturnType<typeof communityEnv>)=>env.posted.filter((m:any)=>m.type==='actionResult').map((m:any)=>`${m.action}:${m.code}`);
 
+test('packaged recap reminder appears once per new cycle, two minutes later, only in Kiro with suggestions on, and opens the credit view',async()=>{
+ const work=realpathSync.native(mkdtempSync(join(tmpdir(),'synthetic-recap-reminder-')));let s:any;
+ const reminders=(env:any)=>env.infos.filter((i:any)=>i.text.startsWith('Your Kiro cycle card is ready to share'));
+ const due=(env:any)=>env.timers.filter((t:any)=>t.ms===120000&&!t.cleared);
+ try{
+  const env=recapEnv(work);s=await communitySession(env,work);await s.later();
+  assert.deepEqual(reminders(env),[],'nothing at start-up');assert.equal(due(env).length,1,'one reminder is scheduled for the new cycle');
+  await s.commands.get('bobert.showUsage')!();await s.later();assert.ok(!/<html[^>]*data-cg-focus/.test(env.panels.at(-1).webview.html),'a normal open starts at the top');
+  env.choice='Show card';const executed=env.executed.length;due(env)[0].fn();await s.later();
+  assert.deepEqual(reminders(env).map((i:any)=>i.buttons),[['Show card']]);assert.ok(env.executed.slice(executed).includes('bobert.showUsage'),'Show card opens the credit view');
+  await s.commands.get('bobert.showUsage')!();await s.later();assert.ok(!/<html[^>]*data-cg-focus/.test(env.panels.at(-1).webview.html),'the focus is used only by Show card');
+  assert.ok(!reminders(env)[0].text.match(/\d/),'no figure in the reminder');env.choice=undefined;
+  s.dispose();s=await communitySession(env,work);await s.later();
+  assert.equal(due(env).length,0,'the next window does not remind again for the same cycle');
+ }finally{s?.dispose();rmSync(work,{recursive:true,force:true});}
+ for(const variant of ['prompts-off','not-kiro'] as const){
+  const root=realpathSync.native(mkdtempSync(join(tmpdir(),'synthetic-recap-reminder-')));let s2:any;
+  try{
+   const env=recapEnv(root);if(variant==='prompts-off')env.prompts=false;else{env.appName='Visual Studio Code';env.uriScheme='vscode';}
+   s2=await communitySession(env,root);await s2.later();
+   assert.equal(due(env).length,0,variant);assert.deepEqual(reminders(env),[],variant);
+  }finally{s2?.dispose();rmSync(root,{recursive:true,force:true});}
+ }
+});
+
 test('packaged recap card appears once, is marked shown, copies its own text and is dismissed through the validated key',async()=>{
  const work=realpathSync.native(mkdtempSync(join(tmpdir(),'synthetic-recap-card-')));let s:any;
  try{
@@ -1430,14 +1455,25 @@ test('packaged recap card appears once, is marked shown, copies its own text and
   const load=Number(/data-cg-load="(\d+)"/.exec(html)![1]);env.receive({type:'ready',load});await s.later();
   // Copy text: built by the extension from the card, never from the page.
   env.receive({type:'copyRecapText'});await waitFor(()=>env.clipboard.length>0,s);
-  assert.equal(env.clipboard.length,1);assert.match(env.clipboard[0]!,/^Your Kiro cycle\nCycle that ended 1 Jul 2030 \(UTC\)\./);assert.match(env.clipboard[0]!,/\nMade with Bobert, the free credit tracker for Kiro: https:\/\/open-vsx\.org\/extension\/StefanSuess\/bobert$/);
+  assert.equal(env.clipboard.length,1);assert.match(env.clipboard[0]!,/^My Kiro cycle: Precision Lander\n90% of my credits used, and they lasted to the reset\.\n.*\nCycle that ended 1 Jul 2030 \(UTC\)\./);assert.match(env.clipboard[0]!,/\nMade with Bobert, the free credit tracker for Kiro: https:\/\/open-vsx\.org\/extension\/StefanSuess\/bobert$/);
   assert.ok(!env.clipboard[0]!.includes(work));assert.deepEqual(results(env),['copyRecapText:copied']);
+  // Share: the page copied the image; the extension answers at once and offers the text instead without waiting for the choice.
+  env.choice='Copy text instead';env.receive({type:'shareRecap'});await waitFor(()=>env.clipboard.length>1,s);
+  assert.ok(results(env).includes('shareRecap:image_copied'));
+  const share=env.infos.find((i:any)=>i.text.startsWith('Recap image copied.'));assert.deepEqual(share?.buttons,['Copy text instead']);
+  // The post row with the three logos is in the card (hidden until the page script runs).
+  assert.match(html,/<p id="recap-post" class="recap-actions recap-post" hidden>.*id="recap-post-linkedin".*id="recap-post-x".*id="recap-post-bluesky"/);
+  assert.equal(env.clipboard[1],env.clipboard[0],'Copy text instead puts the same card text on the clipboard');env.choice=undefined;
   // Dismiss writes only the validated shape, and the card is gone from the next page.
   s.advance();env.receive({type:'dismissRecap'});await waitFor(()=>(env.store.get(RECAP_KEY) as any)?.state==='dismissed',s);
   assert.deepEqual(env.store.get(RECAP_KEY),{cycle:'2030-08-01T00:00:00.000Z',state:'dismissed'});assert.ok(results(env).includes('dismissRecap:dismissed'));
   await s.commands.get('bobert.showUsage')!();await s.later();assert.ok(!env.panels.at(-1).webview.html.includes('id="recap-card"'));
   env.receive({type:'ready',load:Number(/data-cg-load="(\d+)"/.exec(env.panels.at(-1).webview.html)![1])});await s.later();
   s.advance();env.receive({type:'copyRecapText'});await waitFor(()=>results(env).includes('copyRecapText:unavailable'),s);assert.ok(results(env).includes('copyRecapText:unavailable'));
+  // Without a card a post button opens neither a dialog nor a post.
+  const dialogsBefore=env.dialogs.length,openedBefore=env.opened.length;
+  s.advance();env.receive({type:'postRecap',network:'linkedIn',png:'AAAA'});await waitFor(()=>results(env).includes('postRecap:unavailable'),s);
+  assert.ok(results(env).includes('postRecap:unavailable'));assert.equal(env.dialogs.length,dialogsBefore);assert.equal(env.opened.length,openedBefore);
   // The explicit reset clears the key; the card returns the next time it is evaluated.
   await s.commands.get('bobert.support.reset')!();assert.equal(env.store.has(RECAP_KEY),false);
  }finally{s?.dispose();rmSync(work,{recursive:true,force:true});}
@@ -1492,6 +1528,26 @@ test('packaged CSV export and image save write only after a dialog, refuse guard
   const bad=Buffer.from(png);bad[40]=bad[40]!^1;assert.equal(await act({type:'saveRecapImage',png:bad.toString('base64')}),'saveRecapImage:invalid_image');
   env.saveTo=join(out,'card.png');assert.equal(await act({type:'saveRecapImage',png:png.toString('base64')}),'saveRecapImage:saved');
   assert.deepEqual(readFileSync(env.saveTo),png);assert.equal(env.dialogs.at(-1)!.defaultPath,join(downloads,'bobert-cycle-recap.png'));
+  // After a save the fixed notice offers Show file, which reveals only that file; the path never reaches a message.
+  await waitFor(()=>env.infos.some(i=>i.text==='Recap image saved. Attach it to a post or drag it into a chat.'),s);
+  assert.deepEqual(env.infos.find(i=>i.text.startsWith('Recap image saved. Attach'))?.buttons,['Show file']);
+  // A post button: the image is saved through the dialog first, then that network's fixed post link opens; Show file reveals the file.
+  env.choice='Show file';const opened=env.opened.length,calls=env.calls.length;
+  const links={linkedIn:'https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fopen-vsx.org%2Fextension%2FStefanSuess%2Fbobert',
+   x:'https://x.com/intent/post?text=My%20Kiro%20cycle%2C%20tracked%20with%20Bobert%2C%20the%20free%20credit%20tracker%20for%20Kiro&url=https%3A%2F%2Fopen-vsx.org%2Fextension%2FStefanSuess%2Fbobert',
+   bluesky:'https://bsky.app/intent/compose?text=My%20Kiro%20cycle%2C%20tracked%20with%20Bobert%2C%20the%20free%20credit%20tracker%20for%20Kiro%20https%3A%2F%2Fopen-vsx.org%2Fextension%2FStefanSuess%2Fbobert'};
+  for(const [network,link] of Object.entries(links)){
+   s.advance();env.saveTo=join(out,`${network}.png`);assert.equal(await act({type:'postRecap',network,png:png.toString('base64')}),'postRecap:post_opened');
+   assert.deepEqual(readFileSync(join(out,`${network}.png`)),png);assert.equal(env.opened.at(-1),link);
+  }
+  assert.equal(env.opened.length,opened+3);assert.deepEqual(env.infos.find(i=>i.text.startsWith('Recap image saved. Add it'))?.buttons,['Show file']);
+  await waitFor(()=>env.calls.slice(calls).some(a=>a[0]==='revealFileInOS'),s);const reveal:any=env.calls.slice(calls).find(a=>a[0]==='revealFileInOS');assert.equal(reveal?.[1]?.fsPath,join(out,'linkedIn.png'));
+  assert.ok(!JSON.stringify(env.posted).includes(out),'the path never reaches the page');
+  // Cancelled or refused: the fixed code, no post opens and nothing is written to a guarded folder.
+  env.choice=undefined;env.saveTo=undefined;assert.equal(await act({type:'postRecap',network:'x',png:png.toString('base64')}),'postRecap:cancelled');
+  env.saveTo=join(env.source,'post.png');assert.equal(await act({type:'postRecap',network:'bluesky',png:png.toString('base64')}),'postRecap:refused_target');
+  assert.equal(await act({type:'postRecap',network:'linkedIn',png:'AAAA'}),'postRecap:invalid_image');
+  assert.equal(env.opened.length,opened+3,'only a saved image opens a post');assert.equal(existsSync(join(env.source,'post.png')),false);
   env.saveTo=join(env.source,'card.png');assert.equal(await act({type:'saveRecapImage',png:png.toString('base64')}),'saveRecapImage:refused_target');
   // The failure of the clipboard is a fixed code, not a message.
   env.clipboardFails=true;assert.equal(await act({type:'copyRecapText'}),'copyRecapText:failed');assert.ok(!JSON.stringify(env.posted).includes('synthetic-path'));
