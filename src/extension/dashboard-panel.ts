@@ -3,7 +3,7 @@ import { acceptMessage, buildDomModel, renderDashboardShell, type ActionMessage,
 import type { ActionCode } from './recap-actions.ts';
 
 /** What the recap card and the export section may ask of the extension. Each answers with a fixed code; none receives a path. */
-export interface DashboardActions { exportCsv(): Promise<ActionCode>; copyRecapText(): Promise<ActionCode>; dismissRecap(): Promise<ActionCode>; saveRecapImage(png: string): Promise<ActionCode> }
+export interface DashboardActions { exportCsv(): Promise<ActionCode>; copyRecapText(): Promise<ActionCode>; dismissRecap(): Promise<ActionCode>; shareRecap(): Promise<ActionCode>; saveRecapImage(png: string): Promise<ActionCode> }
 type Webview = { html: string; postMessage(message: object): PromiseLike<boolean> | boolean };
 
 /** One panel document at a time. The static page remains authoritative until its own script says ready. */

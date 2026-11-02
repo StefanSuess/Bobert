@@ -1,5 +1,5 @@
 import {reconcileAdvisorDraft} from './advisor-draft.js';
-import {BRAND, CARD_FOOTER, CARD_HEIGHT, CARD_WIDTH, cardLayout, encodePng, toBase64, wrapText} from './recap-card.js';
+import {BOBERT, BRAND, CARD_FOOTER, CARD_HEIGHT, CARD_WIDTH, MAX_HIGHLIGHTS, cardLayout, encodePng, personaByTitle, toBase64, wrapText, type Mood} from './recap-card.js';
 import {ACTION_CODES, ACTION_NAMES, ACTION_TEXT, type ActionCode, type ActionName} from './recap-actions.js';
 // Bundled separately into one nonce'd inline script. No Node or extension APIs are available here.
 type DomNode = { kind: 'text'; text: string } | DomElement;
@@ -13,7 +13,7 @@ const ATTRS = new Set('id class role aria-label aria-hidden aria-labelledby aria
 const SAFE_LINKS = new Set(['https://open-vsx.org/extension/StefanSuess/bobert/reviews', 'https://github.com/StefanSuess/Bobert', 'https://ko-fi.com/stefansuess', 'https://github.com/StefanSuess/Bobert/blob/main/docs/credit-tips.md', 'command:bobert.costAdvisor', 'command:bobert.auditWorkspace', 'command:bobert.audit.show', 'command:bobert.share', 'command:bobert.reportProblem']);
 const SVG = 'http://www.w3.org/2000/svg';
 // `hidden` is allowed only on these ids, each on its own tag; the script reveals them once it runs.
-const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'advisor-confirm': 'button', 'advisor-change-open': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure' });
+const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'advisor-confirm': 'button', 'advisor-change-open': 'button', 'recap-share': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure' });
 // Literal DOM sinks make the permitted grammar explicit even if an inbound model is hostile.
 const HTML_ELEMENTS: Record<string, () => Element> = {
  main: () => document.createElement('main'), section: () => document.createElement('section'), article: () => document.createElement('article'), div: () => document.createElement('div'),
@@ -257,49 +257,120 @@ window.addEventListener('click',event=>{
 // Recap card and CSV export. The static page already holds the card's text; this only reveals the buttons, draws the same text on the canvas
 // (brand colours, fixed size) and sends the fixed action messages from trusted clicks. Nothing here sets markup, a link or an image source.
 const el = (id: string): Element | null => document.querySelector(`#${id}`);
-const TOOL_BUTTONS = ['recap-save', 'recap-copy', 'recap-dismiss', 'export-csv'];
-const STATUS_OF: Record<ActionName, string> = { exportCsv: 'export-status', copyRecapText: 'recap-status', saveRecapImage: 'recap-status', dismissRecap: 'export-status' };
+const TOOL_BUTTONS = ['recap-share', 'recap-save', 'recap-copy', 'recap-dismiss', 'export-csv'];
+const STATUS_OF: Record<ActionName, string> = { exportCsv: 'export-status', copyRecapText: 'recap-status', saveRecapImage: 'recap-status', shareRecap: 'recap-status', dismissRecap: 'export-status' };
 const statuses = new Map<string, string>(), inFlight = new Set<string>(), flightTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let drawnCanvas: Element | null = null, drawnKey = '';
 function say(id: string, text: string): void { statuses.set(id, text); const node = el(id); if (node && node.textContent !== text) node.textContent = text; }
-function paint(ctx: CanvasRenderingContext2D, title: string, period: string, all: string[]): void {
- const pad = 56, width = CARD_WIDTH - 2 * pad, family = 'system-ui, -apple-system, "Segoe UI", sans-serif', top = 112;
- const { body: lines, footer } = cardLayout(all), bottom = footer ? 96 : 40;
+type Ctx = CanvasRenderingContext2D;
+const FAMILY = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+function rounded(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
+ ctx.beginPath(); ctx.moveTo(x + r, y);
+ ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r);
+ ctx.closePath();
+}
+const dot = (ctx: Ctx, x: number, y: number, r: number) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fill(); };
+/** The largest font size from `sizes` at which `text` fits `width`. */
+function fit(ctx: Ctx, text: string, width: number, weight: number, sizes: number[]): number {
+ for (const size of sizes) { ctx.font = `${weight} ${size}px ${FAMILY}`; if (ctx.measureText(text).width <= width) return size; }
+ return sizes.at(-1)!;
+}
+/**
+ * Bobert as on the icon (a 120-unit box scaled by `s`): his face is a gauge whose needle shows the share of the limit used, and his eyes the
+ * persona's mood. Drawn from fixed shapes only.
+ */
+function drawBobert(ctx: Ctx, x: number, y: number, s: number, fraction: number, mood: Mood): void {
+ ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.lineCap = 'round';
+ ctx.strokeStyle = BOBERT.body; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(60, 34); ctx.lineTo(60, 20); ctx.stroke();
+ ctx.fillStyle = BOBERT.accent; dot(ctx, 60, 17, 5);
+ ctx.fillStyle = BOBERT.body; rounded(ctx, 16, 54, 6, 20, 3); ctx.fill(); rounded(ctx, 98, 54, 6, 20, 3); ctx.fill(); rounded(ctx, 22, 34, 76, 62, 16); ctx.fill();
+ ctx.fillStyle = BOBERT.face; rounded(ctx, 30, 42, 60, 46, 10); ctx.fill();
+ ctx.strokeStyle = BOBERT.body; ctx.fillStyle = BOBERT.body; ctx.lineWidth = 3.2;
+ const eye = (ex: number, kind: 'happy' | 'wide' | 'shut' | 'calm') => {
+  ctx.beginPath();
+  if (kind === 'happy') { ctx.arc(ex, 57, 5, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+  else if (kind === 'shut') { ctx.moveTo(ex - 5, 55); ctx.lineTo(ex + 5, 55); ctx.stroke(); }
+  else if (kind === 'wide') { dot(ctx, ex, 54, 5.5); ctx.fillStyle = BOBERT.face; dot(ctx, ex + 1.5, 52.5, 1.8); ctx.fillStyle = BOBERT.body; }
+  else dot(ctx, ex, 54, 4);
+ };
+ eye(46, mood === 'wink' ? 'happy' : mood); eye(74, mood === 'wink' ? 'shut' : mood);
+ const f = Math.min(1, Math.max(0, fraction)), needle = Math.PI * (1 + f);
+ ctx.lineWidth = 4; ctx.strokeStyle = BOBERT.track; ctx.beginPath(); ctx.arc(60, 80, 16, Math.PI, 2 * Math.PI); ctx.stroke();
+ ctx.strokeStyle = BOBERT.body; ctx.beginPath(); ctx.arc(60, 80, 16, Math.PI, needle); ctx.stroke();
+ ctx.lineWidth = 1.6;
+ for (let i = 0; i <= 4; i++) { const t = Math.PI * (1 + i / 4); ctx.beginPath(); ctx.moveTo(60 + 20.5 * Math.cos(t), 80 + 20.5 * Math.sin(t)); ctx.lineTo(60 + 23 * Math.cos(t), 80 + 23 * Math.sin(t)); ctx.stroke(); }
+ ctx.strokeStyle = BOBERT.accent; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(60, 80); ctx.lineTo(60 + 12 * Math.cos(needle), 80 + 12 * Math.sin(needle)); ctx.stroke();
+ ctx.fillStyle = BOBERT.accent; dot(ctx, 60, 80, 2.6);
+ ctx.restore();
+}
+interface ShareCard { ended: string; persona: string; quip: string; big: string; subline: string; highlights: [string, string][]; footer: boolean }
+function paint(ctx: Ctx, card: ShareCard): void {
+ const pad = 56, persona = personaByTitle(card.persona), mood: Mood = persona?.mood ?? 'calm';
  ctx.fillStyle = BRAND.background; ctx.fillRect(0, 0, CARD_WIDTH, CARD_HEIGHT);
- ctx.fillStyle = BRAND.accent; ctx.fillRect(0, 0, 12, CARD_HEIGHT);
+ ctx.fillStyle = BOBERT.glow; dot(ctx, 244, 392, 196);
  ctx.textBaseline = 'top';
- ctx.font = `700 52px ${family}`; ctx.fillStyle = BRAND.title; ctx.fillText(title, pad, 40);
- const sizes = [26, 24, 22, 20, 18, 16];
- for (const size of sizes) {
-  ctx.font = `400 ${size}px ${family}`;
-  const measure = (text: string) => ctx.measureText(text).width, height = Math.round(size * 1.35), gap = Math.round(size * 0.55);
-  const blocks = [period, ...lines].map(text => wrapText(text, width, measure));
-  if (blocks.reduce((n, b) => n + b.length * height + gap, 0) > CARD_HEIGHT - top - bottom && size !== sizes.at(-1)) continue;
-  let y = top;
-  blocks.forEach((block, i) => { ctx.fillStyle = i === 0 ? BRAND.muted : BRAND.text; for (const line of block) { ctx.fillText(line, pad, y); y += height; } y += gap; });
-  break;
+ // Bobert's speech bubble (only for a known persona) and Bobert himself on the left.
+ if (persona) {
+  ctx.font = `600 26px ${FAMILY}`;
+  const bubble = wrapText(card.quip, 332, text => ctx.measureText(text).width).slice(0, 3), h = bubble.length * 34 + 36;
+  ctx.fillStyle = BOBERT.bubble; rounded(ctx, 60, 44, 380, h, 22); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(130, 44 + h - 1); ctx.lineTo(170, 44 + h - 1); ctx.lineTo(138, 44 + h + 28); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = BRAND.background; bubble.forEach((line, i) => ctx.fillText(line, 84, 62 + i * 34));
  }
- if (!footer) return;
+ const percent = /^(\d+)%$/.exec(card.big);
+ drawBobert(ctx, 40, persona ? 180 : 120, 3.4, percent ? Number(percent[1]) / 100 : 0, mood);
+ // The right column: when, who, the big figure and up to three observed highlights.
+ const x = 500, width = CARD_WIDTH - pad - x;
+ ctx.font = `700 20px ${FAMILY}`; ctx.fillStyle = BRAND.accent;
+ ctx.fillText((card.ended ? `My Kiro cycle · ended ${card.ended} (UTC)` : 'My Kiro cycle').toUpperCase(), x, 72);
+ if (persona) { fit(ctx, persona.title, width, 800, [64, 56, 48, 40]); ctx.fillStyle = BRAND.title; ctx.fillText(persona.title, x, 104); }
+ const bigSize = fit(ctx, card.big, width * 0.55, 800, [120, 104, 88, 72]);
+ ctx.fillStyle = BOBERT.body; ctx.fillText(card.big, x, 196 + (120 - bigSize) * 0.6);
+ const bigWidth = ctx.measureText(card.big).width;
+ ctx.font = `500 28px ${FAMILY}`; ctx.fillStyle = BRAND.text;
+ wrapText(card.subline, width - bigWidth - 20, text => ctx.measureText(text).width).slice(0, 3).forEach((line, i) => ctx.fillText(line, x + bigWidth + 20, 232 + i * 36));
+ let left = x;
+ for (const [label, value] of card.highlights.slice(0, MAX_HIGHLIGHTS)) {
+  ctx.font = `700 24px ${FAMILY}`; const valueWidth = ctx.measureText(value).width;
+  ctx.font = `400 20px ${FAMILY}`; const labelWidth = ctx.measureText(label).width;
+  const w = Math.max(valueWidth, labelWidth) + 40;
+  if (left + w > CARD_WIDTH - pad) break; // a tile that does not fit is left out rather than cut
+  ctx.fillStyle = BOBERT.tileEdge; rounded(ctx, left, 370, w, 78, 16); ctx.fill();
+  ctx.fillStyle = BOBERT.tile; rounded(ctx, left + 1.5, 371.5, w - 3, 75, 15); ctx.fill();
+  ctx.fillStyle = BRAND.muted; ctx.fillText(label, left + 20, 382);
+  ctx.font = `700 24px ${FAMILY}`; ctx.fillStyle = BRAND.title; ctx.fillText(value, left + 20, 410);
+  left += w + 16;
+ }
+ if (!card.footer) return;
  // Branded footer: an accent rule, "Bobert · free credit tracker for Kiro" on the left and the search hint on the right (left-aligned below it if it does not fit).
- const y = CARD_HEIGHT - 64;
- ctx.fillStyle = BRAND.accent; ctx.fillRect(pad, y - 16, width, 2);
- ctx.font = `700 26px ${family}`; ctx.fillText(CARD_FOOTER.brand, pad, y);
+ const y = CARD_HEIGHT - 70;
+ ctx.fillStyle = BRAND.accent; ctx.fillRect(pad, y - 18, CARD_WIDTH - 2 * pad, 2);
+ ctx.font = `700 26px ${FAMILY}`; ctx.fillText(CARD_FOOTER.brand, pad, y);
  const brandWidth = ctx.measureText(CARD_FOOTER.brand).width;
- ctx.font = `400 22px ${family}`; ctx.fillStyle = BRAND.muted; ctx.fillText(CARD_FOOTER.tagline, pad + brandWidth, y + 3);
+ ctx.font = `400 22px ${FAMILY}`; ctx.fillStyle = BRAND.muted; ctx.fillText(CARD_FOOTER.tagline, pad + brandWidth, y + 3);
  const used = brandWidth + ctx.measureText(CARD_FOOTER.tagline).width, hint = ctx.measureText(CARD_FOOTER.hint).width;
- if (used + 32 + hint <= width) ctx.fillText(CARD_FOOTER.hint, CARD_WIDTH - pad - hint, y + 3);
+ if (used + 32 + hint <= CARD_WIDTH - 2 * pad) ctx.fillText(CARD_FOOTER.hint, CARD_WIDTH - pad - hint, y + 3);
  else ctx.fillText(CARD_FOOTER.hint, pad, y + 30);
+}
+const text = (id: string) => el(id)?.textContent ?? '';
+/** The share card as the static page states it; the page is its text alternative, so the image never says more than the text. */
+function readCard(): ShareCard {
+ const lines = Array.from(el('recap-lines')?.childNodes ?? []).map(node => node.textContent ?? '').filter(Boolean);
+ const highlights: [string, string][] = [];
+ for (const row of Array.from(el('recap-highlights')?.childNodes ?? [])) {
+  const [dt, dd] = Array.from(row.childNodes);
+  if (dt && dd) highlights.push([dt.textContent ?? '', dd.textContent ?? '']);
+ }
+ return { ended: /^Cycle that ended (.+?) \(UTC\)\./.exec(text('recap-period'))?.[1] ?? '', persona: text('recap-persona'), quip: text('recap-quip'), big: text('recap-big'), subline: text('recap-subline'), highlights, footer: cardLayout(lines).footer };
 }
 function drawCard(): void {
  const canvas = el('recap-canvas') as HTMLCanvasElement | null, figure = el('recap-preview');
  if (!canvas || !figure || typeof canvas.getContext !== 'function') return;
- const title = el('recap-title')?.textContent ?? '', period = el('recap-period')?.textContent ?? '';
- const lines = Array.from(el('recap-lines')?.childNodes ?? []).map(node => node.textContent ?? '').filter(Boolean);
- const key = JSON.stringify([title, period, lines]);
+ const card = readCard(), key = JSON.stringify(card);
  if (canvas !== drawnCanvas || key !== drawnKey) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return; // without a canvas the text above remains the card
-  paint(ctx, title, period, lines);
+  paint(ctx, card);
   drawnCanvas = canvas; drawnKey = key;
  }
  figure.removeAttribute('hidden');
@@ -320,13 +391,27 @@ function request(name: ActionName, working: string, build: () => Promise<object>
  inFlight.add(name);
  flightTimers.set(name, setTimeout(() => { if (inFlight.has(name)) { finish(name); say(STATUS_OF[name], ACTION_TEXT.unavailable); } }, 300000)); // a save dialog can stay open for a long time
  say(STATUS_OF[name], working);
- Promise.resolve().then(build).then(message => vscode.postMessage(message)).catch(() => { finish(name); say(STATUS_OF[name], ACTION_TEXT.failed); });
+ Promise.resolve().then(build).then(message => vscode.postMessage(message)).catch((error: unknown) => { finish(name); say(STATUS_OF[name], ACTION_TEXT[error instanceof Error && error.message === 'NO_IMAGE_CLIPBOARD' ? 'image_unsupported' : 'failed']); });
 }
-async function cardMessage(): Promise<object> {
+async function cardPng(): Promise<Uint8Array> {
  const canvas = el('recap-canvas') as HTMLCanvasElement | null, ctx = canvas?.getContext('2d', { willReadFrequently: true });
  if (!canvas || !ctx) throw new Error('NO_CANVAS');
  drawCard();
- return { type: 'saveRecapImage', png: toBase64(await encodePng(ctx.getImageData(0, 0, CARD_WIDTH, CARD_HEIGHT).data, deflate)) };
+ return encodePng(ctx.getImageData(0, 0, CARD_WIDTH, CARD_HEIGHT).data, deflate);
+}
+async function cardMessage(): Promise<object> {
+ return { type: 'saveRecapImage', png: toBase64(await cardPng()) };
+}
+// Share: the image goes straight onto the clipboard from this page (the editor grants webviews clipboard-write; the native share sheet is
+// not available to a webview), so it can be pasted into any app. Only then is the extension told, so it can offer the fixed next steps.
+async function shareMessage(): Promise<object> {
+ const clipboard = (globalThis as { navigator?: { clipboard?: { write?: (items: unknown[]) => Promise<void> } } }).navigator?.clipboard;
+ const Item = (globalThis as { ClipboardItem?: new (items: Record<string, Promise<Blob>>) => unknown }).ClipboardItem;
+ if (typeof clipboard?.write !== 'function' || typeof Item !== 'function') throw new Error('NO_IMAGE_CLIPBOARD');
+ // The write starts within the click and the item resolves to the PNG, so the click's user activation is still current.
+ const png = cardPng();
+ try { await clipboard.write([new Item({ 'image/png': png.then(bytes => new Blob([bytes as BlobPart], { type: 'image/png' })) })]); } catch { await png; throw new Error('NO_IMAGE_CLIPBOARD'); }
+ return { type: 'shareRecap' };
 }
 window.addEventListener('click', event => {
  if (!event.isTrusted) return;
@@ -335,6 +420,7 @@ window.addEventListener('click', event => {
  else if (id === 'recap-dismiss') request('dismissRecap', 'Dismissing…', () => ({ type: 'dismissRecap' }));
  else if (id === 'export-csv') request('exportCsv', 'Choose where to save the CSV file…', () => ({ type: 'exportCsv' }));
  else if (id === 'recap-save') request('saveRecapImage', 'Choose where to save the image…', cardMessage);
+ else if (id === 'recap-share') request('shareRecap', 'Copying the image…', shareMessage);
 });
 // The dismissed card is gone, so focus moves to the next visible control in reading order: the Cost Advisor form's summary, else the Advanced details summary.
 const firstSummary = (details: Node | null | undefined): HTMLElement | null => {

@@ -9,7 +9,7 @@ const TAGS = new Set('main section article div h1 h2 h3 h4 p span dl dt dd detai
 const ATTRS = new Set('id class role aria-label aria-hidden aria-labelledby aria-describedby aria-live aria-atomic aria-invalid scope type name for value data-advisor-epoch data-plan data-billing data-add-ons data-add-on-credits data-hint data-kind data-chart-point tabindex hidden x y x1 x2 y1 y2 cx cy r width height viewBox preserveAspectRatio d points text-anchor patternUnits patternTransform stroke-dasharray stroke-width stroke-opacity stroke-linecap fill-opacity'.split(' '));
 const SAFE_LINKS = new Set([LINKS.rate, LINKS.star, LINKS.support, LINKS.tips, 'command:bobert.costAdvisor', 'command:bobert.auditWorkspace', 'command:bobert.audit.show', 'command:bobert.share', 'command:bobert.reportProblem']);
 // `hidden` is allowed only on these ids (own-property lookup on a null-prototype object), each only on its own tag.
-const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'advisor-confirm': 'button', 'advisor-change-open': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure' });
+const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'advisor-confirm': 'button', 'advisor-change-open': 'button', 'recap-share': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure' });
 const decode = (value: string) => value.replace(/&(amp|lt|gt|quot|#39);/g, (_, entity: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[entity]!);
 
 export function buildDomModel(html: string): DomElement {
@@ -86,11 +86,11 @@ export function renderDashboardShell(staticHtml: string, nonce: string, load: nu
 
 export type AdvisorSubmit={type:'advisorSubmit';ticket:number;plan:string;billing:string;addOns:string;addOnCredits:string};
 // Messages without payload, and the image message whose base64 text is the one string allowed beyond the usual 4 KB cap.
-export type ActionMessage = { type: 'exportCsv' } | { type: 'copyRecapText' } | { type: 'dismissRecap' } | { type: 'saveRecapImage'; png: string };
-export const ACTION_TYPES = ['exportCsv', 'copyRecapText', 'dismissRecap', 'saveRecapImage'] as const;
+export type ActionMessage = { type: 'exportCsv' } | { type: 'copyRecapText' } | { type: 'dismissRecap' } | { type: 'shareRecap' } | { type: 'saveRecapImage'; png: string };
+export const ACTION_TYPES = ['exportCsv', 'copyRecapText', 'dismissRecap', 'shareRecap', 'saveRecapImage'] as const;
 export type AcceptedMessage = { type: 'ready' } | { type: 'ack' } | AdvisorSubmit | ActionMessage;
 type Handler=(m:Record<string,unknown>,keys:string[],load:number,version:number)=>AcceptedMessage|null;
-const bare=(type:'exportCsv'|'copyRecapText'|'dismissRecap'):Handler=>(_m,keys)=>keys.length===1?{type}:null;
+const bare=(type:'exportCsv'|'copyRecapText'|'dismissRecap'|'shareRecap'):Handler=>(_m,keys)=>keys.length===1?{type}:null;
 const HANDLERS=new Map<string,Handler>([
  ['ready',(m,keys,load)=>keys.length===2&&keys.includes('load')&&m.load===load?{type:'ready'}:null],
  ['ack',(m,keys,_load,version)=>keys.length===2&&keys.includes('version')&&m.version===version&&version>0?{type:'ack'}:null],
@@ -99,7 +99,7 @@ const HANDLERS=new Map<string,Handler>([
   if(!['plan','billing','addOns','addOnCredits'].every(k=>typeof m[k]==='string'&&(m[k] as string).length<=4096))return null;
   return {type:'advisorSubmit',ticket:m.ticket as number,plan:m.plan as string,billing:m.billing as string,addOns:m.addOns as string,addOnCredits:m.addOnCredits as string};
  }],
- ['exportCsv',bare('exportCsv')],['copyRecapText',bare('copyRecapText')],['dismissRecap',bare('dismissRecap')],
+ ['exportCsv',bare('exportCsv')],['copyRecapText',bare('copyRecapText')],['dismissRecap',bare('dismissRecap')],['shareRecap',bare('shareRecap')],
  ['saveRecapImage',(m,keys)=>keys.length===2&&keys.includes('png')&&typeof m.png==='string'&&m.png.length>0&&m.png.length<=MAX_PNG_BASE64?{type:'saveRecapImage',png:m.png}:null],
 ]);
 export function acceptMessage(raw: unknown, load: number, version: number): AcceptedMessage | null {

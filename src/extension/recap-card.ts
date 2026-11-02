@@ -16,6 +16,22 @@ export const MIN_CONTRAST = 4.5;
 // prompts are on (`bobert.supportPrompts`); without it the card carries no Bobert branding at all.
 export const RECAP_LINK_TEXT = 'Made with Bobert, the free credit tracker for Kiro: https://open-vsx.org/extension/StefanSuess/bobert';
 export const CARD_FOOTER = { brand: 'Bobert', tagline: ' · free credit tracker for Kiro', hint: 'Search “Bobert” in Kiro’s Extensions view' } as const;
+// The share card's persona: a fixed title, Bobert's line and his mood, chosen only from observed facts (see `persona` in recap.ts).
+// The page draws Bobert from the persona it finds in the static text, so a title outside this table draws no persona at all.
+export type Mood = 'happy' | 'wide' | 'wink' | 'calm';
+export const PERSONAS = {
+ full_throttle: { title: 'Full-Throttle Builder', quip: 'Every credit put to work. We shipped hard.', mood: 'wide' },
+ precision: { title: 'Precision Lander', quip: 'Right up to the reset. Textbook landing.', mood: 'happy' },
+ steady: { title: 'Steady Pilot', quip: 'Smooth cruise, credits to spare.', mood: 'happy' },
+ saver: { title: 'Credit Saver', quip: 'Fewer credits, same code. Beep boop.', mood: 'wink' },
+ explorer: { title: 'Credit Explorer', quip: 'Too few updates to call the landing. Still beeping.', mood: 'calm' },
+} as const satisfies Record<string, { title: string; quip: string; mood: Mood }>;
+export type PersonaKey = keyof typeof PERSONAS;
+export const personaByTitle = (title: string): (typeof PERSONAS)[PersonaKey] | undefined => Object.values(PERSONAS).find(p => p.title === title);
+/** At most this many highlight tiles on the image; the dashboard text lists the same ones. */
+export const MAX_HIGHLIGHTS = 3;
+/** Bobert's palette, from the icon (assets/branding/source/bobert-icon.svg). */
+export const BOBERT = { body: '#2dd4bf', face: '#0f1b2d', accent: '#f59e0b', bubble: '#ffffff', track: '#1d6b6a', glow: '#0d2b4e', tile: '#14365f', tileEdge: '#2c5a8a' } as const;
 /** The card's body lines and whether the branded footer is drawn: the share line, when it is the last line, becomes the footer. */
 export function cardLayout(lines: readonly string[]): { body: string[]; footer: boolean } {
  const footer = lines.at(-1) === RECAP_LINK_TEXT;

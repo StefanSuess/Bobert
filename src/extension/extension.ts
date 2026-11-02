@@ -19,7 +19,7 @@ import { PRICE_STATE_KEY, readPriceState, readPriceUpdates, runPriceUpdates, typ
 import { MAX_PRICE_FILE_BYTES, PRICE_FILE_URL } from '../session/price-data.ts';
 import { buildDiagnostics, formatDiagnostics, runtimeFacts, type DiagnosticsInput } from '../diagnostics.ts';
 import { STATUS_MENU, examplePreview } from './presentation.ts';
-import { FEEDBACK_URL, ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_TEXT, SUPPORT_PROMPT_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
+import { FEEDBACK_URL, ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_RECAP_ACTIONS, SHARE_RECAP_LINKS, SHARE_RECAP_PROMPT, SHARE_TEXT, SUPPORT_PROMPT_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
 import { ALL_DAYS, dayBudget, type BudgetDay } from './daily-budget.ts';
 import { WHATS_NEW_KEY, WHATS_NEW_URL, releaseLine, whatsNewAction, whatsNewText, BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
 import { decideBudgetNotice } from './budget-warning.ts';
@@ -1000,6 +1000,15 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
    try { await vscode.env.clipboard.writeText(text); return 'copied'; } catch { return 'failed'; }
   },
   async dismissRecap() { return controllerRef && await controllerRef.dismissRecap() ? 'dismissed' : 'failed'; },
+  // The page has already put the image on the clipboard; this only offers the fixed next steps and does not wait for the choice.
+  async shareRecap() {
+   if (!controllerRef?.recapText()) return 'unavailable';
+   void Promise.resolve(vscode.window.showInformationMessage(SHARE_RECAP_PROMPT, SHARE_RECAP_ACTIONS.linkedIn, SHARE_RECAP_ACTIONS.x, SHARE_RECAP_ACTIONS.text)).then(async choice => {
+    if (choice === SHARE_RECAP_ACTIONS.text) { const text = controllerRef?.recapText(); if (text) await vscode.env.clipboard.writeText(text); }
+    else if (choice === SHARE_RECAP_ACTIONS.linkedIn || choice === SHARE_RECAP_ACTIONS.x) await vscode.env.openExternal(vscode.Uri.parse(choice === SHARE_RECAP_ACTIONS.x ? SHARE_RECAP_LINKS.x : SHARE_RECAP_LINKS.linkedIn));
+   }).catch(() => undefined);
+   return 'image_copied';
+  },
  };
  const register = (suffix: string, fn: () => unknown) => disposables.push(registerCommand((id, f) => vscode.commands.registerCommand(id, f), suffix, fn));
  // A look at Bobert with invented numbers, for a user who has no Kiro usage yet and for screenshots. It reads nothing from Kiro and stores nothing; its own script-free panel is separate from the credit view.

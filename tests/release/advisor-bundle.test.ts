@@ -1430,8 +1430,13 @@ test('packaged recap card appears once, is marked shown, copies its own text and
   const load=Number(/data-cg-load="(\d+)"/.exec(html)![1]);env.receive({type:'ready',load});await s.later();
   // Copy text: built by the extension from the card, never from the page.
   env.receive({type:'copyRecapText'});await waitFor(()=>env.clipboard.length>0,s);
-  assert.equal(env.clipboard.length,1);assert.match(env.clipboard[0]!,/^Your Kiro cycle\nCycle that ended 1 Jul 2030 \(UTC\)\./);assert.match(env.clipboard[0]!,/\nMade with Bobert, the free credit tracker for Kiro: https:\/\/open-vsx\.org\/extension\/StefanSuess\/bobert$/);
+  assert.equal(env.clipboard.length,1);assert.match(env.clipboard[0]!,/^My Kiro cycle: Precision Lander\n90% of my credits used, and they lasted to the reset\.\n.*\nCycle that ended 1 Jul 2030 \(UTC\)\./);assert.match(env.clipboard[0]!,/\nMade with Bobert, the free credit tracker for Kiro: https:\/\/open-vsx\.org\/extension\/StefanSuess\/bobert$/);
   assert.ok(!env.clipboard[0]!.includes(work));assert.deepEqual(results(env),['copyRecapText:copied']);
+  // Share: the page copied the image; the extension answers at once and offers the fixed next steps without waiting for the choice.
+  env.choice='Copy text instead';env.receive({type:'shareRecap'});await waitFor(()=>env.clipboard.length>1,s);
+  assert.ok(results(env).includes('shareRecap:image_copied'));
+  const share=env.infos.find((i:any)=>i.text.startsWith('Recap image copied.'));assert.deepEqual(share?.buttons,['Post on LinkedIn','Post on X','Copy text instead']);
+  assert.equal(env.clipboard[1],env.clipboard[0],'Copy text instead puts the same card text on the clipboard');env.choice=undefined;
   // Dismiss writes only the validated shape, and the card is gone from the next page.
   s.advance();env.receive({type:'dismissRecap'});await waitFor(()=>(env.store.get(RECAP_KEY) as any)?.state==='dismissed',s);
   assert.deepEqual(env.store.get(RECAP_KEY),{cycle:'2030-08-01T00:00:00.000Z',state:'dismissed'});assert.ok(results(env).includes('dismissRecap:dismissed'));

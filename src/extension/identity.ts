@@ -28,6 +28,16 @@ export const REPORT_PROBLEM_ACTION = 'Report a problem';
 // The support prompt: names the Open VSX sign-in so a Rate click does not surprise, and offers feedback as the alternative to a review.
 export const SUPPORT_PROMPT_TEXT = "Finding Bobert useful? A review on Open VSX helps other Kiro users find it (takes a minute, needs a GitHub sign-in). Missing something? Send feedback. You can turn these off in Settings › Bobert › Support Prompts.";
 export const SHARE_TEXT = "Bobert shows your Kiro credit usage, forecasts when you'll run out and finds files Kiro may read but probably doesn't need. Free and open source: https://open-vsx.org/extension/StefanSuess/bobert";
+// Share recap: after the image is on the clipboard, a notification offers these fixed next steps. The post links carry only this fixed text
+// and the Open VSX link, never a figure of the recap; the image with the figures goes where the user pastes it.
+export const OPEN_VSX_URL = 'https://open-vsx.org/extension/StefanSuess/bobert';
+export const SHARE_POST_TEXT = 'My Kiro cycle, tracked with Bobert, the free credit tracker for Kiro';
+export const SHARE_RECAP_LINKS = {
+ linkedIn: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(OPEN_VSX_URL)}`,
+ x: `https://x.com/intent/post?text=${encodeURIComponent(SHARE_POST_TEXT)}&url=${encodeURIComponent(OPEN_VSX_URL)}`,
+} as const;
+export const SHARE_RECAP_PROMPT = 'Recap image copied. Paste it into any chat, email or post, or open a post here.';
+export const SHARE_RECAP_ACTIONS = { linkedIn: 'Post on LinkedIn', x: 'Post on X', text: 'Copy text instead' } as const;
 export const NOT_KIRO_TEXT = "Bobert is built for Kiro IDE, so there is no credit view in this editor. What helps here is the workspace audit: run Bobert: Run Workspace Audit to find files Kiro may read but doesn't need.";
 export const REMINDER_DAYS_DEFAULT = 30;
 export const REMINDER_DAYS_MAX = 365;

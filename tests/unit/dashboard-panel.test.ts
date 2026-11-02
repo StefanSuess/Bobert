@@ -142,7 +142,7 @@ function actionPanel(overrides: Partial<import('../../src/extension/dashboard-pa
  const sent: any[] = [], calls: string[] = []; let rejected = 0, now = 1000;
  const actions = {
   exportCsv: async () => { calls.push('exportCsv'); return 'saved' as const; }, copyRecapText: async () => { calls.push('copyRecapText'); return 'copied' as const; },
-  dismissRecap: async () => { calls.push('dismissRecap'); return 'dismissed' as const; }, saveRecapImage: async (png: string) => { calls.push(`saveRecapImage:${png}`); return 'saved' as const; }, ...overrides,
+  dismissRecap: async () => { calls.push('dismissRecap'); return 'dismissed' as const; }, saveRecapImage: async (png: string) => { calls.push(`saveRecapImage:${png}`); return 'saved' as const; }, shareRecap: async () => { calls.push('shareRecap'); return 'image_copied' as const; }, ...overrides,
  };
  const panel = new DashboardPanel({ html: '', postMessage(m: object) { sent.push(m); return true; } }, 'console.log(1)', () => { rejected++; }, () => now, undefined, actions);
  panel.set(one); panel.receive({ type: 'ready', load: 1 });
@@ -189,7 +189,7 @@ test('an action that throws or rejects ends with a fixed failure and frees its s
 });
 
 test('actions are refused before ready, without handlers, after disposal and above ten messages a second', async () => {
- const early = new DashboardPanel({ html: '', postMessage() { return true; } }, 'x', () => {}, () => 1000, undefined, { exportCsv: async () => { throw new Error('must not run'); }, copyRecapText: async () => 'copied', dismissRecap: async () => 'dismissed', saveRecapImage: async () => 'saved' });
+ const early = new DashboardPanel({ html: '', postMessage() { return true; } }, 'x', () => {}, () => 1000, undefined, { exportCsv: async () => { throw new Error('must not run'); }, copyRecapText: async () => 'copied', dismissRecap: async () => 'dismissed', shareRecap: async () => 'image_copied', saveRecapImage: async () => 'saved' });
  let rejected = 0; const calls: string[] = [];
  const make = (actions?: any) => new DashboardPanel({ html: '', postMessage() { return true; } }, 'x', () => { rejected++; }, () => 1000, undefined, actions);
  const notReady = make({ exportCsv: async () => { calls.push('x'); return 'saved'; } }); notReady.set(one); notReady.receive({ type: 'exportCsv' }); await flush();

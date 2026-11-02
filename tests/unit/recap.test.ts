@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { history } from '../../src/history.ts';
 import { view } from '../../src/view.ts';
-import { RECAP_KEY, RECAP_LINK_TEXT, RECAP_TITLE, computeRecap, nextRecapState, readRecap, recapText, recapVisibility, type Recap, type StoredRecap } from '../../src/extension/recap.ts';
+import { MAX_HIGHLIGHTS, PERSONAS, personaByTitle } from '../../src/extension/recap-card.ts';
+import { RECAP_KEY, RECAP_LINK_TEXT, RECAP_TITLE, computeRecap, percentUsed, short, nextRecapState, readRecap, recapText, recapVisibility, type Recap, type StoredRecap } from '../../src/extension/recap.ts';
 import { present } from '../../src/extension/presentation.ts';
 import { recapSection } from '../../src/extension/recap-presentation.ts';
 import { buildDomModel } from '../../src/extension/dashboard-shell.ts';
@@ -12,6 +13,7 @@ import { syntheticSnapshot as snapshot } from './synthetic.ts';
 const R0 = '2030-06-01T00:00:00.000Z', R1 = '2030-07-01T00:00:00.000Z', R2 = '2030-08-01T00:00:00.000Z', RQ = '2030-05-01T00:00:00.000Z';
 const at = (when: string, usage: string, reset: string, extra: object = {}) => snapshot(when, usage, { resetAt: reset, resetText: reset, ...extra });
 const NO_RESULTS: StoredResults = { status: 'ok', entries: [] };
+const CARD: Recap['card'] = { persona: 'steady', big: '75%', subline: 'of my credits used', highlights: [['Lasted to the reset', 'Yes']] };
 // cycle before (resets 06-01), previous cycle (resets 07-01), current cycle (resets 08-01); a snapshot from the cycle before the first gives it a start
 const cycleBefore = () => [at('2030-04-20T00:00:00.000Z', '100', RQ), at('2030-05-01T06:00:00.000Z', '20', R0), at('2030-05-15T00:00:00.000Z', '200', R0), at('2030-05-31T20:00:00.000Z', '500', R0)];
 const previousCycle = () => [at('2030-06-01T06:00:00.000Z', '30', R1), at('2030-06-10T00:00:00.000Z', '300', R1), at('2030-06-10T12:00:00.000Z', '400', R1), at('2030-06-30T20:00:00.000Z', '900', R1)];
@@ -31,7 +33,9 @@ test('the full recap names each figure with its basis and carries the Open VSX t
   'Quietest observed day: 10 Jun 2030 (UTC), 100 credits in 12 h 0 min of observed updates.',
   'Days at or under the even daily pace: not observed. No complete UTC day of the cycle was observed.',
   RECAP_LINK_TEXT]);
- assert.equal(recapText(r), [RECAP_TITLE, r.period, ...r.lines].join('\n'));
+ assert.deepEqual(r.card, { persona: 'precision', big: '90%', subline: 'of my credits used, and they lasted to the reset', highlights: [['Lasted to the reset', 'Yes'], ['Busiest observed day', '100 credits'], ['vs. cycle before', '+13.9 per day']] });
+ assert.equal(recapText(r), ['My Kiro cycle: Precision Lander', '90% of my credits used, and they lasted to the reset.', 'Lasted to the reset: Yes · Busiest observed day: 100 credits · vs. cycle before: +13.9 per day', r.period, RECAP_LINK_TEXT].join('\n'));
+ assert.ok(!recapText(recapOf([...cycleBefore(), ...previousCycle(), ...current()], NO_RESULTS, false)!).includes(RECAP_LINK_TEXT), 'no link in the copied text without the share line');
  assert.equal(recapOf([...cycleBefore(), ...previousCycle(), ...current()], NO_RESULTS, false)!.lines.includes(RECAP_LINK_TEXT), false, 'the link text can be switched off');
  assert.ok(!/synthetic-private-account|partition|\/|\\/.test(recapText({ ...r, lines: r.lines.slice(0, -1) })), 'no identifier or path');
 });
@@ -111,7 +115,7 @@ test('the stored state validator accepts only the exact shape and treats everyth
 });
 
 test('visibility: new once, shown until dismissed, hidden when unknown, dismissed or superseded by a newer cycle', () => {
- const recap: Recap = { cycle: R2, period: 'p', lines: ['l'] };
+ const recap: Recap = { cycle: R2, period: 'p', lines: ['l'], card: CARD };
  const stored = (value: StoredRecap) => recapVisibility(recap, value);
  assert.equal(stored({ status: 'ok', value: null }), 'new');
  assert.equal(stored({ status: 'ok', value: { cycle: R1, state: 'dismissed' } }), 'new', 'an older cycle does not carry over');
@@ -135,13 +139,17 @@ test('the next stored state never overwrites an unknown, dismissed or newer valu
 });
 
 test('the static card is script-free text with the buttons hidden, escapes everything and parses into the dashboard model', () => {
- const r: Recap = { cycle: R2, period: 'Period <b>&</b>', lines: ['Line "one" <script>alert(1)</script>', 'Line two'] };
+ const r: Recap = { cycle: R2, period: 'Period <b>&</b>', lines: ['Line "one" <script>alert(1)</script>', 'Line two'], card: { ...CARD, subline: 'of <b>my</b> credits', highlights: [['Busiest <i>', '5 & more']] } };
  const html = recapSection(r);
  assert.match(html, /<h2 id="recap-title">Your Kiro cycle<\/h2>/);
  assert.match(html, /<ul id="recap-lines"><li>Line &quot;one&quot; &lt;script&gt;alert\(1\)&lt;\/script&gt;<\/li><li>Line two<\/li><\/ul>/);
  assert.ok(!/<script|\sstyle=|\son\w+=|href=|src=/i.test(html));
- for (const id of ['recap-save', 'recap-copy', 'recap-dismiss']) assert.match(html, new RegExp(`<button type="button" id="${id}" hidden>`));
- assert.match(html, /<figure id="recap-preview" hidden><canvas id="recap-canvas" width="1200" height="630" role="img" aria-labelledby="recap-title" aria-describedby="recap-lines"><\/canvas>/);
+ for (const id of ['recap-share', 'recap-save', 'recap-copy', 'recap-dismiss']) assert.match(html, new RegExp(`<button type="button" id="${id}" hidden>`));
+ assert.match(html, /<figure id="recap-preview" hidden><canvas id="recap-canvas" width="1200" height="630" role="img" aria-labelledby="recap-title" aria-describedby="recap-summary"><\/canvas>/);
+ assert.match(html, /<strong id="recap-persona">Steady Pilot<\/strong> <span id="recap-quip">Smooth cruise, credits to spare\.<\/span>/);
+ assert.match(html, /<span id="recap-subline">of &lt;b&gt;my&lt;\/b&gt; credits<\/span>/);
+ assert.match(html, /<dl id="recap-highlights"><div><dt>Busiest &lt;i&gt;<\/dt><dd>5 &amp; more<\/dd><\/div><\/dl>/);
+ assert.match(html, /<details id="recap-details"><summary>All figures<\/summary><ul id="recap-lines">/);
  assert.match(html, /<p id="recap-status" role="status"><\/p>/);
  assert.match(html, /Save image…/); assert.match(html, /Copy text/); assert.match(html, /Dismiss/);
  buildDomModel(`<!doctype html><html lang="en"><body><main>${html}</main></body></html>`);
@@ -149,7 +157,7 @@ test('the static card is script-free text with the buttons hidden, escapes every
 
 test('present() renders the card and the export section only when given, and stays script-free and style-free', () => {
  const observed = view([], '2030-01-01T00:00:00Z');
- const r: Recap = { cycle: R2, period: 'Period', lines: ['Line'] };
+ const r: Recap = { cycle: R2, period: 'Period', lines: ['Line'], card: CARD };
  const without = present(observed).html, withCard = present(observed, [], '', '', undefined, '2030-01-01T00:00:00Z', false, undefined, '', undefined, r).html;
  assert.ok(!without.includes('id="recap-card"'));
  assert.ok(withCard.includes('id="recap-card"'));
@@ -176,4 +184,43 @@ test('quietest day needs 12 observed hours, and the pace line counts complete da
  assert.match(sparse.lines[5]!, /^Quietest observed day: .*100 credits in 12 h 0 min/);
  const short = recapOf([...cycleBefore(), at('2030-06-01T06:00:00.000Z', '10', R1), at('2030-06-05T00:00:00.000Z', '100', R1), at('2030-06-05T01:30:00.000Z', '110', R1), at('2030-06-30T20:00:00.000Z', '300', R1), ...current()])!;
  assert.equal(short.lines[5], 'Quietest observed day: not observed. No day was observed for at least 12 hours in same-day updates.');
+});
+
+test('the share card: persona from the observed outcome, an exact rounded-down percent, and only observed highlights', () => {
+ const card = (prev: ReturnType<typeof snapshot>[], days?: Parameters<typeof computeRecap>[3]) => recapOf([...cycleBefore(), ...prev, ...current()], NO_RESULTS, true, days)!.card;
+ const sorted = (rows: ReturnType<typeof snapshot>[]) => rows.sort((a, b) => a.observedAt < b.observedAt ? -1 : 1);
+ // Limit reached: Full-Throttle Builder, with the observed day it was reached by.
+ const reached = card(sorted([...previousCycle().slice(0, 3), at('2030-06-20T00:00:00.000Z', '1000', R1), at('2030-06-30T20:00:00.000Z', '1200', R1)]));
+ assert.equal(reached.persona, 'full_throttle'); assert.equal(reached.big, '120%'); assert.equal(reached.subline, 'of my credits used before the reset');
+ assert.deepEqual(reached.highlights[0], ['Limit reached by', '20 Jun (UTC)']);
+ // Lasted: by the share of the limit used, rounded down exactly (899.99 of 1000 is 89%, not 90%).
+ const lasted = (usage: string) => card([...previousCycle().slice(0, 3), at('2030-06-30T20:00:00.000Z', usage, R1)]);
+ assert.equal(lasted('900').persona, 'precision');
+ assert.deepEqual([lasted('899.99').persona, lasted('899.99').big], ['steady', '89%']);
+ assert.deepEqual([lasted('600').persona, lasted('599.9').persona, lasted('400').big], ['steady', 'saver', '40%']);
+ // Unknown whether it lasted: Credit Explorer, with no "lasted" tile.
+ const unknown = card([...previousCycle().slice(0, 3), at('2030-06-30T17:59:59.000Z', '900', R1)]);
+ assert.equal(unknown.persona, 'explorer'); assert.equal(unknown.subline, 'of my credits used in the cycle');
+ assert.ok(!unknown.highlights.some(([label]) => label === 'Lasted to the reset' || label === 'Limit reached by'));
+ // At most three tiles, never a not-observed fact.
+ for (const c of [reached, lasted('900'), unknown]) { assert.ok(c.highlights.length <= MAX_HIGHLIGHTS); assert.ok(c.highlights.every(([, value]) => !/not observed|unknown/i.test(value))); }
+ // A run of on-pace days becomes a streak tile (the pace fixture from the test above has a longest run of three).
+ const use = [20, 20, 90, 20, 20, 20]; let total = 30; const prev = [at('2030-06-01T06:00:00.000Z', '30', R1), at('2030-06-02T00:00:00.000Z', '30', R1)];
+ use.forEach((u, i) => { total += u; prev.push(at(`2030-06-0${i + 3}T00:00:00.000Z`, String(total), R1)); });
+ prev.push(at('2030-06-30T20:00:00.000Z', '900', R1));
+ assert.deepEqual(card(prev).highlights[1], ['On-pace streak', '3 days']);
+ assert.deepEqual(card(prev, ['mon', 'tue', 'wed', 'thu', 'fri']).highlights[1], ['Budget-day streak', '3 days']);
+});
+
+test('percentUsed is exact and short() truncates towards zero', () => {
+ assert.equal(percentUsed('900', '1000'), 90); assert.equal(percentUsed('899.999999', '1000'), 89); assert.equal(percentUsed('0', '50'), 0);
+ assert.equal(percentUsed('1', '3'), 33); assert.equal(percentUsed('9.99', '1'), 999); assert.equal(percentUsed('10', '1'), null, 'above 999 % the card shows the credits, never a capped figure'); assert.equal(percentUsed('5', '0'), null);
+ assert.deepEqual(['412.75', '412.0', '412', '-3.04', '-0.04', '7.5'].map(short), ['412.7', '412', '412', '-3', '0', '7.5']);
+});
+
+test('every persona has a fixed title, line and mood, and the titles are unique', () => {
+ const titles = Object.values(PERSONAS).map(p => p.title);
+ assert.equal(new Set(titles).size, titles.length);
+ for (const p of Object.values(PERSONAS)) { assert.equal(personaByTitle(p.title), p); assert.ok(['happy', 'wide', 'wink', 'calm'].includes(p.mood)); assert.ok(p.quip.length <= 60); }
+ assert.equal(personaByTitle('synthetic-unknown'), undefined);
 });
