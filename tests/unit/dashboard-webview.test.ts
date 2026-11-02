@@ -32,6 +32,7 @@ class FakeNode {
  get lastChild(): FakeNode | null { return this.childNodes.at(-1) ?? null; }
  setAttribute(name: string, value: string) { this.attrs.set(name, value); }
  getAttribute(name: string) { return this.attrs.get(name) ?? null; }
+ closest(tag: string): FakeNode | null { let n: FakeNode | undefined = this; while (n && n.localName !== tag) n = n.parentNode; return n ?? null; }
  removeAttribute(name: string) { this.attrs.delete(name); }
  contains(node: FakeNode): boolean { return this === node || this.childNodes.some(child => child.contains(node)); }
  focus() { this.focusCount++; }
@@ -565,5 +566,26 @@ test('Share copies the drawn card to the clipboard as a PNG, then tells the exte
   for (let i = 0; i < 100 && find2('recap-status').textContent === 'Copying the image…'; i++) await new Promise(r => setTimeout(r, 10));
   assert.equal(other.sent.length, 1, 'nothing is sent when the image could not be copied');
   assert.equal(find2('recap-status').textContent, ACTION_TEXT.image_unsupported);
+ }
+});
+
+test('the post buttons are revealed with the logos and send the card PNG with their fixed network, also from a click on the logo', async () => {
+ const app = await start(recapPage(RECAP));
+ const node = (id: string) => find(app.main, n => n.getAttribute('id') === id)!;
+ canvasContext(node('recap-canvas'));
+ assert.equal(node('recap-post').getAttribute('hidden'), null, 'the script reveals the row');
+ for (const id of ['recap-post-linkedin', 'recap-post-x', 'recap-post-bluesky']) assert.ok(find(node(id), n => (n.getAttribute?.('class') ?? '').includes('post-logo')), `${id} shows its logo`);
+ for (const [id, network] of [['recap-post-linkedin', 'linkedIn'], ['recap-post-x', 'x'], ['recap-post-bluesky', 'bluesky']] as const) {
+  const before = app.sent.length;
+  app.emit('click', { target: node(id), isTrusted: false }); await settle();
+  assert.equal(app.sent.length, before, 'an untrusted click sends nothing');
+  // Clicked on the logo inside the button, not on the button itself.
+  app.emit('click', { target: find(node(id), n => (n.getAttribute?.('class') ?? '').includes('post-logo'))!, isTrusted: true });
+  for (let i = 0; i < 300 && app.sent.length === before; i++) await new Promise(r => setTimeout(r, 10));
+  const message = JSON.parse(JSON.stringify(app.sent.at(-1))) as { type: string; network: string; png: string };
+  assert.deepEqual(Object.keys(message).sort(), ['network', 'png', 'type']); assert.equal(message.type, 'postRecap'); assert.equal(message.network, network);
+  assert.ok(decodeCardPng(message.png), 'the same strict card PNG that Save image writes');
+  app.emit('message', { data: { type: 'actionResult', action: 'postRecap', code: 'post_opened' } });
+  assert.equal(node('recap-status').textContent, ACTION_TEXT.post_opened);
  }
 });

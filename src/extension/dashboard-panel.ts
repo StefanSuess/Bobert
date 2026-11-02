@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { acceptMessage, buildDomModel, renderDashboardShell, type ActionMessage, type AdvisorSubmit } from './dashboard-shell.ts';
-import type { ActionCode } from './recap-actions.ts';
+import type { ActionCode, PostNetwork } from './recap-actions.ts';
 
 /** What the recap card and the export section may ask of the extension. Each answers with a fixed code; none receives a path. */
-export interface DashboardActions { exportCsv(): Promise<ActionCode>; copyRecapText(): Promise<ActionCode>; dismissRecap(): Promise<ActionCode>; shareRecap(): Promise<ActionCode>; saveRecapImage(png: string): Promise<ActionCode> }
+export interface DashboardActions { exportCsv(): Promise<ActionCode>; copyRecapText(): Promise<ActionCode>; dismissRecap(): Promise<ActionCode>; shareRecap(): Promise<ActionCode>; saveRecapImage(png: string): Promise<ActionCode>; postRecap(network: PostNetwork, png: string): Promise<ActionCode> }
 type Webview = { html: string; postMessage(message: object): PromiseLike<boolean> | boolean };
 
 /** One panel document at a time. The static page remains authoritative until its own script says ready. */
@@ -41,7 +41,7 @@ export class DashboardPanel {
   if (!this.pending) this.send();
  }
 
- reveal(html: string): void { if (this.disposed) return; this.html = html; this.failed = false; this.assign(); }
+ reveal(html: string, focus?: 'recap'): void { if (this.disposed) return; this.html = html; this.failed = false; this.assign(focus); }
 
  receive(raw: unknown): void {
   if (this.disposed) return;
@@ -82,7 +82,7 @@ export class DashboardPanel {
   this.actionBusy.add(type);
   const actions = this.actions;
   // Started in a promise job so a synchronous throw also ends in a fixed reply and frees the in-flight slot.
-  void Promise.resolve().then(() => message.type === 'saveRecapImage' ? actions.saveRecapImage(message.png) : actions[message.type]()).then(code => this.reply({ type: 'actionResult', action: type, code }), () => this.reply({ type: 'actionResult', action: type, code: 'failed' }))
+  void Promise.resolve().then(() => message.type === 'saveRecapImage' ? actions.saveRecapImage(message.png) : message.type === 'postRecap' ? actions.postRecap(message.network, message.png) : actions[message.type]()).then(code => this.reply({ type: 'actionResult', action: type, code }), () => this.reply({ type: 'actionResult', action: type, code: 'failed' }))
    .finally(() => { this.actionBusy.delete(type); this.actionLast.set(type, this.now()); });
  }
 
@@ -90,13 +90,13 @@ export class DashboardPanel {
 
  dispose(): void { this.disposed = true; this.clearTimer(); this.clearCooldown(); this.pending = 0; this.ready = false; this.failed = true; }
 
- private assign(): void {
+ private assign(focus?: 'recap'): void {
   this.clearTimer();
   this.clearCooldown();
   this.pending = 0; this.lastSent = ''; this.ready = false;
   this.load++;
   const nonce = randomBytes(16).toString('base64');
-  this.webview.html = renderDashboardShell(this.html, nonce, this.load, this.script);
+  this.webview.html = renderDashboardShell(this.html, nonce, this.load, this.script, focus);
  }
 
  private send(): void {

@@ -9,7 +9,7 @@ Bobert is the new name of Cyclegauge; this is its first release under the new na
 ### Changed
 
 - **A recap card worth sharing.** The cycle recap image is now a short card: a title for how your cycle went (for example *Precision Lander* or *Full-Throttle Builder*, chosen only from observed facts), Bobert with a speech bubble and his face as a gauge of the credits you used, the share of your reported credits used and up to three highlights such as your on-pace streak. Every figure with its basis is still in the credit view under **All figures**, and **Copy text** copies the short version.
-- **Share** copies the card image to the clipboard in one click, so you can paste it into Teams, Slack, an email or a post; a notification then offers **Post on LinkedIn**, **Post on X** (a fixed text with the Open VSX link, never your figures) and **Copy text instead**. **Save image…** still writes the file.
+- **Share** copies the card image to the clipboard in one click, so you can paste it into Slack, Teams or an email (a notification offers **Copy text instead**). Below it, **Post on** LinkedIn, X and Bluesky (each with the network's logo) saves the image first, because these networks take it only as a file, and then opens the post with a fixed text and the Open VSX link, never your figures; you add the image with the photo button. **Save image…** still writes the file, and after any save **Show file** opens its folder so you can attach it or drag it into a chat. On the card, Bobert now smiles: his gauge hangs below like a grin, and the caption says what the card is for. When a new cycle's card appears, Bobert reminds you once that it is ready to share (only in Kiro, with `bobert.supportPrompts` on).
 
 ## 1.6.0 (stable, macOS)
 

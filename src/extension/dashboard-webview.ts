@@ -1,6 +1,6 @@
 import {reconcileAdvisorDraft} from './advisor-draft.js';
 import {BOBERT, BRAND, CARD_FOOTER, CARD_HEIGHT, CARD_WIDTH, MAX_HIGHLIGHTS, cardLayout, encodePng, personaByTitle, toBase64, wrapText, type Mood} from './recap-card.js';
-import {ACTION_CODES, ACTION_NAMES, ACTION_TEXT, type ActionCode, type ActionName} from './recap-actions.js';
+import {ACTION_CODES, ACTION_NAMES, ACTION_TEXT, type ActionCode, type ActionName, type PostNetwork} from './recap-actions.js';
 // Bundled separately into one nonce'd inline script. No Node or extension APIs are available here.
 type DomNode = { kind: 'text'; text: string } | DomElement;
 interface DomElement { kind: 'element'; tag: string; attrs: Record<string, string>; children: DomNode[] }
@@ -13,7 +13,7 @@ const ATTRS = new Set('id class role aria-label aria-hidden aria-labelledby aria
 const SAFE_LINKS = new Set(['https://open-vsx.org/extension/StefanSuess/bobert/reviews', 'https://github.com/StefanSuess/Bobert', 'https://ko-fi.com/stefansuess', 'https://github.com/StefanSuess/Bobert/blob/main/docs/credit-tips.md', 'command:bobert.costAdvisor', 'command:bobert.auditWorkspace', 'command:bobert.audit.show', 'command:bobert.share', 'command:bobert.reportProblem']);
 const SVG = 'http://www.w3.org/2000/svg';
 // `hidden` is allowed only on these ids, each on its own tag; the script reveals them once it runs.
-const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'advisor-confirm': 'button', 'advisor-change-open': 'button', 'recap-share': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure' });
+const HIDDEN_IDS: Record<string, string> = Object.assign(Object.create(null), { 'chart-tooltip': 'p', 'advisor-review-again': 'button', 'advisor-confirm': 'button', 'advisor-change-open': 'button', 'recap-share': 'button', 'recap-save': 'button', 'recap-copy': 'button', 'recap-dismiss': 'button', 'export-csv': 'button', 'recap-preview': 'figure', 'recap-post': 'p' });
 // Literal DOM sinks make the permitted grammar explicit even if an inbound model is hostile.
 const HTML_ELEMENTS: Record<string, () => Element> = {
  main: () => document.createElement('main'), section: () => document.createElement('section'), article: () => document.createElement('article'), div: () => document.createElement('div'),
@@ -257,8 +257,9 @@ window.addEventListener('click',event=>{
 // Recap card and CSV export. The static page already holds the card's text; this only reveals the buttons, draws the same text on the canvas
 // (brand colours, fixed size) and sends the fixed action messages from trusted clicks. Nothing here sets markup, a link or an image source.
 const el = (id: string): Element | null => document.querySelector(`#${id}`);
-const TOOL_BUTTONS = ['recap-share', 'recap-save', 'recap-copy', 'recap-dismiss', 'export-csv'];
-const STATUS_OF: Record<ActionName, string> = { exportCsv: 'export-status', copyRecapText: 'recap-status', saveRecapImage: 'recap-status', shareRecap: 'recap-status', dismissRecap: 'export-status' };
+const TOOL_BUTTONS = ['recap-share', 'recap-save', 'recap-copy', 'recap-dismiss', 'recap-post', 'export-csv'];
+const STATUS_OF: Record<ActionName, string> = { exportCsv: 'export-status', copyRecapText: 'recap-status', saveRecapImage: 'recap-status', shareRecap: 'recap-status', postRecap: 'recap-status', dismissRecap: 'export-status' };
+const POST_BUTTONS: Record<string, PostNetwork> = Object.assign(Object.create(null), { 'recap-post-linkedin': 'linkedIn', 'recap-post-x': 'x', 'recap-post-bluesky': 'bluesky' });
 const statuses = new Map<string, string>(), inFlight = new Set<string>(), flightTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let drawnCanvas: Element | null = null, drawnKey = '';
 function say(id: string, text: string): void { statuses.set(id, text); const node = el(id); if (node && node.textContent !== text) node.textContent = text; }
@@ -276,8 +277,8 @@ function fit(ctx: Ctx, text: string, width: number, weight: number, sizes: numbe
  return sizes.at(-1)!;
 }
 /**
- * Bobert as on the icon (a 120-unit box scaled by `s`): his face is a gauge whose needle shows the share of the limit used, and his eyes the
- * persona's mood. Drawn from fixed shapes only.
+ * Bobert from the icon (a 120-unit box scaled by `s`), smiling: unlike on the icon his gauge hangs below the pivot like a smile, its needle
+ * showing the share of the limit used, and his eyes show the persona's mood. Drawn from fixed shapes only.
  */
 function drawBobert(ctx: Ctx, x: number, y: number, s: number, fraction: number, mood: Mood): void {
  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.lineCap = 'round';
@@ -288,19 +289,21 @@ function drawBobert(ctx: Ctx, x: number, y: number, s: number, fraction: number,
  ctx.strokeStyle = BOBERT.body; ctx.fillStyle = BOBERT.body; ctx.lineWidth = 3.2;
  const eye = (ex: number, kind: 'happy' | 'wide' | 'shut' | 'calm') => {
   ctx.beginPath();
-  if (kind === 'happy') { ctx.arc(ex, 57, 5, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
-  else if (kind === 'shut') { ctx.moveTo(ex - 5, 55); ctx.lineTo(ex + 5, 55); ctx.stroke(); }
-  else if (kind === 'wide') { dot(ctx, ex, 54, 5.5); ctx.fillStyle = BOBERT.face; dot(ctx, ex + 1.5, 52.5, 1.8); ctx.fillStyle = BOBERT.body; }
-  else dot(ctx, ex, 54, 4);
+  if (kind === 'happy') { ctx.arc(ex, 55, 5, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); }
+  else if (kind === 'shut') { ctx.moveTo(ex - 5, 53); ctx.lineTo(ex + 5, 53); ctx.stroke(); }
+  else if (kind === 'wide') { dot(ctx, ex, 52, 5.5); ctx.fillStyle = BOBERT.face; dot(ctx, ex + 1.5, 50.5, 1.8); ctx.fillStyle = BOBERT.body; }
+  else dot(ctx, ex, 52, 4);
  };
  eye(46, mood === 'wink' ? 'happy' : mood); eye(74, mood === 'wink' ? 'shut' : mood);
- const f = Math.min(1, Math.max(0, fraction)), needle = Math.PI * (1 + f);
- ctx.lineWidth = 4; ctx.strokeStyle = BOBERT.track; ctx.beginPath(); ctx.arc(60, 80, 16, Math.PI, 2 * Math.PI); ctx.stroke();
- ctx.strokeStyle = BOBERT.body; ctx.beginPath(); ctx.arc(60, 80, 16, Math.PI, needle); ctx.stroke();
+ // Soft cheeks, then the smile: the gauge runs from the left through the bottom to the right, so 0 % points left and 100 % right.
+ ctx.fillStyle = BOBERT.accent; ctx.globalAlpha = 0.35; dot(ctx, 37, 70, 3); dot(ctx, 83, 70, 3); ctx.globalAlpha = 1;
+ const f = Math.min(1, Math.max(0, fraction)), needle = Math.PI * (1 - f);
+ ctx.lineWidth = 4; ctx.strokeStyle = BOBERT.track; ctx.beginPath(); ctx.arc(60, 62, 16, Math.PI, 0, true); ctx.stroke();
+ ctx.strokeStyle = BOBERT.body; ctx.beginPath(); ctx.arc(60, 62, 16, Math.PI, needle, true); ctx.stroke();
  ctx.lineWidth = 1.6;
- for (let i = 0; i <= 4; i++) { const t = Math.PI * (1 + i / 4); ctx.beginPath(); ctx.moveTo(60 + 20.5 * Math.cos(t), 80 + 20.5 * Math.sin(t)); ctx.lineTo(60 + 23 * Math.cos(t), 80 + 23 * Math.sin(t)); ctx.stroke(); }
- ctx.strokeStyle = BOBERT.accent; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(60, 80); ctx.lineTo(60 + 12 * Math.cos(needle), 80 + 12 * Math.sin(needle)); ctx.stroke();
- ctx.fillStyle = BOBERT.accent; dot(ctx, 60, 80, 2.6);
+ for (let i = 0; i <= 4; i++) { const t = Math.PI * (1 - i / 4); ctx.beginPath(); ctx.moveTo(60 + 20.5 * Math.cos(t), 62 + 20.5 * Math.sin(t)); ctx.lineTo(60 + 23 * Math.cos(t), 62 + 23 * Math.sin(t)); ctx.stroke(); }
+ ctx.strokeStyle = BOBERT.accent; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(60, 62); ctx.lineTo(60 + 12 * Math.cos(needle), 62 + 12 * Math.sin(needle)); ctx.stroke();
+ ctx.fillStyle = BOBERT.accent; dot(ctx, 60, 62, 2.6);
  ctx.restore();
 }
 interface ShareCard { ended: string; persona: string; quip: string; big: string; subline: string; highlights: [string, string][]; footer: boolean }
@@ -415,8 +418,12 @@ async function shareMessage(): Promise<object> {
 }
 window.addEventListener('click', event => {
  if (!event.isTrusted) return;
- const id = (event.target as Element | null)?.getAttribute?.('id');
- if (id === 'recap-copy') request('copyRecapText', 'Copying…', () => ({ type: 'copyRecapText' }));
+ const target = event.target as Element | null;
+ // A click on a post button's logo lands on the logo, so its button is found through closest().
+ const id = target?.getAttribute?.('id') || target?.closest?.('button')?.getAttribute('id');
+ const network = id ? POST_BUTTONS[id] : undefined;
+ if (network) request('postRecap', 'Choose where to save the image…', async () => ({ type: 'postRecap', network, png: toBase64(await cardPng()) }));
+ else if (id === 'recap-copy') request('copyRecapText', 'Copying…', () => ({ type: 'copyRecapText' }));
  else if (id === 'recap-dismiss') request('dismissRecap', 'Dismissing…', () => ({ type: 'dismissRecap' }));
  else if (id === 'export-csv') request('exportCsv', 'Choose where to save the CSV file…', () => ({ type: 'exportCsv' }));
  else if (id === 'recap-save') request('saveRecapImage', 'Choose where to save the image…', cardMessage);
@@ -492,4 +499,6 @@ window.addEventListener('message', event => {
 });
 syncAdvisor();
 syncTools();
+// Opened from the cycle reminder's Show card: start at the recap card.
+if (document.documentElement.getAttribute('data-cg-focus') === 'recap') { const card = el('recap-card') as (Element & { scrollIntoView?: (o?: object) => void }) | null; try { card?.scrollIntoView?.({ block: 'start' }); } catch { /* the page simply stays at the top */ } }
 if (Number.isSafeInteger(load) && load > 0) vscode.postMessage({ type: 'ready', load });

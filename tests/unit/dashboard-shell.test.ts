@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildDomModel, renderDashboardShell, acceptMessage } from '../../src/extension/dashboard-shell.ts';
+import { LINKEDIN_LOGO_SRC } from '../../src/extension/share-logos.ts';
 import { present } from '../../src/extension/presentation.ts';
 import { view } from '../../src/view.ts';
 import { syntheticSnapshot as snapshot } from './synthetic.ts';
@@ -36,6 +37,8 @@ test('dashboard model rejects attributes and URLs outside the fixed allowlist', 
  assert.throws(() => buildDomModel(body('<a href="https://synthetic.invalid/x">go</a>')));
  assert.throws(() => buildDomModel(body('<p style="color:red">bad</p>')));
  assert.throws(() => buildDomModel(body('<p onclick="bad()">bad</p>')));
+ // No image element or source attribute at all: the LinkedIn logo is a stylesheet background.
+ for (const bad of [`<img src="${LINKEDIN_LOGO_SRC}" alt="" />`, `<p src="${LINKEDIN_LOGO_SRC}">x</p>`, '<p alt="">x</p>']) assert.throws(() => buildDomModel(body(bad)), bad.slice(0, 40));
 });
 
 test('dashboard model accepts only bounded chart interaction and headline attributes', () => {
@@ -56,6 +59,9 @@ test('shell has one nonce for style and script and no inline style attributes', 
  assert.match(html, /<script nonce="syntheticNonce123">/);
  assert.match(html, /data-cg-load="7"/);
  assert.ok(!/\sstyle=/i.test(html));
+ // The recap focus marker appears only when asked for, with its one fixed value.
+ assert.ok(!html.includes('data-cg-focus'));
+ assert.match(renderDashboardShell(staticHtml, 'syntheticNonce123', 7, 'console.log(1)', 'recap'), /<html lang="en" data-cg-load="7" data-cg-focus="recap">/);
 });
 
 test('ready and ack accept only exact plain current-load messages', () => {
@@ -67,16 +73,22 @@ test('ready and ack accept only exact plain current-load messages', () => {
 
 test('action messages accept only exact plain objects with the right keys', () => {
  const allowed = (raw: unknown) => acceptMessage(raw, 7, 4);
- for (const type of ['exportCsv', 'copyRecapText', 'dismissRecap']) {
+ for (const type of ['exportCsv', 'copyRecapText', 'dismissRecap', 'shareRecap']) {
   assert.deepEqual(allowed({ type }), { type });
   for (const extra of [{ type, png: 'AAAA' }, { type, load: 7 }, { type, ticket: 1 }, JSON.parse(`{"type":"${type}","__proto__":{}}`), JSON.parse(`{"type":"${type}","constructor":1}`)]) assert.equal(allowed(extra), null, JSON.stringify(extra));
  }
- assert.deepEqual(allowed({ type: 'saveRecapImage', png: 'AAAA' }), { type: 'saveRecapImage', png: 'AAAA' });
+ // Save image and the post buttons carry the card image, under the same checks; a post names one of the fixed networks.
  const big = 'A'.repeat(2 * 1024 * 1024);
- assert.deepEqual(allowed({ type: 'saveRecapImage', png: big }), { type: 'saveRecapImage', png: big }, 'exactly 2 MB is the largest image text');
- for (const raw of [{ type: 'saveRecapImage' }, { type: 'saveRecapImage', png: '' }, { type: 'saveRecapImage', png: big + 'A' }, { type: 'saveRecapImage', png: 5 }, { type: 'saveRecapImage', png: null }, { type: 'saveRecapImage', png: ['AAAA'] }, { type: 'saveRecapImage', png: { length: 4 } },
-  { type: 'saveRecapImage', png: 'AAAA', extra: 1 }, { type: 'saveRecapImage', picture: 'AAAA' }, JSON.parse('{"type":"saveRecapImage","png":"AAAA","__proto__":{"x":1}}'),
-  { type: 'saveRecapImage', pngs: 'AAAA', png2: 'AAAA' }]) assert.equal(allowed(raw), null, JSON.stringify(raw).slice(0, 60));
+ for (const [type, more] of [['saveRecapImage', {}], ['postRecap', { network: 'x' }]] as const) {
+  assert.deepEqual(allowed({ type, ...more, png: 'AAAA' }), { type, ...more, png: 'AAAA' });
+  assert.deepEqual(allowed({ type, ...more, png: big }), { type, ...more, png: big }, 'exactly 2 MB is the largest image text');
+  for (const raw of [{ type, ...more }, { type, ...more, png: '' }, { type, ...more, png: big + 'A' }, { type, ...more, png: 5 }, { type, ...more, png: null }, { type, ...more, png: ['AAAA'] }, { type, ...more, png: { length: 4 } },
+   { type, ...more, png: 'AAAA', extra: 1 }, { type, ...more, picture: 'AAAA' }, JSON.parse(`{"type":"${type}","png":"AAAA","__proto__":{"x":1}}`),
+   { type, ...more, pngs: 'AAAA', png2: 'AAAA' }]) assert.equal(allowed(raw), null, JSON.stringify(raw).slice(0, 60));
+ }
+ for (const network of ['linkedIn', 'x', 'bluesky']) assert.deepEqual(allowed({ type: 'postRecap', network, png: 'AAAA' }), { type: 'postRecap', network, png: 'AAAA' });
+ for (const network of ['mastodon', 'LinkedIn', 'X', '', '__proto__', 'toString', 5, null, ['x']]) assert.equal(allowed({ type: 'postRecap', network, png: 'AAAA' }), null, String(network));
+ assert.equal(allowed({ type: 'postRecap', png: 'AAAA' }), null, 'a post names its network');
  for (const raw of [Object.create(null), Object.assign(Object.create(null), { type: 'exportCsv' }), Object.create({ type: 'exportCsv' }), new (class { type = 'exportCsv'; })(), new Map([['type', 'exportCsv']]), [], 'exportCsv', 5, null, undefined, true])
   assert.equal(allowed(raw), null);
  for (const type of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf', 'get', 'ExportCsv', 'exportCsv ', 'save', 'copyText', 'dismiss', '']) assert.equal(allowed({ type }), null, type);

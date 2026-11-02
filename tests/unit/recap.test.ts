@@ -143,7 +143,9 @@ test('the static card is script-free text with the buttons hidden, escapes every
  const html = recapSection(r);
  assert.match(html, /<h2 id="recap-title">Your Kiro cycle<\/h2>/);
  assert.match(html, /<ul id="recap-lines"><li>Line &quot;one&quot; &lt;script&gt;alert\(1\)&lt;\/script&gt;<\/li><li>Line two<\/li><\/ul>/);
- assert.ok(!/<script|\sstyle=|\son\w+=|href=|src=/i.test(html));
+ assert.ok(!/<script|\sstyle=|\son\w+=|href=|src=|<img/i.test(html));
+ // The post row is hidden until the script runs; each button shows the network's logo and name.
+ assert.match(html, /<p id="recap-post" class="recap-actions recap-post" hidden><span class="muted">Post on<\/span> <button type="button" id="recap-post-linkedin"><span class="post-logo logo-linkedin" aria-hidden="true"><\/span> LinkedIn<\/button> <button type="button" id="recap-post-x"><svg class="post-logo logo-x" [^>]*aria-hidden="true">.*?<\/svg> X<\/button> <button type="button" id="recap-post-bluesky"><svg class="post-logo logo-bluesky" [^>]*aria-hidden="true">.*?<\/svg> Bluesky<\/button><\/p>/);
  for (const id of ['recap-share', 'recap-save', 'recap-copy', 'recap-dismiss']) assert.match(html, new RegExp(`<button type="button" id="${id}" hidden>`));
  assert.match(html, /<figure id="recap-preview" hidden><canvas id="recap-canvas" width="1200" height="630" role="img" aria-labelledby="recap-title" aria-describedby="recap-summary"><\/canvas>/);
  assert.match(html, /<strong id="recap-persona">Steady Pilot<\/strong> <span id="recap-quip">Smooth cruise, credits to spare\.<\/span>/);
@@ -223,4 +225,10 @@ test('every persona has a fixed title, line and mood, and the titles are unique'
  assert.equal(new Set(titles).size, titles.length);
  for (const p of Object.values(PERSONAS)) { assert.equal(personaByTitle(p.title), p); assert.ok(['happy', 'wide', 'wink', 'calm'].includes(p.mood)); assert.ok(p.quip.length <= 60); }
  assert.equal(personaByTitle('synthetic-unknown'), undefined);
+});
+
+test('the post logos are inert constants: plain base64 PNG data and SVG path data with no markup or CSS characters', async () => {
+ const { LINKEDIN_LOGO_SRC, X_LOGO, BLUESKY_LOGO } = await import('../../src/extension/share-logos.ts');
+ assert.match(LINKEDIN_LOGO_SRC, /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/);
+ for (const logo of [X_LOGO, BLUESKY_LOGO]) { assert.match(logo.d, /^[0-9A-Za-z .\-]+$/); assert.match(logo.viewBox, /^[0-9 .]+$/); }
 });

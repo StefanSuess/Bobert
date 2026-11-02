@@ -19,7 +19,7 @@ import { PRICE_STATE_KEY, readPriceState, readPriceUpdates, runPriceUpdates, typ
 import { MAX_PRICE_FILE_BYTES, PRICE_FILE_URL } from '../session/price-data.ts';
 import { buildDiagnostics, formatDiagnostics, runtimeFacts, type DiagnosticsInput } from '../diagnostics.ts';
 import { STATUS_MENU, examplePreview } from './presentation.ts';
-import { FEEDBACK_URL, ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_RECAP_ACTIONS, SHARE_RECAP_LINKS, SHARE_RECAP_PROMPT, SHARE_TEXT, SUPPORT_PROMPT_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
+import { FEEDBACK_URL, ID_PREFIX, LINKS, NOT_KIRO_TEXT, PANEL_VIEW_TYPE, RECAP_READY_PROMPT, RECAP_SAVED_FOR_POST_PROMPT, RECAP_SAVED_PROMPT, REPORT_PROBLEM_ACTION, REPORT_PROBLEM_URL, SHARE_RECAP_ACTIONS, SHARE_RECAP_LINKS, SHARE_RECAP_PROMPT, SHARE_TEXT, SHOW_CARD_ACTION, SHOW_FILE_ACTION, SUPPORT_PROMPT_TEXT, commandId, isKiroEditor, readAuditAutomatically, readBudgetDays, readBudgetWarningPercent, readBudgetWarnings, readReminderDays, readSessionHints, readUnusedCreditsPercent, readSetting, readSupportPrompts, registerCommand } from './identity.ts';
 import { ALL_DAYS, dayBudget, type BudgetDay } from './daily-budget.ts';
 import { WHATS_NEW_KEY, WHATS_NEW_URL, releaseLine, whatsNewAction, whatsNewText, BUDGET_DAYS_NOTICE_KEY, NOTICE_TEXT, budgetDaysNoticeDue, currentDayChoice, currentNoticeChoice, dayWrites, hintWrites, noticeWrites, PromptClaim, setupRunner, type DayChoice, type NoticeChoice, type SetupWrite } from './setup.ts';
 import { decideBudgetNotice } from './budget-warning.ts';
@@ -30,7 +30,8 @@ import { SNOOZE_DAYS, afterChoice, supportDue, type SupportChoice } from './supp
 import { DashboardPanel, type DashboardActions } from './dashboard-panel.ts';
 import { RECAP_KEY, nextRecapState, readRecap, type StoredRecap } from './recap.ts';
 import { protectedRoots } from './file-target.ts';
-import { exportCsv, saveRecapImage, type SaveDeps } from './recap-io.ts';
+import { exportCsv, saveRecapImageFile, type SaveDeps } from './recap-io.ts';
+import type { ActionCode } from './recap-actions.ts';
 import { registerSessionHints, type SessionHintsLink } from './session-hints.ts';
 import { budgetTightFrom } from '../session/notices.ts';
 import { RESULTS_KEY, aggregateFindings, readResults, record, type ExclusionAggregate, type StoredResults } from './results-summary.ts';
@@ -542,16 +543,17 @@ function registerResults(context: vscode.ExtensionContext, cycle: () => string |
 // "Your Kiro cycle": whether the recap card of a cycle was shown or dismissed, in the editor's global state under one versioned key. It holds
 // a billing reset time and a flag, never a path or identifier, and is not registered for Settings Sync. Reads and writes are fail-silent and
 // serialised; a value of an unknown shape hides the card and is never overwritten (the explicit reset clears it).
-interface RecapLink { state(): StoredRecap; shown(cycle: string): void; dismiss(cycle: string): Promise<boolean> }
+// `shown` resolves true only when this call wrote the mark, so the one reminder per cycle hangs on that write and can never repeat.
+interface RecapLink { state(): StoredRecap; shown(cycle: string): Promise<boolean>; dismiss(cycle: string): Promise<boolean> }
 function registerRecap(context: vscode.ExtensionContext): RecapLink {
  let queue: Promise<unknown> = Promise.resolve();
  const read = (): StoredRecap => { try { return readRecap(context.globalState.get<unknown>(RECAP_KEY)); } catch { return { status: 'unknown' }; } };
- // True when, afterwards, the stored value says `state` for this cycle.
- const write = (cycle: string, state: 'shown' | 'dismissed'): Promise<boolean> => {
+ // True when, afterwards, the stored value says `state` for this cycle (with `fresh`, only when this call wrote it).
+ const write = (cycle: string, state: 'shown' | 'dismissed', fresh = false): Promise<boolean> => {
   const run = queue.then(async () => {
    try {
     const current = read(), next = nextRecapState(current, cycle, state);
-    if (!next) return current.status === 'ok' && current.value?.cycle === cycle && current.value.state === state;
+    if (!next) return !fresh && current.status === 'ok' && current.value?.cycle === cycle && current.value.state === state;
     await context.globalState.update(RECAP_KEY, next);
     return true;
    } catch { return false; }
@@ -559,7 +561,35 @@ function registerRecap(context: vscode.ExtensionContext): RecapLink {
   queue = run;
   return run;
  };
- return { state: read, shown(cycle) { void write(cycle, 'shown'); }, dismiss: cycle => write(cycle, 'dismissed') };
+ return { state: read, shown: cycle => write(cycle, 'shown', true), dismiss: cycle => write(cycle, 'dismissed') };
+}
+// One reminder per new cycle that the share card is ready: when a new cycle's card first appears (its "shown" mark was just written), two minutes
+// later so it does not join the start-up notices. Kiro only, never in the extension tests, only with suggestions on (bobert.supportPrompts),
+// and only when the window's prompt slot is free; a missed reminder is not repeated. Fixed text, no figure; its button opens the credit view.
+const RECAP_REMINDER_DELAY_MS = 120_000;
+function registerRecapReminder(context: vscode.ExtensionContext, deps: { claim: PromptClaim; supportBusy(): boolean; pause(): void }): () => void {
+ let disposed = false, timer: ReturnType<typeof setTimeout> | undefined;
+ context.subscriptions.push({ dispose() { disposed = true; if (timer) clearTimeout(timer); } });
+ return () => {
+  try {
+   const testing = vscode.ExtensionMode !== undefined && context.extensionMode === vscode.ExtensionMode.Test;
+   if (disposed || timer || testing || !inKiro() || !readSupportPrompts((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key))) return;
+  } catch { return; }
+  timer = setTimeout(() => {
+   if (disposed) return;
+   let busy = true;
+   try { busy = deps.supportBusy(); } catch { /* busy */ }
+   if (busy || !deps.claim.claim('recap')) return;
+   try { deps.pause(); } catch { /* nothing else depends on it */ }
+   void Promise.resolve(vscode.window.showInformationMessage(RECAP_READY_PROMPT, SHOW_CARD_ACTION))
+    .then(async choice => {
+     if (choice !== SHOW_CARD_ACTION) return;
+     recapFocusNow = true;
+     try { await vscode.commands.executeCommand(commandId('showUsage')); } finally { recapFocusNow = false; }
+    })
+    .catch(() => undefined).finally(() => deps.claim.release('recap'));
+  }, RECAP_REMINDER_DELAY_MS);
+ };
 }
 const SUPPORT_FIRST_KEY = 'bobert.support.firstSeen.v1';
 const SUPPORT_NEXT_KEY = 'bobert.support.next.v1';
@@ -681,6 +711,8 @@ const WALKTHROUGH_KEY = 'bobert.walkthrough.shown.v1';
 const WALKTHROUGH_ID = 'StefanSuess.bobert#bobert.gettingStarted';
 // True once this window opened the walkthrough by itself; the first-time audit prompt then waits for a later window.
 let walkthroughOpenedNow = false;
+// True only while the cycle reminder's Show card opens the credit view, so that view starts at the recap card.
+let recapFocusNow = false;
 // True once this window recognised a new user (no earlier Bobert state); set synchronously, so the budget days notice never reaches them.
 let newUserNow = false;
 function registerWalkthrough(context: vscode.ExtensionContext): void {
@@ -953,6 +985,8 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
  } catch { /* Nor the what's new notice. */ }
  try { results = registerResults(context, () => controllerRef?.cycle() ?? null, () => controllerRef?.rerender()); } catch { /* Nor the results summary. */ }
  try { recap = registerRecap(context); } catch { /* Nor the cycle recap. */ }
+ let remindRecap: (() => void) | undefined;
+ try { remindRecap = registerRecapReminder(context, { claim, supportBusy: () => support?.prompted() ?? false, pause: () => support?.pause() }); } catch { /* Nor its reminder. */ }
  sessionHints = undefined;
  // Context reminder and model hint from the newest IDE session: Kiro only, never in the extension tests, silent on any failure.
  try { sessionHints = registerSessionHints(context, () => inKiro() && !(vscode.ExtensionMode !== undefined && context.extensionMode === vscode.ExtensionMode.Test), () => support?.pause(), () => budgetTight); } catch { /* Nor must the session hints. */ }
@@ -990,24 +1024,41 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
   // Also the editor's own data root (three levels above this extension's global storage folder) and its log root.
   protectedPaths: () => protectedRoots([context.globalStorageUri.fsPath, dirname(dirname(dirname(context.globalStorageUri.fsPath))), logsRoot(context.logUri?.fsPath), storage, defaultStorage(), source, defaultSource(), setting('storageRoot'), setting('sourceRoot')].filter(Boolean)),
  };
+ // After a save, a fixed notice offers to show the file in the system file manager (to attach it or drag it into a chat). The path goes
+ // only to the editor's reveal command, never into a message.
+ const offerSavedFile = (text: string, path: string) => void Promise.resolve(vscode.window.showInformationMessage(text, SHOW_FILE_ACTION))
+  .then(choice => choice === SHOW_FILE_ACTION ? vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(path)) : undefined).catch(() => undefined);
+ const saveRecap = async (png: string, text: string): Promise<ActionCode> => {
+  if (!controllerRef?.recapText()) return 'unavailable';
+  const result = await saveRecapImageFile(saving, png);
+  if (result.path) offerSavedFile(text, result.path);
+  return result.code;
+ };
  const actions: DashboardActions = {
   async exportCsv() { return controllerRef ? exportCsv(saving, await controllerRef.exportSnapshots()) : 'unavailable'; },
   // The image is saved only while a card is shown; the clipboard text is always built here, never by the page.
-  async saveRecapImage(png) { return controllerRef?.recapText() ? saveRecapImage(saving, png) : 'unavailable'; },
+  async saveRecapImage(png) { return saveRecap(png, RECAP_SAVED_PROMPT); },
   async copyRecapText() {
    const text = controllerRef?.recapText();
    if (!text) return 'unavailable';
    try { await vscode.env.clipboard.writeText(text); return 'copied'; } catch { return 'failed'; }
   },
   async dismissRecap() { return controllerRef && await controllerRef.dismissRecap() ? 'dismissed' : 'failed'; },
-  // The page has already put the image on the clipboard; this only offers the fixed next steps and does not wait for the choice.
+  // The page has already put the image on the clipboard; this only offers the text instead and does not wait for the choice.
   async shareRecap() {
    if (!controllerRef?.recapText()) return 'unavailable';
-   void Promise.resolve(vscode.window.showInformationMessage(SHARE_RECAP_PROMPT, SHARE_RECAP_ACTIONS.linkedIn, SHARE_RECAP_ACTIONS.x, SHARE_RECAP_ACTIONS.text)).then(async choice => {
+   void Promise.resolve(vscode.window.showInformationMessage(SHARE_RECAP_PROMPT, SHARE_RECAP_ACTIONS.text)).then(async choice => {
     if (choice === SHARE_RECAP_ACTIONS.text) { const text = controllerRef?.recapText(); if (text) await vscode.env.clipboard.writeText(text); }
-    else if (choice === SHARE_RECAP_ACTIONS.linkedIn || choice === SHARE_RECAP_ACTIONS.x) await vscode.env.openExternal(vscode.Uri.parse(choice === SHARE_RECAP_ACTIONS.x ? SHARE_RECAP_LINKS.x : SHARE_RECAP_LINKS.linkedIn));
    }).catch(() => undefined);
    return 'image_copied';
+  },
+  // A post button: LinkedIn, X and Bluesky take an image only as a file, so the image is saved through the dialog first and the fixed post
+  // link opens only after a save.
+  async postRecap(network, png) {
+   const code = await saveRecap(png, RECAP_SAVED_FOR_POST_PROMPT);
+   if (code !== 'saved') return code;
+   await vscode.env.openExternal(vscode.Uri.parse(SHARE_RECAP_LINKS[network]));
+   return 'post_opened';
   },
  };
  const register = (suffix: string, fn: () => unknown) => disposables.push(registerCommand((id, f) => vscode.commands.registerCommand(id, f), suffix, fn));
@@ -1039,10 +1090,11 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
    dashboard?.set(detail);
   },
   showDetails(html) {
-   if (panel) { revealing = true; try { panel.reveal(); } finally { revealing = false; } dashboard?.reveal(html); advisorItem.show(); return; }
+   const focus = recapFocusNow ? 'recap' as const : undefined;
+   if (panel) { revealing = true; try { panel.reveal(); } finally { revealing = false; } dashboard?.reveal(html, focus); advisorItem.show(); return; }
    panel = vscode.window.createWebviewPanel(PANEL_VIEW_TYPE, 'Your credit budget', vscode.ViewColumn.One, { enableScripts: true, retainContextWhenHidden: false, enableCommandUris: [commandId('costAdvisor'), commandId('auditWorkspace'), commandId('audit.show'), commandId('share'), commandId('reportProblem')], localResourceRoots: [] });
    dashboard = new DashboardPanel(panel.webview, __DASHBOARD_SCRIPT__, () => { rejectedMessages = Math.min(Number.MAX_SAFE_INTEGER, rejectedMessages + 1); }, Date.now, m => controllerRef?.submitAdvisor(m.ticket,m) ?? Promise.resolve({status:'stale' as const,epoch:0}), actions);
-   dashboard.reveal(html);
+   dashboard.reveal(html, focus);
    advisorItem.show();
    disposables.push(panel.webview.onDidReceiveMessage(raw => dashboard?.receive(raw)));
    disposables.push(panel.onDidChangeViewState(e => { if (e.webviewPanel.visible) { advisorItem.show(); if (!revealing) dashboard?.reveal(detail); } else advisorItem.hide(); }));
@@ -1070,7 +1122,7 @@ async function startGauge(context: vscode.ExtensionContext): Promise<void> {
  };
  gaugeState.config = { storage: chosenStorage ? 'chosen' : 'default', source: setting('sourceRoot') ? 'chosen' : 'default', timezone: setting('sourceTimezone') ? 'chosen' : 'device' };
  try {
-  const controller = await startExtension(ui, { source, storage, profileStorage: !chosenStorage, timezone, auditSummary: audit?.summary, resultsSummary: results?.summary, recapState: recap?.state, recapLink: () => readSupportPrompts((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key)), recapShown: cycle => recap?.shown(cycle), recapDismiss: cycle => recap?.dismiss(cycle) ?? Promise.resolve(false), notKiro: !inKiro() && !setting('sourceRoot'), onAdvisorUsed: () => support?.advisorUsed(), onForecast: () => support?.valueSeen(), onAbsent: () => support?.absent(), onBudget: (o, eligible, now, insights) => budget?.evaluate(o, eligible, now, insights), onAllowance, budgetDays: () => readBudgetDays(vscode.workspace.getConfiguration(ID_PREFIX).inspect('budgetDays')), dayZone: Intl.DateTimeFormat().resolvedOptions().timeZone, unusedPercent: () => readUnusedCreditsPercent((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key)) });
+  const controller = await startExtension(ui, { source, storage, profileStorage: !chosenStorage, timezone, auditSummary: audit?.summary, resultsSummary: results?.summary, recapState: recap?.state, recapLink: () => readSupportPrompts((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key)), recapShown: cycle => { void recap?.shown(cycle).then(fresh => { if (fresh) remindRecap?.(); }).catch(() => undefined); }, recapDismiss: cycle => recap?.dismiss(cycle) ?? Promise.resolve(false), notKiro: !inKiro() && !setting('sourceRoot'), onAdvisorUsed: () => support?.advisorUsed(), onForecast: () => support?.valueSeen(), onAbsent: () => support?.absent(), onBudget: (o, eligible, now, insights) => budget?.evaluate(o, eligible, now, insights), onAllowance, budgetDays: () => readBudgetDays(vscode.workspace.getConfiguration(ID_PREFIX).inspect('budgetDays')), dayZone: Intl.DateTimeFormat().resolvedOptions().timeZone, unusedPercent: () => readUnusedCreditsPercent((prefix, key) => vscode.workspace.getConfiguration(prefix).get<unknown>(key)) });
   controllerRef = controller;
   try { context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('bobert.budgetDays')) controllerRef?.rerender(); })); } catch { /* the gauge then updates at its next refresh */ }
   audit?.onChange(controller.rerender);
