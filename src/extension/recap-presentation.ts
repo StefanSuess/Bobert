@@ -1,7 +1,6 @@
 import { escapeHtml } from './labels.ts';
-import { CARD_HEIGHT, CARD_WIDTH, PERSONAS } from './recap-card.ts';
+import { CARD_HEIGHT, CARD_WIDTH, PERSONAS, BLUESKY_LOGO, X_LOGO } from './recap-card.ts';
 import { RECAP_TITLE, type Recap } from './recap.ts';
-import { BLUESKY_LOGO, X_LOGO } from './share-logos.ts';
 
 // Static, script-free markup for the recap card and the export section. The share summary (persona, Bobert's line, the big figure and the
 // highlights) is the card image's full text alternative and is complete without any script; every figure with its basis follows in the

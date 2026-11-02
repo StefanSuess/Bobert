@@ -3,7 +3,7 @@ import { view } from '../view.ts';
 import type { StoredSnapshot } from '../store.ts';
 import { compare, compareRatios } from '../decimal.ts';
 import { readable, updated, date } from './labels.ts';
-import { LINKEDIN_LOGO_SRC } from './share-logos.ts';
+import { LINKEDIN_LOGO_SRC } from './recap-card.ts';
 import { presentChartParts, heatmap, CHART_CSS, HEATMAP_CSS } from './chart.ts';
 import { countsText, recipeHint, relativeTime, sizePhrase, workspaceScore, type AuditSummary } from './audit-model.ts';
 import { LINKS, NOT_KIRO_TEXT, UNUSED_PERCENT_DEFAULT, commandId } from './identity.ts';

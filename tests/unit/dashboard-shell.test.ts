@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildDomModel, renderDashboardShell, acceptMessage } from '../../src/extension/dashboard-shell.ts';
-import { LINKEDIN_LOGO_SRC } from '../../src/extension/share-logos.ts';
+import { LINKEDIN_LOGO_SRC } from '../../src/extension/recap-card.ts';
 import { present } from '../../src/extension/presentation.ts';
 import { view } from '../../src/view.ts';
 import { syntheticSnapshot as snapshot } from './synthetic.ts';

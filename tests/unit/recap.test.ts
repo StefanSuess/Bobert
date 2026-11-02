@@ -228,7 +228,7 @@ test('every persona has a fixed title, line and mood, and the titles are unique'
 });
 
 test('the post logos are inert constants: plain base64 PNG data and SVG path data with no markup or CSS characters', async () => {
- const { LINKEDIN_LOGO_SRC, X_LOGO, BLUESKY_LOGO } = await import('../../src/extension/share-logos.ts');
+ const { LINKEDIN_LOGO_SRC, X_LOGO, BLUESKY_LOGO } = await import('../../src/extension/recap-card.ts');
  assert.match(LINKEDIN_LOGO_SRC, /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/);
  for (const logo of [X_LOGO, BLUESKY_LOGO]) { assert.match(logo.d, /^[0-9A-Za-z .\-]+$/); assert.match(logo.viewBox, /^[0-9 .]+$/); }
 });
