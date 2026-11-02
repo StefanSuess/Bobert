@@ -32,7 +32,7 @@ test('the first time a new cycle is observed the card appears once and is marked
   assert.deepEqual(h.shown, ['2030-08-01T00:00:00.000Z']);
   await h.controller.refresh(); h.controller.rerender();
   assert.equal(h.shown.length, 1, 'asked once per cycle and session');
-  assert.match(h.controller.recapText()!, /^Your Kiro cycle\nCycle that ended 1 Jul 2030 \(UTC\)\./);
+  assert.match(h.controller.recapText()!, /^My Kiro cycle: Precision Lander\n90% of my credits used, and they lasted to the reset\.\n.*\nCycle that ended 1 Jul 2030 \(UTC\)\./);
   assert.ok(!/synthetic-recap-account|synthetic-run/.test(h.html() + h.controller.recapText()!));
  } finally { await h.done(); }
 });

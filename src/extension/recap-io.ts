@@ -18,22 +18,27 @@ export interface SaveDeps {
  folder?(): string;
 }
 
-async function save(deps: SaveDeps, fileName: string, filter: { name: string; extension: string }, data: Uint8Array | string): Promise<ActionCode> {
+/** A save outcome; `path` is the written file, only for the editor glue to reveal it, and never leaves the extension. */
+export type SaveResult = { code: ActionCode; path?: string };
+async function save(deps: SaveDeps, fileName: string, filter: { name: string; extension: string }, data: Uint8Array | string): Promise<SaveResult> {
  const picked = await deps.dialog(join(deps.folder?.() ?? defaultFolder(), fileName), filter);
- if (!picked) return 'cancelled';
- if (picked.scheme !== 'file' || typeof picked.fsPath !== 'string') return 'refused_target';
+ if (!picked) return { code: 'cancelled' };
+ if (picked.scheme !== 'file' || typeof picked.fsPath !== 'string') return { code: 'refused_target' };
  const roots = deps.protectedPaths();
  const checked = checkTarget(picked.fsPath, roots);
- if (!checked.ok) return 'refused_target';
+ if (!checked.ok) return { code: 'refused_target' };
  const written = await writeAtomically(checked, data, roots);
- return written === 'saved' ? 'saved' : written === 'write_failed' ? 'failed' : 'refused_target';
+ return written === 'saved' ? { code: 'saved', path: checked.path } : { code: written === 'write_failed' ? 'failed' : 'refused_target' };
 }
 /** The image is checked first, so nobody is asked where to save something that would be refused. */
-export async function saveRecapImage(deps: SaveDeps, png: unknown): Promise<ActionCode> {
+export async function saveRecapImageFile(deps: SaveDeps, png: unknown): Promise<SaveResult> {
  const bytes = decodeCardPng(png);
- return bytes ? save(deps, PNG_FILE, { name: 'PNG image', extension: 'png' }, bytes) : 'invalid_image';
+ return bytes ? save(deps, PNG_FILE, { name: 'PNG image', extension: 'png' }, bytes) : { code: 'invalid_image' };
+}
+export async function saveRecapImage(deps: SaveDeps, png: unknown): Promise<ActionCode> {
+ return (await saveRecapImageFile(deps, png)).code;
 }
 export async function exportCsv(deps: SaveDeps, snapshots: readonly StoredSnapshot[]): Promise<ActionCode> {
  const csv = buildCsv(snapshots);
- return csv.ok ? save(deps, CSV_FILE, { name: 'CSV file', extension: 'csv' }, csv.csv) : csv.code;
+ return csv.ok ? (await save(deps, CSV_FILE, { name: 'CSV file', extension: 'csv' }, csv.csv)).code : csv.code;
 }

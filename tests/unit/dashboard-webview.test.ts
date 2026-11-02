@@ -9,7 +9,7 @@ import { planHint, type AdvisorContext } from '../../src/cost/advisor.ts';
 import { reviewedCatalog } from '../../src/cost/catalog.ts';
 import { view } from '../../src/view.ts';
 import { syntheticSnapshot as snapshot } from './synthetic.ts';
-import { BRAND, CARD_FOOTER, CARD_HEIGHT, CARD_WIDTH, RECAP_LINK_TEXT } from '../../src/extension/recap-card.ts';
+import { BOBERT, BRAND, CARD_FOOTER, CARD_HEIGHT, CARD_WIDTH, RECAP_LINK_TEXT } from '../../src/extension/recap-card.ts';
 import { decodeCardPng } from '../../src/extension/recap-png.ts';
 import { ACTION_TEXT } from '../../src/extension/recap-actions.ts';
 import type { Recap } from '../../src/extension/recap.ts';
@@ -32,6 +32,7 @@ class FakeNode {
  get lastChild(): FakeNode | null { return this.childNodes.at(-1) ?? null; }
  setAttribute(name: string, value: string) { this.attrs.set(name, value); }
  getAttribute(name: string) { return this.attrs.get(name) ?? null; }
+ closest(tag: string): FakeNode | null { let n: FakeNode | undefined = this; while (n && n.localName !== tag) n = n.parentNode; return n ?? null; }
  removeAttribute(name: string) { this.attrs.delete(name); }
  contains(node: FakeNode): boolean { return this === node || this.childNodes.some(child => child.contains(node)); }
  focus() { this.focusCount++; }
@@ -54,7 +55,7 @@ const anchors = (node: FakeNode): FakeNode[] => [node, ...node.childNodes.flatMa
 const html = (rows: string) => `<!doctype html><html><body><main><details><summary>History</summary><table>${rows}</table><a href="command:bobert.share">Share</a></details></main></body></html>`;
 const script = async () => (await build({ entryPoints: ['src/extension/dashboard-webview.ts'], bundle: true, platform: 'browser', format: 'iife', write: false, logLevel: 'silent' })).outputFiles[0]!.text;
 
-async function start(initial: string) {
+async function start(initial: string, extra: Record<string, unknown> = {}) {
  const main = fromModel(buildDomModel(initial));
  const reserve = e('div');
  for (const href of ['https://open-vsx.org/extension/StefanSuess/bobert/reviews', 'https://github.com/StefanSuess/Bobert', 'https://ko-fi.com/stefansuess', 'command:bobert.costAdvisor', 'command:bobert.auditWorkspace', 'command:bobert.audit.show', 'command:bobert.share', 'command:bobert.reportProblem']) {
@@ -67,7 +68,7 @@ async function start(initial: string) {
   querySelectorAll: (selector: string) => selector === '[data-chart-point]' ? all(main, n => n.getAttribute('data-chart-point') !== null) : [],
   createTextNode: t, createElement: (tag: string) => { assert.notEqual(tag, 'a', 'browser must never create an anchor');created.push(tag);return e(tag); }, createElementNS: (ns: string, tag: string) => { assert.equal(ns, 'http://www.w3.org/2000/svg');created.push(`svg:${tag}`);return e(tag); } };
  const window = { scrollX: 4, scrollY: 80, scrollTo(x: number, y: number) { scroll = [x, y]; }, addEventListener(type: string, fn: (event: any) => void) { handlers.set(type, [...(handlers.get(type) ?? []), fn]); } };
- runInNewContext(await script(), { document, window, Node: { TEXT_NODE: 3, ELEMENT_NODE: 1 }, acquireVsCodeApi: () => ({ postMessage: (m: unknown) => sent.push(m) }), setTimeout: (fn: () => void) => {const id=++nextTimer;timers.set(id,fn);return id;}, clearTimeout: (id: number) => timers.delete(id), Object, Number, Set, Array, Blob, Response, CompressionStream, btoa });
+ runInNewContext(await script(), { document, window, Node: { TEXT_NODE: 3, ELEMENT_NODE: 1 }, acquireVsCodeApi: () => ({ postMessage: (m: unknown) => sent.push(m) }), setTimeout: (fn: () => void) => {const id=++nextTimer;timers.set(id,fn);return id;}, clearTimeout: (id: number) => timers.delete(id), Object, Number, Set, Array, Blob, Response, CompressionStream, btoa, ...extra });
  return { main, reserve, document, sent, created, scroll: () => scroll, tick() { for(const fn of timers.values())fn();timers.clear(); }, emit(type: string, event: object) { for (const fn of handlers.get(type)!) fn({ ...event }); }, send(model: unknown, version = 1, schema = 1) { for (const fn of handlers.get('message')!) fn({ data: { type: 'model', schema, version, model } }); } };
 }
 
@@ -327,13 +328,16 @@ test('an invalid answer gets its own error line tied to the field, and other fie
 });
 
 // Recap card, image and CSV: the script reveals the buttons, draws the card and sends only fixed messages from trusted clicks.
-const RECAP: Recap = { cycle: '2030-08-01T00:00:00.000Z', period: 'Cycle that ended 1 Jul 2030 (UTC). Figures are observed.', lines: ['Credits used: 900 of 1000 reported credits.', 'Lasted until the reset: yes.', 'Busiest observed day (partial observation): not observed.'] };
+const RECAP: Recap = { cycle: '2030-08-01T00:00:00.000Z', period: 'Cycle that ended 1 Jul 2030 (UTC). Figures are observed.', lines: ['Credits used: 900 of 1000 reported credits.', 'Lasted until the reset: yes.', 'Busiest observed day (partial observation): not observed.'], card: { persona: 'precision', big: '90%', subline: 'of my credits used, and they lasted to the reset', highlights: [['Lasted to the reset', 'Yes'], ['Busiest day', '412 credits']] } };
 const recapPage = (recap?: Recap) => present(view([], '2030-01-01T00:00:00Z'), [], '', '', undefined, '2030-01-01T00:00:00Z', false, undefined, '', undefined, recap).html;
 const settle = async () => { for (let i = 0; i < 40; i++) await new Promise(r => setImmediate(r)); };
 function canvasContext(node: FakeNode) {
  const calls: { fills: string[]; texts: string[]; rects: number[][]; styles: string[] } = { fills: [], texts: [], rects: [], styles: [] };
  let style = '';
+ const noop = () => {};
  const ctx = { set fillStyle(v: string) { style = v; calls.styles.push(v); }, get fillStyle() { return style; }, set font(_v: string) {}, set textBaseline(_v: string) {},
+  set strokeStyle(v: string) { calls.styles.push(v); }, set lineWidth(_v: number) {}, set lineCap(_v: string) {},
+  beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop, arc: noop, arcTo: noop, fill: noop, stroke: noop, save: noop, restore: noop, translate: noop, scale: noop,
   fillRect(...a: number[]) { calls.rects.push(a); calls.fills.push(style); }, fillText(t: string) { calls.texts.push(t); calls.fills.push(style); }, measureText: (t: string) => ({ width: t.length * 10 }),
   getImageData: (_x: number, _y: number, w: number, h: number) => { const data = new Uint8ClampedArray(w * h * 4); for (let i = 0; i < data.length; i += 4) { data[i] = 11; data[i + 1] = 37; data[i + 2] = 69; data[i + 3] = 255; } return { data }; } };
  (node as any).getContext = () => ctx;
@@ -342,20 +346,23 @@ function canvasContext(node: FakeNode) {
 
 test('script reveals the card tools, draws the card text in brand colours and keeps one text alternative', async () => {
  const app = await start(recapPage(RECAP));
- const ids = ['recap-save', 'recap-copy', 'recap-dismiss', 'export-csv', 'recap-preview'];
+ const ids = ['recap-share', 'recap-save', 'recap-copy', 'recap-dismiss', 'export-csv', 'recap-preview'];
  const node = (id: string) => find(app.main, n => n.getAttribute('id') === id)!;
- assert.ok(ids.slice(0, 4).every(id => node(id).getAttribute('hidden') === null), 'the buttons are revealed by the running script');
+ assert.ok(ids.slice(0, 5).every(id => node(id).getAttribute('hidden') === null), 'the buttons are revealed by the running script');
  assert.equal(node('recap-preview').getAttribute('hidden'), '', 'the preview waits for a canvas that can draw');
  const canvas = node('recap-canvas'); const calls = canvasContext(canvas);
- app.send(buildDomModel(recapPage({ ...RECAP, lines: [...RECAP.lines, 'Exclusions you saved in that cycle: none counted.'] })));
+ app.send(buildDomModel(recapPage({ ...RECAP, card: { ...RECAP.card, highlights: [...RECAP.card.highlights, ['On-pace streak', '9 days']] } })));
  assert.ok(ids.every(id => node(id).getAttribute('hidden') === null), 'a model update that re-hides them is undone in the same step');
  assert.equal(node('recap-canvas'), canvas, 'the canvas node survives the update');
  const drawn = calls.texts.join(' ');
- for (const text of ['Your Kiro cycle', 'Cycle that ended', 'Credits used: 900 of 1000', 'Lasted until the reset: yes.', 'none counted']) assert.ok(drawn.includes(text), text);
- const allowed = new Set<string>(Object.values(BRAND));
+ // The image carries the short share card only: persona, Bobert's line, the big figure and the highlight tiles, never the long figure lines.
+ for (const text of ['MY KIRO CYCLE · ENDED 1 JUL 2030 (UTC)', 'Precision Lander', 'Right up to the reset.', '90%', 'Lasted to the reset', 'Yes', 'Busiest day', '412 credits', 'On-pace streak', '9 days']) assert.ok(calls.texts.includes(text) || drawn.includes(text), text);
+ assert.ok(!drawn.includes('Credits used: 900 of 1000'), 'the detailed lines stay in the page');
+ const allowed = new Set<string>([...Object.values(BRAND), ...Object.values(BOBERT)]);
  assert.ok(calls.styles.length > 0 && calls.styles.every(c => allowed.has(c)), 'only brand colours are used');
  assert.deepEqual(calls.rects[0], [0, 0, CARD_WIDTH, CARD_HEIGHT]);
- assert.equal(canvas.getAttribute('aria-labelledby'), 'recap-title'); assert.equal(canvas.getAttribute('aria-describedby'), 'recap-lines');
+ assert.equal(canvas.getAttribute('aria-labelledby'), 'recap-title'); assert.equal(canvas.getAttribute('aria-describedby'), 'recap-summary');
+ assert.match(app.main.textContent, /Precision Lander/, 'the share card is in the page as text');
  assert.match(app.main.textContent, /Credits used: 900 of 1000 reported credits\./, 'the text alternative is in the page');
  assert.deepEqual(JSON.parse(JSON.stringify(app.sent.at(-1))), { type: 'ack', version: 1 });
 });
@@ -368,7 +375,7 @@ test('the share line becomes a branded footer on the image, and without it the c
   const footer = [CARD_FOOTER.brand, CARD_FOOTER.tagline, CARD_FOOTER.hint];
   assert.equal(calls.texts.includes(RECAP_LINK_TEXT), false, 'the share line is never drawn as a body line');
   assert.deepEqual(footer.map(t => calls.texts.includes(t)), footer.map(() => link), String(link));
-  const allowed = new Set<string>(Object.values(BRAND));
+  const allowed = new Set<string>([...Object.values(BRAND), ...Object.values(BOBERT)]);
   assert.ok(calls.styles.every(c => allowed.has(c)), 'only brand colours are used');
   if (link) assert.match(app.main.textContent, /Made with Bobert, the free credit tracker for Kiro/, 'the text alternative keeps the share line');
  }
@@ -530,4 +537,55 @@ test('a hostile model cannot carry a data-hint on another element or with anothe
  // The reviewed model is accepted and acknowledged.
  app.send(model, 8);
  assert.equal(app.sent.length, before + 1);
+});
+
+test('Share copies the drawn card to the clipboard as a PNG, then tells the extension; without image clipboard support it says so and sends nothing', async () => {
+ const written: unknown[][] = [];
+ class FakeItem { items: Record<string, Promise<Blob>>; constructor(items: Record<string, Promise<Blob>>) { this.items = items; } }
+ const app = await start(recapPage(RECAP), { navigator: { clipboard: { write: async (items: unknown[]) => { written.push(items); } } }, ClipboardItem: FakeItem });
+ const node = (id: string) => find(app.main, n => n.getAttribute('id') === id)!;
+ canvasContext(node('recap-canvas'));
+ app.emit('click', { target: node('recap-share'), isTrusted: false }); await settle();
+ assert.equal(written.length, 0, 'an untrusted click copies nothing');
+ app.emit('click', { target: node('recap-share'), isTrusted: true });
+ for (let i = 0; i < 300 && app.sent.length < 2; i++) await new Promise(r => setTimeout(r, 10));
+ assert.deepEqual(JSON.parse(JSON.stringify(app.sent.at(-1))), { type: 'shareRecap' }, 'the message carries no image and no text');
+ assert.equal(written.length, 1);
+ const item = written[0]![0] as FakeItem, blob = await item.items['image/png']!;
+ assert.deepEqual(Object.keys(item.items), ['image/png']); assert.equal(blob.type, 'image/png');
+ const bytes = new Uint8Array(await blob.arrayBuffer());
+ assert.ok(decodeCardPng(Buffer.from(bytes).toString('base64')), 'the same strict card PNG that Save image writes');
+ app.emit('message', { data: { type: 'actionResult', action: 'shareRecap', code: 'image_copied' } });
+ assert.equal(node('recap-status').textContent, ACTION_TEXT.image_copied);
+
+ for (const env of [{}, { navigator: { clipboard: { write: async () => { throw new Error('synthetic-denied'); } } }, ClipboardItem: FakeItem }]) {
+  const other = await start(recapPage(RECAP), env);
+  const find2 = (id: string) => find(other.main, n => n.getAttribute('id') === id)!;
+  canvasContext(find2('recap-canvas'));
+  other.emit('click', { target: find2('recap-share'), isTrusted: true }); await settle();
+  for (let i = 0; i < 100 && find2('recap-status').textContent === 'Copying the image…'; i++) await new Promise(r => setTimeout(r, 10));
+  assert.equal(other.sent.length, 1, 'nothing is sent when the image could not be copied');
+  assert.equal(find2('recap-status').textContent, ACTION_TEXT.image_unsupported);
+ }
+});
+
+test('the post buttons are revealed with the logos and send the card PNG with their fixed network, also from a click on the logo', async () => {
+ const app = await start(recapPage(RECAP));
+ const node = (id: string) => find(app.main, n => n.getAttribute('id') === id)!;
+ canvasContext(node('recap-canvas'));
+ assert.equal(node('recap-post').getAttribute('hidden'), null, 'the script reveals the row');
+ for (const id of ['recap-post-linkedin', 'recap-post-x', 'recap-post-bluesky']) assert.ok(find(node(id), n => (n.getAttribute?.('class') ?? '').includes('post-logo')), `${id} shows its logo`);
+ for (const [id, network] of [['recap-post-linkedin', 'linkedIn'], ['recap-post-x', 'x'], ['recap-post-bluesky', 'bluesky']] as const) {
+  const before = app.sent.length;
+  app.emit('click', { target: node(id), isTrusted: false }); await settle();
+  assert.equal(app.sent.length, before, 'an untrusted click sends nothing');
+  // Clicked on the logo inside the button, not on the button itself.
+  app.emit('click', { target: find(node(id), n => (n.getAttribute?.('class') ?? '').includes('post-logo'))!, isTrusted: true });
+  for (let i = 0; i < 300 && app.sent.length === before; i++) await new Promise(r => setTimeout(r, 10));
+  const message = JSON.parse(JSON.stringify(app.sent.at(-1))) as { type: string; network: string; png: string };
+  assert.deepEqual(Object.keys(message).sort(), ['network', 'png', 'type']); assert.equal(message.type, 'postRecap'); assert.equal(message.network, network);
+  assert.ok(decodeCardPng(message.png), 'the same strict card PNG that Save image writes');
+  app.emit('message', { data: { type: 'actionResult', action: 'postRecap', code: 'post_opened' } });
+  assert.equal(node('recap-status').textContent, ACTION_TEXT.post_opened);
+ }
 });

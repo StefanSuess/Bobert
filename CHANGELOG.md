@@ -4,6 +4,13 @@ All notable changes to Bobert: Kiro Credit Tracker. Bobert is an unofficial proj
 
 Bobert is the new name of Cyclegauge; this is its first release under the new name. Settings and history from Cyclegauge are not carried over. If you had turned off session hints (`bobert.sessionHints`), budget warnings (`bobert.budgetWarnings`) or support prompts (`bobert.supportPrompts`) in Cyclegauge, they are on again in Bobert; turn them off again in your user settings. Cyclegauge's stored history stays where it was until you delete it; see [data left by Cyclegauge](docs/privacy-and-storage.md#data-left-by-cyclegauge).
 
+## Unreleased
+
+### Changed
+
+- **A recap card worth sharing.** The cycle recap image is now a short card: a title for how your cycle went (for example *Precision Lander* or *Full-Throttle Builder*, chosen only from observed facts), Bobert with a speech bubble and his face as a gauge of the credits you used, the share of your reported credits used and up to three highlights such as your on-pace streak. Every figure with its basis is still in the credit view under **All figures**, and **Copy text** copies the short version.
+- **Share** copies the card image to the clipboard in one click, so you can paste it into Slack, Teams or an email (a notification offers **Copy text instead**). Below it, **Post on** LinkedIn, X and Bluesky (each with the network's logo) saves the image first, because these networks take it only as a file, and then opens the post with a fixed text and the Open VSX link, never your figures; you add the image with the photo button. **Save image…** still writes the file, and after any save **Show file** opens its folder so you can attach it or drag it into a chat. On the card, Bobert now smiles: his gauge hangs below like a grin, and the caption says what the card is for. When a new cycle's card appears, Bobert reminds you once that it is ready to share (only in Kiro, with `bobert.supportPrompts` on).
+
 ## 1.6.0 (stable, macOS)
 
 See your whole cycle at a glance (a daily usage calendar, week over week, a saving tip with a daily amount and the next reset in the status bar), try Bobert with invented numbers before you have usage of your own, learn to spend fewer credits in four short lessons, and keep the price list current with an optional weekly refresh. Upgrade note: a click on the status bar item now opens a short Bobert menu (the credit view is its first entry) instead of opening the credit view directly. The new setting `bobert.priceUpdates` defaults to `off`, so Bobert makes no network request unless you turn it on (with `ask`, only after you confirm); it is Bobert's first and only network access (see Privacy below). No stored history, data format or other defaults change.

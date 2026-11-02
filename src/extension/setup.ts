@@ -48,7 +48,7 @@ export function whatsNewAction(i: { kiro: boolean; testing: boolean; stored: unk
  return i.newUser || !i.suggestions ? 'record' : 'show';
 }
 
-export type PromptKind = 'budget' | 'days' | 'news' | 'prices';
+export type PromptKind = 'budget' | 'days' | 'news' | 'prices' | 'recap';
 /**
  * One Bobert notice at a time per window. Priority: budget notice, then the support prompt, then the budget days notice.
  * A notice claims synchronously, after its own due decision and before its first await. A refused claim consumes nothing: the caller just does not show this time.

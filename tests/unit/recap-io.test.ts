@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { CARD_HEIGHT, CARD_WIDTH, encodePng } from '../../src/extension/recap-card.ts';
-import { CSV_FILE, PNG_FILE, exportCsv, saveRecapImage, type SaveDeps } from '../../src/extension/recap-io.ts';
+import { CSV_FILE, PNG_FILE, exportCsv, saveRecapImage, saveRecapImageFile, type SaveDeps } from '../../src/extension/recap-io.ts';
 import { syntheticSnapshot as snapshot } from './synthetic.ts';
 
 const png = async () => Buffer.from(await encodePng(new Uint8Array(CARD_WIDTH * CARD_HEIGHT * 4).fill(7), async raw => new Uint8Array(deflateSync(raw))));
@@ -30,6 +30,11 @@ test('the image is validated before any dialog, then saved atomically through th
   assert.equal(await saveRecapImage(f.deps, good), 'saved');
   assert.deepEqual(readFileSync(join(f.root, 'out', 'card.png')), await png());
   assert.deepEqual(readdirSync(join(f.root, 'out')), ['card.png']);
+  // The written path comes back only with a save, for the editor glue to reveal the file.
+  assert.deepEqual(await saveRecapImageFile(f.deps, good), { code: 'saved', path: join(f.root, 'out', 'card.png') });
+  f.answer(undefined); assert.deepEqual(await saveRecapImageFile(f.deps, good), { code: 'cancelled' });
+  f.answer({ scheme: 'file', fsPath: join(f.root, 'kiro-data', 'card.png') }); assert.deepEqual(await saveRecapImageFile(f.deps, good), { code: 'refused_target' });
+  assert.deepEqual(await saveRecapImageFile(f.deps, 'AAAA'), { code: 'invalid_image' });
  } finally { f.done(); }
 });
 
