@@ -4,6 +4,16 @@ All notable changes to Bobert: Kiro Credit Tracker. Bobert is an unofficial proj
 
 Bobert is the new name of Cyclegauge; this is its first release under the new name. Settings and history from Cyclegauge are not carried over. If you had turned off session hints (`bobert.sessionHints`), budget warnings (`bobert.budgetWarnings`) or support prompts (`bobert.supportPrompts`) in Cyclegauge, they are on again in Bobert; turn them off again in your user settings. Cyclegauge's stored history stays where it was until you delete it; see [data left by Cyclegauge](docs/privacy-and-storage.md#data-left-by-cyclegauge).
 
+## Unreleased
+
+### Fixed
+
+- The daily usage calendar now shows the retained days of earlier billing cycles too, as its "last 12 weeks" text says, so it no longer disappears at the start of a cycle.
+- In *Preview with Example Data* the calendar shades whole days instead of showing every day as partial.
+- In a narrow panel the calendar opens on the newest weeks; older weeks are reached by scrolling left.
+- In High Contrast themes an empty usage bar no longer looks full: the track is outlined instead of filled.
+- While Bobert is collecting data, the day count until the reset says "including today", which explains why it can be one more than the days shown under **Next reset**.
+
 ## 1.6.0 (stable, macOS)
 
 See your whole cycle at a glance (a daily usage calendar, week over week, a saving tip with a daily amount and the next reset in the status bar), try Bobert with invented numbers before you have usage of your own, learn to spend fewer credits in four short lessons, and keep the price list current with an optional weekly refresh. Upgrade note: a click on the status bar item now opens a short Bobert menu (the credit view is its first entry) instead of opening the credit view directly. The new setting `bobert.priceUpdates` defaults to `off`, so Bobert makes no network request unless you turn it on (with `ask`, only after you confirm); it is Bobert's first and only network access (see Privacy below). No stored history, data format or other defaults change.

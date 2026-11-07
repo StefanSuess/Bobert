@@ -507,7 +507,7 @@ const leadOf = (html: string) => /<p class="lead">([^<]*)<\/p>/.exec(html)?.[1] 
 const PLAIN_STEP = 'Use Kiro for a few minutes so it can write a credit update. If this stays empty, use Report a problem below.';
 test('unavailable and collecting states say what to do next, in plain words', () => {
  assert.equal(leadOf(present(view([], NOW)).html), PLAIN_STEP);
- assert.equal(leadOf(render(10, '1000', 1).html), 'At your first update today you had 1000 credits left and 30 days until the reset on 1 Jul, so up to 33.3 per day; 0 used so far. Keep using Kiro. A first estimate appears after about 2 days and 3 account updates; a regular forecast after 7 days.');
+ assert.equal(leadOf(render(10, '1000', 1).html), 'At your first update today you had 1000 credits left and 30 days including today until the reset on 1 Jul, so up to 33.3 per day; 0 used so far. Keep using Kiro. A first estimate appears after about 2 days and 3 account updates; a regular forecast after 7 days.');
  const unknownAccount = leadOf(at(view(series(10).map(p => ({ ...p, associated: false })), NOW)).html);
  const conflicting = leadOf(at(view([snapshot(NOW, '5'), snapshot(NOW, '6')], NOW)).html);
  const noReset = leadOf(at(view(series(10).map(p => ({ ...p, resetAt: null, resetText: null })), NOW)).html);
@@ -679,8 +679,8 @@ test('restricted days rename the floor comparison to calendar days', () => {
  assert.ok(!restrictedHero.includes('above your daily allowance'));
  assert.match(restrictedHero, / Even this minimum is above the 16\.6 credits per calendar day that would last until the reset\./);
  assert.match(restrictedHero, /Up to [\d.]+ credits per budget day until the reset/);
- assert.match(restrictedHero, /At your first update today you had 100 credits left and \d+ budget days until the reset on 1 Jul, so up to [\d.]+ per budget day; 0 used so far\./);
- assert.match(plain, /At your first update today you had 100 credits left and 6 days until the reset on 1 Jul, so up to 16\.6 per day; 0 used so far\./);
+ assert.match(restrictedHero, /At your first update today you had 100 credits left and \d+ budget days including today until the reset on 1 Jul, so up to [\d.]+ per budget day; 0 used so far\./);
+ assert.match(plain, /At your first update today you had 100 credits left and 6 days including today until the reset on 1 Jul, so up to 16\.6 per day; 0 used so far\./);
 });
 test('observed usage card reports today in local time', () => {
  const points = [snapshot('2030-06-08T00:40:00Z', '1.1'), snapshot('2030-06-08T02:50:00Z', '2.223456789')];
@@ -865,4 +865,27 @@ test('the daily usage calendar shows observed days with numbers, marks unknown d
  assert.equal((cal.match(/<tr>/g)??[]).length,8); // header and seven weekdays
  assert.doesNotThrow(()=>buildDomModel(r.html));
  assert.ok(!/usage-calendar/.test(render(10,'1000',1).html)); // too little history: no calendar
+});
+
+test('the daily usage calendar keeps the retained days of earlier cycles, so it does not vanish at the start of a cycle',()=>{
+ const previous=Array.from({length:12},(_,i)=>snapshot(`2030-05-${String(20+i).padStart(2,'0')}T00:00:00Z`,String(i*10),{resetAt:'2030-06-01T00:00:00.000Z',resetText:'2030-06-01T00:00:00Z'}));
+ const now='2030-06-01T12:00:00Z', r=present(view([...previous,snapshot('2030-06-01T06:00:00Z','3')],now),[],'','',undefined,now);
+ const cal=/<section id="usage-calendar"[\s\S]*?<\/section>/.exec(r.html)?.[0]??'';
+ assert.match(cal,/<td class="l[1-4]" aria-label="2[0-9] May: 10 credits">10<\/td>/); // a whole day of the earlier cycle, shaded
+ assert.match(cal,/<td class="l[0-4] part" aria-label="1 Jun: at least 3 credits">3\+<\/td>/); // the running day stays partial
+ assert.match(cal,/<td class="unk"[^>]*>–<\/td>/); // days before the first retained update stay unknown
+ assert.doesNotThrow(()=>buildDomModel(r.html));
+});
+
+test('the example preview fills whole calendar days at any time of day, and its last update is the latest six-hour mark',()=>{
+ const now='2031-03-10T13:47:00.000Z', snaps=exampleSnapshots(now);
+ assert.equal(snaps.at(-1)!.observedAt,'2031-03-10T12:00:00.000Z');
+ const cal=/<section id="usage-calendar"[\s\S]*?<\/section>/.exec(examplePreview(now))?.[0]??'';
+ assert.ok((cal.match(/<td class="l[1-4]" aria-label="[^"]+: 18 credits">18<\/td>/g)??[]).length>=9, 'whole example days are shaded');
+});
+
+test('the usage bar has an outlined track in High Contrast themes, and the calendar opens on the newest weeks in a narrow panel',()=>{
+ const html=render(10).html;
+ assert.match(html,/body\.vscode-high-contrast \.bar,body\.vscode-high-contrast-light \.bar\{background:transparent;border:1px solid/);
+ assert.match(html,/\.hm-wrap\{overflow-x:auto;direction:rtl\}\.hm\{direction:ltr;/);
 });

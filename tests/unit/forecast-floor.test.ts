@@ -63,7 +63,7 @@ test('B1 collecting shows credits left, the allowance and the floor sentence wit
  const r = present(view(one('620'), '2030-06-25T00:00:00Z')), h = hero(r.html);
  assert.equal(r.text, '$(gauge) Kiro credits: 380 left • 0/63.3 today'); assert.ok(!r.text.includes('$(warning)')); assert.equal(r.warning, false);
  assert.match(h, /Up to 63\.3 credits\/day until the reset/); assert.ok(!h.includes('Collecting data'));
- assert.match(h, /At your first update today you had 380 credits left and 6 days until the reset on 1 Jul, so up to 63\.3 per day; 0 used so far\. So far this cycle you have used at least 24\.8 credits per day on average \(assuming the cycle started no earlier than 31 May; if it started later, your average was higher\)\. Keep using Kiro\./);
+ assert.match(h, /At your first update today you had 380 credits left and 6 days including today until the reset on 1 Jul, so up to 63\.3 per day; 0 used so far\. So far this cycle you have used at least 24\.8 credits per day on average \(assuming the cycle started no earlier than 31 May; if it started later, your average was higher\)\. Keep using Kiro\./);
  assert.ok(!/On track|Likely to exceed|runs? out/.test(h)); assert.match(h, /class="hero neutral"/);
  assert.match(r.html, /Forecast not ready yet — more history needed/);
  assert.ok(!r.html.includes('Even this minimum'));
