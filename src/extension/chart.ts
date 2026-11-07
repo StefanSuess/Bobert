@@ -1,7 +1,7 @@
 import type { view } from '../view.ts';
 import { chartModel, LOWER_FACTOR, HIGHER_FACTOR, type ChartModel } from './chart-model.ts';
 import { escapeHtml as safe, date } from './labels.ts';
-import { DAY_MS, type HistoryDay } from '../history.ts';
+import { DAY_MS, type AccountHistory, type HistoryDay } from '../history.ts';
 
 // Script-free inline SVG. Colors come from editor theme tokens; line patterns and marker shapes carry the same distinctions.
 export const CHART_CSS = `.chart-frame{margin:0}.chart-frame svg{display:block;width:100%;height:auto;max-width:100%}
@@ -87,12 +87,20 @@ function tableRows(m: ChartModel): string {
 }
 
 // Calendar of observed daily changes. Plain table cells: the number is in every cell, so the shade is never the only carrier.
-export const HEATMAP_CSS = `.hm-wrap{overflow-x:auto}.hm{border-collapse:separate;border-spacing:2px;font-size:.78rem;min-width:100%}.hm th{font-weight:500;color:var(--vscode-descriptionForeground,#888);text-align:left;padding:0 4px 0 0;white-space:nowrap}.hm thead th{text-align:center;padding:0}
+export const HEATMAP_CSS = `.hm-wrap{overflow-x:auto;direction:rtl}.hm{direction:ltr;border-collapse:separate;border-spacing:2px;font-size:.78rem;min-width:100%}.hm th{font-weight:500;color:var(--vscode-descriptionForeground,#888);text-align:left;padding:0 4px 0 0;white-space:nowrap}.hm thead th{text-align:center;padding:0}
 .hm td{min-width:2.4em;height:2em;text-align:center;border-radius:3px;border:1px solid var(--vscode-panel-border,#8884);padding:0}.hm .l1{background:color-mix(in srgb,var(--vscode-charts-blue,#3794ff) 18%,transparent)}.hm .l2{background:color-mix(in srgb,var(--vscode-charts-blue,#3794ff) 38%,transparent)}.hm .l3{background:color-mix(in srgb,var(--vscode-charts-blue,#3794ff) 60%,transparent)}.hm .l4{background:color-mix(in srgb,var(--vscode-charts-blue,#3794ff) 85%,transparent)}
 .hm .unk{border-style:dashed;color:var(--vscode-descriptionForeground,#888);background:transparent}.hm .fut{border-color:transparent}.hm .part{border-style:dotted}
 @media(forced-colors:active){.hm td{border-color:CanvasText}}`;
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HEATMAP_WEEKS = 12;
+/**
+ * Calendar days from the cross-cycle billing evidence, so the calendar is not limited to the running cycle. Only observed time counts:
+ * a day with no observed interval stays unknown, and a day is complete only when all 24 hours were observed.
+ */
+export function calendarDays(h: AccountHistory): HistoryDay[] {
+ return h.evidence.days.filter(d => d.observedMilliseconds > 0)
+  .map(d => ({ day: d.day, netChange: d.netChange, complete: d.observedMilliseconds === DAY_MS, observedMilliseconds: d.observedMilliseconds }));
+}
 /** Last 12 UTC weeks of observed daily changes. Days without a retained observation are unknown ("–"), never zero; partial days show the observed part with "+". */
 export function heatmap(days: readonly HistoryDay[], now: string): string {
  const known = new Map<string, { v: number; partial: boolean }>();

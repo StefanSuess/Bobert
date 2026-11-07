@@ -4,7 +4,7 @@ import type { StoredSnapshot } from '../store.ts';
 import { compare, compareRatios } from '../decimal.ts';
 import { readable, updated, date } from './labels.ts';
 import { LINKEDIN_LOGO_SRC } from './recap-card.ts';
-import { presentChartParts, heatmap, CHART_CSS, HEATMAP_CSS } from './chart.ts';
+import { presentChartParts, heatmap, calendarDays, CHART_CSS, HEATMAP_CSS } from './chart.ts';
 import { countsText, recipeHint, relativeTime, sizePhrase, workspaceScore, type AuditSummary } from './audit-model.ts';
 import { LINKS, NOT_KIRO_TEXT, UNUSED_PERCENT_DEFAULT, commandId } from './identity.ts';
 import { overageOver, type Overage } from '../cost/overage.ts';
@@ -164,9 +164,12 @@ function recapCard(recap: Recap | undefined): string {
 }
 
 /** Presentation only: billing eligibility and exact projections remain in the core. */
-/** Invented usage for "Preview with Example Data": 45 updates, four a day, ending now at about 18 credits a day on a 1000-credit plan, a reset 18 days ahead. Nothing here is read from Kiro or stored. */
+/**
+ * Invented usage for "Preview with Example Data": 45 updates, four a day on the six-hour UTC marks (so whole days are observed and shaded in the calendar),
+ * ending at the latest mark not after now, at about 18 credits a day on a 1000-credit plan, a reset 18 days ahead. Nothing here is read from Kiro or stored.
+ */
 export function exampleSnapshots(now: string): StoredSnapshot[] {
- const end = Date.parse(now), day = 86400000, reset = new Date(end + 18 * day).toISOString();
+ const day = 86400000, end = Math.floor(Date.parse(now) / (day / 4)) * (day / 4), reset = new Date(Date.parse(now) + 18 * day).toISOString();
  return Array.from({ length: 45 }, (_, i) => {
   const at = new Date(end - (44 - i) * (day / 4)).toISOString();
   return { partition: 'synthetic-example', associated: true, observedAt: at, observedText: at, sourceTimezone: null, usage: String(i * 4.5), limit: '1000', resetAt: reset, resetText: reset, flags: [], overages: null, overageCap: null, ingestedAt: at };
@@ -252,9 +255,10 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const priced=[observedOver,projectedOver].find(x=>x?.money);
  const priceNote=priced ? attempt(()=>`Dollar figures use $${priced.pricePerCredit} per credit from price list ${priced.catalogVersion}, reviewed ${date(priced.reviewedOn!,true)}.`) : '';
  const overFigure=observedOver ? `${creditsText(observedOver.credits)} credits` : '';
- const untilReset=(n:number,unit:string)=>`${n} ${n===1 ? unit : `${unit}s`} until the reset${resetDate ? ` on ${resetDate}` : ''}`;
+ // Budget days count today in full, so they can be one more than the whole days to the reset shown under Next reset; say so.
+ const untilReset=(n:number,unit:string,today=false)=>`${n} ${n===1 ? unit : `${unit}s`}${today ? ' including today' : ''} until the reset${resetDate ? ` on ${resetDate}` : ''}`;
  const collectingSentence=day.status==='available'
-  ? `${day.used!==null ? 'At your first update today you had ' : ''}${compact(day.remainingAtAnchor)} credits left and ${untilReset(day.budgetDaysLeft,restrictedDays ? 'budget day' : 'day')}, so up to ${compact(day.allowance)} per ${perDay}${day.used!==null ? `; ${compact(day.used)} used so far` : ''}.`
+  ? `${day.used!==null ? 'At your first update today you had ' : ''}${compact(day.remainingAtAnchor)} credits left and ${untilReset(day.budgetDaysLeft,restrictedDays ? 'budget day' : 'day',true)}, so up to ${compact(day.allowance)} per ${perDay}${day.used!==null ? `; ${compact(day.used)} used so far` : ''}.`
   : allowanceShown && daysLeft!==null ? `${compact(o.remainingBaseCredits!)} credits left and ${untilReset(daysLeft,'day')}, so up to ${compact(budget!)} per day.` : '';
  const explanation=absent ? NOT_KIRO_TEXT : eligible ? exhausted ? above ? (observedOver ? '' : 'Usage was above the reported credit limit at the last account update.') : 'You had reached the reported credit limit at the last account update.' : exhaustion ? `At the observed pace your credits run out on ${date(exhaustion,true)} (UTC), before the reset${resetDate ? ` on ${resetDate}` : ''}.` : selected.exhaustionStatus==='zero_observed_rate' ? 'Your counter has not moved recently, so no run-out date is projected. New usage can change this.' : `${lastsLine ? lastsLine.replace(/\.$/,' — enough to last until then.') : 'Your credits are not projected to run out before the reset.'}${tight ? ' The margin is small: your pace is within 10% of the daily budget.' : ''}` : [allowanceShown && daysLeft!==null && daysLeft>0 ? collectingSentence : '',floor ? `So far this cycle you have used at least ${compact(floor.ratePerDay)} credits per day on average${floor.basis==='maximum_cycle_length' ? ` (assuming the cycle started no earlier than ${date(floor.from)}; if it started later, your average was higher)` : ''}.${floorOver ? restrictedDays ? ` Even this minimum is above the ${compact(budget!)} credits per calendar day that would last until the reset.` : ' Even this minimum is above your daily allowance.' : ''}` : '',explanations[stale ? 'stale' : reason] ?? 'The available account updates do not support a safe forecast.'].filter(Boolean).join(' ');
  // A provisional estimate is never styled or headlined as reassuringly as a regular forecast.
@@ -317,6 +321,7 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  .estimate{border:1px solid var(--vscode-panel-border);border-left:5px solid var(--neutral);border-radius:8px;padding:12px 16px;margin:12px 0}.estimate-supported{border-left-color:var(--ok)}.estimate-modelled{border-left-color:var(--warn)}.estimate-comparison_only{border-left-color:var(--neutral)}.estimate p{margin:6px 0}.estimate .tier{margin-top:0}.estimate .figure{font-size:1rem}.estimate .figure strong{font-size:1.25rem;margin-right:6px}.estimate .verdict{font-size:1.1rem;font-weight:600}
  .cost-strategy{border-top:1px solid var(--vscode-panel-border);padding:10px 0}.cost-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 16px}.cost-grid dt{color:var(--vscode-descriptionForeground)}.cost-grid dd{margin:0}.cost-grid dt,.cost-grid dd,.cost-result li{overflow-wrap:anywhere}
  @media(max-width:540px){.stats{grid-template-columns:minmax(0,1fr)}.estimate{padding:10px 12px}body{padding:12px}section{padding:14px}.hero h2{font-size:1.5rem}.cost-grid{grid-template-columns:minmax(0,1fr)}.cost-grid dd{margin-bottom:6px}th{width:42%}}
+ body.vscode-high-contrast .bar,body.vscode-high-contrast-light .bar{background:transparent;border:1px solid var(--vscode-contrastBorder,var(--vscode-panel-border));box-sizing:border-box}
  @media(forced-colors:active){a.button,.plan-button,.recap-actions button,#advisor-form button,#advisor-form select,#advisor-form input{border-color:ButtonText}.hero{border-left-color:Highlight}.bar>rect{fill:Highlight}}
  #results-summary ul,#recap-lines{margin:8px 0;padding-left:1.4em}
  #recap-persona{font-size:1.25em}#recap-big{font-size:1.6em}#recap-highlights{display:flex;flex-wrap:wrap;gap:8px 24px;margin:8px 0}#recap-highlights dt{font-size:.9em;color:var(--vscode-descriptionForeground)}#recap-highlights dd{margin:0;font-weight:600}.recap-actions #recap-share{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}.recap-actions #recap-share:hover{background:var(--vscode-button-hoverBackground)}
@@ -337,7 +342,7 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  ${hasFigures ? `<dl class="stats">${stat('Credits used',o.usage ?? 'Not available',o.baseLimit===null ? '' : `of ${o.baseLimit} reported credits`,true)}${above ? '' : stat('Credits left',o.remainingBaseCredits ?? 'Not available',creditsLeftNote)}${stat('Next reset',o.resetAt ? date(o.resetAt,true) : 'Not available',[resetIn,'UTC'].filter(Boolean).join(' · '))}</dl>` : ''}
  ${o.observedAt ? `<div class="meta muted small"><p>Last account update: ${safe(`${updated(o.observedAt)} · ${freshness}`)}</p><details class="about"><summary><span aria-hidden="true">ⓘ</span> About these numbers</summary><p>${safe(ABOUT)}</p>${priceNote ? `<p>${safe(priceNote)}</p>` : ''}</details></div>` : ''}</section>
  ${chart.main}
- ${heatmap(h.days,now)}
+ ${heatmap(calendarDays(h),now)}
  ${contextCard(h, day, daily.zone, now)}
  ${recapCard(recap)}
  ${withAdvisorButton(advisorHtml,advisorForm)}
