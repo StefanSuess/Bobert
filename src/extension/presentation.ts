@@ -9,7 +9,7 @@ import { countsText, recipeHint, relativeTime, sizePhrase, workspaceScore, type 
 import { LINKS, NOT_KIRO_TEXT, UNUSED_PERCENT_DEFAULT, commandId } from './identity.ts';
 import { overageOver, type Overage } from '../cost/overage.ts';
 import { decimalToRational, formatRational, multiplyRational } from '../cost/money.ts';
-import { rightSizeText, unusedAtReset } from './budget-warning.ts';
+import { rightSizeText, spendLimitLine, unusedAtReset } from './budget-warning.ts';
 import { ESTIMATE_MARKER } from './advisor-presentation.ts';
 import { activeCatalog } from '../cost/catalog.ts';
 import { NO_INSIGHTS, type PlanInsights } from '../cost/plan-hints.ts';
@@ -198,7 +198,7 @@ export const STATUS_MENU: readonly StatusMenuEntry[] = [
  { label: '$(gear) Settings', description: 'All Bobert settings', command: 'workbench.action.openSettings', args: [`@ext:stefansuess.bobert`] },
 ];
 
-export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], costHtml = '', advisorHtml = '', audit?: AuditSummary, now = new Date().toISOString(), notKiro = false, insights: PlanInsights = NO_INSIGHTS, advisorForm = '', results?: StoredResults, recap?: Recap, addOnsApply = false, daily: { days: readonly BudgetDay[]; zone: string; unusedPercent?: number } = { days: ALL_DAYS, zone: 'UTC' }) {
+export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], costHtml = '', advisorHtml = '', audit?: AuditSummary, now = new Date().toISOString(), notKiro = false, insights: PlanInsights = NO_INSIGHTS, advisorForm = '', results?: StoredResults, recap?: Recap, addOnsApply = false, daily: { days: readonly BudgetDay[]; zone: string; unusedPercent?: number; spendLimitUsd?: number } = { days: ALL_DAYS, zone: 'UTC' }) {
  const h=o.history,f=o.forecast;
  const selected=f.estimates.find(e=>e.method===f.selectedMethod && e.status==='qualified');
  const stale=o.status==='stale' || f.reasons.includes('stale');
@@ -257,6 +257,7 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const advisorHasEstimate=advisorHtml.includes(ESTIMATE_MARKER);
  const neutralOver=(o:Overage)=>{const c=creditsText(o.credits);return `At this pace by the reset: ${c==='under 0.1' ? c : `about ${c}`} credits over${moneyText(o)}.`;};
  const noteLines=[projectedOver ? (addOnsApply ? addOnNeedText(projectedOver,resetDate) : neutralOver(projectedOver)) : '',
+  projectedOver?.money && eligible && f.tier==='regular' ? attempt(()=>spendLimitLine(projectedOver,daily.spendLimitUsd)) : '',
   projectedOver && advisorHasEstimate ? 'For next month, see the Cost Advisor below.' : '',insights.rightsize ? attempt(()=>rightSizeText(insights.rightsize!)) : ''].filter(Boolean);
  // The dollar figures above trace back to one reviewed price; said once, inside About these numbers.
  const priced=[observedOver,projectedOver].find(x=>x?.money);

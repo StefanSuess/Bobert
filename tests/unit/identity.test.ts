@@ -69,7 +69,7 @@ test('only current settings are declared under the Bobert prefix', () => {
  assert.ok(!/\bstar\b/i.test(prompts.description));
  // User-facing settings come first; the testing and storage overrides come last. Raw values and the legacy true are not in the visible text.
  const order = Object.entries(props).sort((a: any, b: any) => a[1].order - b[1].order).map(([k]) => k.replace('bobert.', ''));
- assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'unusedCreditsPercent', 'budgetDays', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone', 'priceUpdates']);
+ assert.deepEqual(order, ['budgetWarnings', 'budgetWarningPercent', 'unusedCreditsPercent', 'spendLimitUsd', 'budgetDays', 'sessionHints', 'auditReminderDays', 'auditAutomatically', 'configReviewAutomatically', 'supportPrompts', 'sourceRoot', 'storageRoot', 'sourceTimezone', 'priceUpdates']);
  assert.equal(new Set(Object.values(props).map((p: any) => p.order)).size, Object.keys(props).length);
  for (const k of ['auditAutomatically', 'configReviewAutomatically']) {
   assert.deepEqual(props[`bobert.${k}`].enumItemLabels, ['Off', 'On open', 'On open and on changes'], k);

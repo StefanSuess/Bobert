@@ -8,6 +8,7 @@ Bobert is the new name of Cyclegauge; this is its first release under the new na
 
 ### Added
 
+- **A spending limit in dollars** (`bobert.spendLimitUsd`, off by default): set an amount, and Bobert tells you once per cycle when the forecast says the credits above your limit would cost more than that by the reset, for example "…would cost about $8.00 by the reset (modelled), more than your $5 spending limit." The credit view says whether the modelled overage is within your limit. It is a modelled figure at the reviewed list price, never an invoice, and Bobert cannot stop Kiro from using credits.
 - **`--oneline`** for the command-line tool prints one line for a shell prompt, tmux status line or script, such as `Kiro credits: 300/1000 used | 700 left | resets 2030-07-01 (in 10 days) | on track`. It uses the same local data as the other options and contains no identifiers or paths; use `--json` to parse values.
 
 ### Fixed

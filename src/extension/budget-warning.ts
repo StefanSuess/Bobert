@@ -11,7 +11,7 @@ import { daysBetween, isDate } from './audit-schedule.ts';
 import { date, utcDaysUntil } from './labels.ts';
 
 /** Most severe first. */
-export const NOTICE_KINDS = ['limit', 'forecast', 'percent', 'rightsize', 'unused'] as const;
+export const NOTICE_KINDS = ['limit', 'spend', 'forecast', 'percent', 'rightsize', 'unused'] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
 /** The only persisted value: the billing cycle (observed reset instant) and the kinds already handled in it. */
 export interface BudgetState { cycle: string; done: NoticeKind[] }
@@ -31,6 +31,23 @@ export interface BudgetInput {
  unusedPercent?: number;
  /** Today is a budget day and at least one budget day is left before the reset (the daily budget's own verdict). */
  budgetDay?: boolean;
+ /** USD the modelled cost of credits above the limit may reach by the reset before the 'spend' notice is due; 0 or absent turns it off. */
+ spendLimitUsd?: number;
+}
+/** The limit as an exact two-decimal string, or null when it is off or invalid. */
+export function spendLimitText(limit: number | undefined): string | null {
+ if (typeof limit !== 'number' || !Number.isFinite(limit) || limit <= 0) return null;
+ // Integer cents (the setting is already read as whole cents; rounding here only undoes binary drift and never moves a cent).
+ const cents = Math.round(limit * 100);
+ return cents > 0 ? `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}` : null;
+}
+/** "$50" for whole dollars, "$12.50" otherwise. */
+export const usdText = (fixed: string): string => `$${fixed.endsWith('.00') ? fixed.slice(0, -3) : fixed}`;
+/** The credit view's line comparing a priced projected overage with the user's spending limit; empty when the limit is off or there is no price. */
+export function spendLimitLine(over: Pick<Overage, 'money'>, limit: number | undefined): string {
+ const fixed = spendLimitText(limit);
+ if (fixed === null || !over.money) return '';
+ return compare(over.money, fixed) > 0 ? `That is more than your ${usdText(fixed)} spending limit.` : `That is within your ${usdText(fixed)} spending limit.`;
 }
 
 const whole = (s: string): string => { const v = Number(s); return Number.isFinite(v) ? String(Math.round(v)) : s; };
@@ -130,17 +147,22 @@ export function decideBudgetNotice(i: BudgetInput): BudgetNotice | null {
   const resetDay = new Date(resetMs).toISOString().slice(0, 10);
   const daysBefore = isDate(day) ? daysBetween(day, resetDay) : undefined;
   if (!due.has('limit') && daysBefore !== undefined && daysBefore >= 0) due.add('forecast');
+  // Projected overage, only with a validated price; also the basis of the spending-limit notice.
+  const over = selected && f.tier === 'regular' && selected.projectedUsageAtReset ? overageOver(selected.projectedUsageAtReset, o.baseLimit, i.now) : null;
+  // Spending limit: the modelled cost of credits above the limit by the reset exceeds the user's own amount (compared as exact decimals).
+  const spendLimit = spendLimitText(i.spendLimitUsd);
+  if (!due.has('limit') && spendLimit !== null && over?.money && compare(over.money, spendLimit) > 0) due.add('spend');
   // usage / limit >= percent / 100, compared exactly.
   if (percent > 0 && compareShare(o.usage, o.baseLimit, percent)) due.add('percent');
   // Gated like the other forecast-based kinds: only while the presentation itself shows a fresh, qualified forecast.
   if (i.insights?.rightsize && i.eligible && Math.ceil((resetMs - nowMs) / 86_400_000) <= RIGHTSIZE_DAYS) due.add('rightsize');
   // A run-out warning and a "many credits left" reminder contradict each other; the reminder also needs a budget day with budget left.
-  const unusedLeft = i.budgetDay === true && !due.has('limit') && !due.has('forecast') ? unusedAtReset(o, i.eligible, i.now, i.unusedPercent ?? 0) : null;
+  const unusedLeft = i.budgetDay === true && !due.has('limit') && !due.has('spend') && !due.has('forecast') ? unusedAtReset(o, i.eligible, i.now, i.unusedPercent ?? 0) : null;
   if (unusedLeft !== null) due.add('unused');
   if (due.size === 0) return null;
   const state = readBudgetState(i.state, o.resetAt);
   // The unused reminder is blocked by the run-out and plan-size kinds, not by the percent notice (which can come early in the cycle).
-  const blocked = (k: NoticeKind): boolean => k === 'unused' ? state.done.some(d => d === 'limit' || d === 'forecast' || d === 'rightsize') : state.done.some(d => NOTICE_KINDS.indexOf(d) < NOTICE_KINDS.indexOf(k));
+  const blocked = (k: NoticeKind): boolean => k === 'unused' ? state.done.some(d => d === 'limit' || d === 'spend' || d === 'forecast' || d === 'rightsize') : state.done.some(d => NOTICE_KINDS.indexOf(d) < NOTICE_KINDS.indexOf(k));
   const shown = NOTICE_KINDS.find(k => due.has(k) && !state.done.includes(k) && !blocked(k));
   if (!shown) return null;
   // Showing the reminder also settles the plan hint, so one cycle never says both "use your spare credits" and "consider a smaller plan".
@@ -150,8 +172,6 @@ export function decideBudgetNotice(i: BudgetInput): BudgetNotice | null {
   // Rounded down like the percent beside it, so 99.6 of 100 never reads "100 of 100" next to "99%".
  const used = formatRational(decimalToRational(o.usage), 0, 'floor'), limit = whole(o.baseLimit), when = resetIn(o.resetAt, i.now);
   const resetPart = when ? `; the reset is ${when}` : '';
-  // Projected overage, only with a validated price: appended to the notices that say the limit is reached.
-  const over = selected && f.tier === 'regular' && selected.projectedUsageAtReset ? overageOver(selected.projectedUsageAtReset, o.baseLimit, i.now) : null;
   const larger = i.insights?.larger ? ` ${largerPlanText(i.insights.larger, true)}` : '';
   // Short on purpose: the price, price-list date and caveats stay on the dashboard, reached by the notice's Show details button.
   const cost = over?.money ? ` (${overPhrase(over)} over the limit, modelled)` : '', comparison = over?.money ? larger : '';
@@ -161,6 +181,8 @@ export function decideBudgetNotice(i: BudgetInput): BudgetNotice | null {
    text = unusedText(unusedLeft!, o.baseLimit, o.resetAt, i.now);
   } else if (shown === 'rightsize') {
    text = rightSizeText(i.insights!.rightsize!);
+  } else if (shown === 'spend') {
+    text = `At this pace your Kiro credits run out ${isDate(day) ? `on ${date(day)}` : 'before the reset'}, and the credits above the limit would cost ${overPhrase(over!)} by the reset (modelled), more than your ${usdText(spendLimit!)} spending limit.${larger}`;
   } else if (shown === 'forecast') {
     text = `At this pace your Kiro credits run out on ${date(day!)}, ${daysBefore === 0 ? 'on the day of the reset' : `${plural(daysBefore!, 'day')} before the reset`}${cost}.${comparison}`;
   } else if (shown === 'percent') {
