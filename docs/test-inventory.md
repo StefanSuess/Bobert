@@ -46,7 +46,7 @@ What must be verified for Bobert, how each item is verified today, and what is s
 | Diagnostics | Fixed codes only, no paths or values | `diagnostics`, `safety` | A | pass (copy shows codes only) |
 | Settings | All settings present, user scope, workspace values ignored for sourceRoot/storageRoot | `extension`, `runtime-guard`, `settings-docs` (every setting and Command Palette command is documented in `docs/usage.md`; every setting is described in the manifest) | A for the list; **H** for workspace hardening | pass (10 settings, workspace roots ignored) |
 | Commands | All commands titled `Bobert: …`, none duplicated, expected ones registered | `extension`, `tests/host/suite.ts` | A | pass (11 palette commands) |
-| CLI | Output, exit codes, data folder `Bobert` | `cli` | A | not run natively |
+| CLI | Output, exit codes, data folder `Bobert`; `--oneline` text for unavailable, collecting, stale, elapsed reset, on track, likely to exceed and limit reached, no identifiers or paths, refused with `--json` or `--diagnostics` | `cli`, `oneline` | A | not run natively |
 | Accessibility | Heading order, keyboard reach, screen reader text, High Contrast Light | `dashboard-webview` (markup only) | **M** | keyboard and screen reader not run |
 | Stale / unavailable / collecting states | Own label and colour, no false certainty | `presentation`, `view` | A | not run natively |
 | Windows, Ubuntu | Same checks on their own hosts | CI jobs on three systems (x64); `scripts/acceptance/*` set up the native environment | A for tests; **M** for native Kiro | 2026-10-23, ARM64 VMs (Windows 11, Ubuntu 26.04): maintainer reported pass; Windows audit view seen by the agent |

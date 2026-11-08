@@ -6,6 +6,10 @@ Bobert is the new name of Cyclegauge; this is its first release under the new na
 
 ## Unreleased
 
+### Added
+
+- **`--oneline`** for the command-line tool prints one line for a shell prompt, tmux status line or script, such as `Kiro credits: 300/1000 used | 700 left | resets 2030-07-01 (in 10 days) | on track`. It uses the same local data as the other options and contains no identifiers or paths; use `--json` to parse values.
+
 ### Fixed
 
 - The daily usage calendar now shows the retained days of earlier billing cycles too, as its "last 12 weeks" text says, so it no longer disappears at the start of a cycle.

@@ -1,4 +1,4 @@
-import { subtract, allocation } from './decimal.ts';
+import { subtract, allocation, compare, compareRatios } from './decimal.ts';
 import { history } from './history.ts';
 import { forecast } from './forecast.ts';
 import type { StoredSnapshot } from './store.ts';
@@ -43,4 +43,36 @@ export function view(snapshots: StoredSnapshot[], now = new Date().toISOString()
   }
  }
  return result;
+}
+
+// One fixed-format line for shell prompts, tmux and scripts. Built only from the observation the CLI already prints;
+// no identity, path or source detail. Unknown values are left out or named, never shown as zero.
+const short = (s: string) => {
+ const [whole, fraction = ''] = s.split('.');
+ if (compare(s, '0') > 0 && compare(s, '0.1') < 0) return '<0.1';
+ return fraction[0] && fraction[0] !== '0' ? `${whole}.${fraction[0]}` : whole!;
+};
+const day = (s: string) => new Date(s).toISOString().slice(0, 10);
+
+export function oneline(o: ReturnType<typeof view>): string {
+ const f = o.forecast;
+ if (o.observedAt === null || o.usage === null || o.baseLimit === null) return `Kiro credits: unavailable (${o.status})`;
+ const parts = [`Kiro credits: ${short(o.usage)}/${short(o.baseLimit)} used`];
+ const stale = o.status === 'stale' || f.reasons.includes('stale');
+ if (o.status !== 'observed' && !stale) { parts.push(`${o.status.replaceAll('_', ' ')} (as of ${day(o.observedAt)})`); return parts.join(' | '); }
+ if (o.remainingBaseCredits !== null) parts.push(`${short(o.remainingBaseCredits)} left`);
+ if (o.resetAt !== null) {
+  const days = Math.ceil((Date.parse(o.resetAt) - Date.parse(f.evaluatedAt)) / 86400000);
+  parts.push(`resets ${day(o.resetAt)}${Number.isFinite(days) && days >= 0 ? days === 0 ? ' (today)' : days === 1 ? ' (in 1 day)' : ` (in ${days} days)` : ''}`);
+ }
+ if (stale) { parts.push(`stale (as of ${day(o.observedAt)})`); return parts.join(' | '); }
+ const selected = f.estimates.find(e => e.method === f.selectedMethod && e.status === 'qualified');
+ if (f.status !== 'qualified' || !selected) { parts.push(f.reasons.includes('insufficient_comparable_coverage') ? 'collecting data' : 'forecast unavailable'); return parts.join(' | '); }
+ const exhausted = selected.exhaustionStatus === 'already_exhausted_as_of';
+ const over = exhausted || selected.budgetComparison === 'above_budget';
+ const budget = o.availablePerDay;
+ const tight = !over && budget !== null && compare(budget, '0') > 0 && compareRatios(selected.ratePerDay!, 9, budget, 10) >= 0;
+ const outlook = exhausted ? 'limit reached' : over ? `likely to exceed${selected.estimatedExhaustionDayUTC ? `, runs out ${selected.estimatedExhaustionDayUTC.slice(0, 10)}` : ''}` : tight ? 'at risk' : 'on track';
+ parts.push(f.tier === 'provisional' ? `${outlook} (provisional)` : outlook);
+ return parts.join(' | ');
 }
