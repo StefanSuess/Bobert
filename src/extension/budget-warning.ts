@@ -8,7 +8,7 @@ import type { PlanComparison, PlanInsights, RightSizing } from '../cost/plan-hin
 import { planNames } from './cost-inputs.ts';
 import { decimalToRational, formatRational } from '../cost/money.ts';
 import { daysBetween, isDate } from './audit-schedule.ts';
-import { date } from './labels.ts';
+import { date, utcDaysUntil } from './labels.ts';
 
 /** Most severe first. */
 export const NOTICE_KINDS = ['limit', 'forecast', 'percent', 'rightsize', 'unused'] as const;
@@ -97,7 +97,8 @@ export function unusedText(left: string, limit: string, resetAt: string, now: st
 
 /** Days until the reset in plain words; empty when it cannot be established. */
 function resetIn(resetAt: string, now: string): string {
- const days = Math.ceil((Date.parse(resetAt) - Date.parse(now)) / 86_400_000);
+ // UTC calendar days, like the reset date the notices and the credit view show; a reset later today is "today".
+ const days = utcDaysUntil(resetAt, now);
  return !Number.isFinite(days) ? '' : days <= 0 ? 'today' : days === 1 ? 'in 1 day' : `in ${days} days`;
 }
 
@@ -146,7 +147,8 @@ export function decideBudgetNotice(i: BudgetInput): BudgetNotice | null {
   // When the percent notice goes first, the reminder stays open for a later update.
   const settled = (k: NoticeKind): boolean => state.done.includes(k) || (due.has(k) && !(k === 'unused' && shown === 'percent')) || (k === 'rightsize' && shown === 'unused');
   const next: BudgetState = { cycle: o.resetAt, done: NOTICE_KINDS.filter(settled) };
-  const used = whole(o.usage), limit = whole(o.baseLimit), when = resetIn(o.resetAt, i.now);
+  // Rounded down like the percent beside it, so 99.6 of 100 never reads "100 of 100" next to "99%".
+ const used = formatRational(decimalToRational(o.usage), 0, 'floor'), limit = whole(o.baseLimit), when = resetIn(o.resetAt, i.now);
   const resetPart = when ? `; the reset is ${when}` : '';
   // Projected overage, only with a validated price: appended to the notices that say the limit is reached.
   const over = selected && f.tier === 'regular' && selected.projectedUsageAtReset ? overageOver(selected.projectedUsageAtReset, o.baseLimit, i.now) : null;

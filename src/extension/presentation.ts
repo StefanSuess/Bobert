@@ -2,7 +2,7 @@ import type { AdvisorAnswers } from '../cost/advisor.ts';
 import { view } from '../view.ts';
 import type { StoredSnapshot } from '../store.ts';
 import { compare, compareRatios } from '../decimal.ts';
-import { readable, updated, date } from './labels.ts';
+import { readable, updated, date, utcDaysUntil } from './labels.ts';
 import { LINKEDIN_LOGO_SRC } from './recap-card.ts';
 import { presentChartParts, heatmap, calendarDays, CHART_CSS, HEATMAP_CSS } from './chart.ts';
 import { countsText, recipeHint, relativeTime, sizePhrase, workspaceScore, type AuditSummary } from './audit-model.ts';
@@ -21,6 +21,11 @@ import { recapSection } from './recap-presentation.ts';
 
 const safe = (s: string | null) => s === null ? 'Not available' : s.replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]!);
 const row = (label: string, value: string | null) => `<tr><th scope="row">${safe(label)}</th><td>${safe(value)}</td></tr>`;
+// Whole percent rounded down from exact decimals, so the bar never says 100% before the limit is reached.
+const flooredPercent=(usage: string, limit: string): number => {
+ const u=decimalToRational(usage), l=decimalToRational(limit), p=u.numerator*l.denominator*100n/(l.numerator*u.denominator);
+ return p<0n ? 0 : Number(p);
+};
 // Compact budgets truncate rather than round up the spending allowance.
 const compact = (s: string) => {
  const [whole,fraction='']=s.split('.');
@@ -234,7 +239,9 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const severity: 'none' | 'warning' | 'error' = exhausted ? 'error' : risk ? 'warning' : 'none';
  const resetMs=o.resetAt ? Date.parse(o.resetAt) : NaN, evalMs=f.evaluatedAt ? Date.parse(f.evaluatedAt) : NaN;
  const daysLeft=Number.isFinite(resetMs) && Number.isFinite(evalMs) ? Math.ceil((resetMs-evalMs)/86400000) : null;
- const resetIn=daysLeft===null ? '' : daysLeft<0 ? 'passed' : daysLeft===0 ? 'today' : daysLeft===1 ? 'in 1 day' : `in ${daysLeft} days`;
+ // The countdown names UTC calendar days, like the date shown beside it: a reset later today is "today", not "in 1 day".
+ const resetDays=daysLeft===null ? null : resetMs<=evalMs ? -1 : utcDaysUntil(o.resetAt!,f.evaluatedAt);
+ const resetIn=resetDays===null ? '' : resetDays<0 ? 'passed' : resetDays===0 ? 'today' : resetDays===1 ? 'in 1 day' : `in ${resetDays} days`;
  const whole=(s:string)=>{const v=Number(s);return Number.isFinite(v) ? String(Math.round(v)) : s;};
  const resetDate=o.resetAt ? date(o.resetAt) : null;
  const lastsLine=eligible && selected.projectedUsageAtReset!==null && o.baseLimit!==null && !exhausted && !exhaustion ? `At the observed pace you will use about ${whole(selected.projectedUsageAtReset)} of ${whole(o.baseLimit)} reported credits by the reset${resetDate ? ` on ${resetDate}` : ''}.` : '';
@@ -269,7 +276,7 @@ export function present(o: ReturnType<typeof view>, diagnostics: string[] = [], 
  const tone=absent ? 'neutral' : stale || (!eligible && !collecting) || floorOver ? 'warn' : !eligible || early ? 'neutral' : exhausted || over ? 'bad' : tight ? 'warn' : 'ok';
  // Bobert's face follows the tone (a smile when on track, flat while unknown, worried when tight or stale, alarmed when over). Decorative: the heading says the same in words.
  const icon=bobertFace(tone);
- const usedPct=o.usage!==null && o.baseLimit!==null && compare(o.baseLimit,'0')>0 ? Math.max(0,Math.min(100,Math.round(Number(o.usage)/Number(o.baseLimit)*100))) : null;
+ const usedPct=o.usage!==null && o.baseLimit!==null && compare(o.baseLimit,'0')>0 ? Math.min(100,flooredPercent(o.usage,o.baseLimit)) : null;
  const limitations=eligible && f.tier==='provisional' ? 'This limited window may not represent future usage.' : '';
  const budgetDays=restrictedDays ? ` · Budget days: ${daysLabel(daily.days)}` : '';
  const todayLine=day.status==='available' ? `${day.used!==null && day.since!==null ? `Today: ${compact(day.used)} of ${compact(day.allowance)} credits used (since your first Kiro update at ${localTime(day.since,daily.zone)}, your time)` : `Today: up to ${compact(day.allowance)} credits`}${budgetDays}`

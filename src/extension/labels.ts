@@ -10,4 +10,9 @@ const names: Record<string,string> = {
 };
 export const readable = (s: string) => names[s] ?? s.replaceAll('_',' ');
 export const updated = (s: string) => new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'UTC'}).format(new Date(s))+' UTC';
+/** Whole UTC calendar days from `now` to `at` (0 when both fall on the same UTC day), matching the UTC date shown next to it; NaN when unparseable. */
+export const utcDaysUntil = (at: string, now: string): number => {
+ const day = (s: string) => Math.floor(Date.parse(s) / 86400000);
+ return day(at) - day(now);
+};
 export const date = (s: string, year=false) => new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',...(year ? {year:'numeric' as const} : {}),timeZone:'UTC'}).format(new Date(s));

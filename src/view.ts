@@ -62,7 +62,8 @@ export function oneline(o: ReturnType<typeof view>): string {
  if (o.status !== 'observed' && !stale) { parts.push(`${o.status.replaceAll('_', ' ')} (as of ${day(o.observedAt)})`); return parts.join(' | '); }
  if (o.remainingBaseCredits !== null) parts.push(`${short(o.remainingBaseCredits)} left`);
  if (o.resetAt !== null) {
-  const days = Math.ceil((Date.parse(o.resetAt) - Date.parse(f.evaluatedAt)) / 86400000);
+  // UTC calendar days, like the UTC date beside it: a reset later today is "today".
+  const days = Math.floor(Date.parse(o.resetAt) / 86400000) - Math.floor(Date.parse(f.evaluatedAt) / 86400000);
   parts.push(`resets ${day(o.resetAt)}${Number.isFinite(days) && days >= 0 ? days === 0 ? ' (today)' : days === 1 ? ' (in 1 day)' : ` (in ${days} days)` : ''}`);
  }
  if (stale) { parts.push(`stale (as of ${day(o.observedAt)})`); return parts.join(' | '); }
