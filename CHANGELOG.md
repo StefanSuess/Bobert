@@ -6,8 +6,16 @@ Bobert is the new name of Cyclegauge; this is its first release under the new na
 
 ## Unreleased
 
+### Added
+
+- **A spending limit in dollars** (`bobert.spendLimitUsd`, off by default): set an amount, and Bobert tells you once per cycle when the forecast says the credits above your limit would cost more than that by the reset, for example "…would cost about $8.00 by the reset (modelled), more than your $5 spending limit." The credit view says whether the modelled overage is within your limit. It is a modelled figure at the reviewed list price, never an invoice, and Bobert cannot stop Kiro from using credits.
+- **`--oneline`** for the command-line tool prints one line for a shell prompt, tmux status line or script, such as `Kiro credits: 300/1000 used | 700 left | resets 2030-07-01 (in 10 days) | on track`. It uses the same local data as the other options and contains no identifiers or paths; use `--json` to parse values.
+
 ### Fixed
 
+- A reset later today is now shown as "today" instead of "in 1 day", in the status bar tooltip, the credit view and the budget notices; the countdown counts UTC calendar days, like the date shown beside it, so a reset 25 hours away reads "in 1 day", not "in 2 days".
+- The percent notice no longer contradicts itself near the limit: the credits used are rounded down like the percent, so 99.9 of 100 reads "99% … (99 of 100)" instead of "(100 of 100)".
+- The usage bar in the credit view no longer says "100% of the reported credit limit used" before the limit is reached; the percent is rounded down.
 - The daily usage calendar now shows the retained days of earlier billing cycles too, as its "last 12 weeks" text says, so it no longer disappears at the start of a cycle.
 - In *Preview with Example Data* the calendar shades whole days instead of showing every day as partial.
 - In a narrow panel the calendar opens on the newest weeks; older weeks are reached by scrolling left.

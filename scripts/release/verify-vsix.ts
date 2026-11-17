@@ -39,6 +39,7 @@ const USER_SETTINGS: Record<string, { type: string; default: unknown; minimum?: 
  budgetWarnings: { type: 'boolean', default: true },
  budgetWarningPercent: { type: 'number', default: 80, minimum: 0, maximum: 100 },
  unusedCreditsPercent: { type: 'number', default: 30, minimum: 0, maximum: 100 },
+ spendLimitUsd: { type: 'number', default: 0, minimum: 0, maximum: 100000 },
  sessionHints: { type: 'boolean', default: true },
  priceUpdates: { type: 'string', default: 'off', enum: ['off', 'ask', 'auto'] },
  budgetDays: { type: 'array', default: WEEKDAYS, itemsEnum: WEEKDAYS },

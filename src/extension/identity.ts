@@ -11,7 +11,9 @@ export const CONFIG_REVIEW_SETTING_KEYS = ['configReviewAutomatically'] as const
 // The community prompts' user setting (application scope, boolean, default on).
 export const SUPPORT_SETTING_KEYS = ['supportPrompts'] as const;
 // The budget warning's user settings (application scope): an on/off switch and the usage share (percent of the reported limit) that triggers the early notice.
-export const BUDGET_SETTING_KEYS = ['budgetWarnings', 'budgetWarningPercent', 'unusedCreditsPercent', 'budgetDays'] as const;
+export const BUDGET_SETTING_KEYS = ['budgetWarnings', 'budgetWarningPercent', 'unusedCreditsPercent', 'spendLimitUsd', 'budgetDays'] as const;
+// Highest accepted spending limit in USD; larger values are capped (a typo must not silently turn the notice off).
+export const SPEND_LIMIT_MAX = 100000;
 export const BUDGET_PERCENT_DEFAULT = 80;
 // Share of the reported credits likely left at the reset that triggers the unused-credits reminder (0 turns only that reminder off).
 export const UNUSED_PERCENT_DEFAULT = 30;
@@ -102,6 +104,14 @@ export function readBudgetWarningPercent(get: Getter): number {
 export function readUnusedCreditsPercent(get: Getter): number {
  const value = get(ID_PREFIX, 'unusedCreditsPercent');
  return typeof value === 'number' && Number.isFinite(value) ? Math.min(100, Math.max(0, Math.floor(value))) : UNUSED_PERCENT_DEFAULT;
+}
+/** Spending limit in whole cents' worth of USD for projected credits above the reported limit, 0..SPEND_LIMIT_MAX; anything that is not a finite number is 0 (off). */
+export function readSpendLimitUsd(get: Getter): number {
+ const value = get(ID_PREFIX, 'spendLimitUsd');
+ if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
+ // Whole cents without binary rounding drift (8.2 * 100 is 819.999…): fix the product first, then drop any sub-cent part.
+ const cents = Math.floor(Number((Math.min(SPEND_LIMIT_MAX, Math.max(0, value)) * 100).toFixed(6)));
+ return cents / 100;
 }
 /** Kiro IDE by product name or URL scheme; any other editor (or unreadable metadata) is not Kiro. */
 export function isKiroEditor(appName: unknown, uriScheme: unknown): boolean {
